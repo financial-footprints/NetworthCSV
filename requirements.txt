@@ -1,0 +1,2 @@
+pypdf~=6.12
+cryptography~=48.0

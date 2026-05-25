@@ -1,0 +1,6 @@
+.local
+*.config.json
+
+# Python Environment
+.venv
+.env

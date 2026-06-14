@@ -2,5 +2,9 @@
 *.config.json
 
 # Python Environment
+**/__pycache__/
 .venv
 .env
+*.egg-info
+*.egg
+*.pyc

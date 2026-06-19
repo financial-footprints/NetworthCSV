@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -54,3 +55,25 @@ def txt_is_current(pdf_path: Path, txt_path: Path) -> bool:
     if not txt_path.is_file():
         return False
     return txt_path.stat().st_mtime >= pdf_path.stat().st_mtime
+
+
+def iter_statement_pdfs(
+    download_dir: Path, fy_limit: Path | None = None
+) -> Iterator[tuple[Path, Path]]:
+    """Yield (fy_dir, pdf_path) for each PDF in discovered FY folders."""
+    for fy_dir in discover_fy_folders(download_dir, fy_limit):
+        for pdf_path in sorted(fy_dir.glob("*.pdf")):
+            yield fy_dir, pdf_path
+
+
+def pdfs_in_fy(download_dir: Path, fy_dir: Path) -> list[Path]:
+    return [pdf for folder, pdf in iter_statement_pdfs(download_dir) if folder == fy_dir]
+
+
+def resolve_fy_limit(download_dir: Path, fy_name: str | None) -> Path | None:
+    if fy_name is None:
+        return None
+    limit = Path(fy_name).expanduser()
+    if not limit.is_absolute():
+        limit = (download_dir / limit).resolve()
+    return limit

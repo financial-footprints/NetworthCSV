@@ -1,5 +1,0 @@
-Transaction Date
-Trnx Details
-15-Jan-2024 15-Jan-2024 GROCERY STORE 500.00
-20-Jan-2024 20-Jan-2024 FUEL STATION 1,200.50 Cr
-Total Purchase

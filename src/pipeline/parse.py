@@ -3,19 +3,22 @@
 
 from __future__ import annotations
 
-import argparse
 import csv
 import logging
 from decimal import Decimal
 from pathlib import Path
 
-from src.cli import add_config_argument
-from src.core.accounts import iter_accounts
-from src.core.paths import discover_fy_folders, txt_is_current, txt_path_for_pdf
-from src.logging_config import configure_logging
-from src.parsers import Transaction, get_parser
-from src.parsers.base import BankParser
-from src.settings import AccountSettings, Settings, load_settings, parser_bank, resolve_config_path
+from src.context import RunContext
+from src.core.paths import (
+    discover_fy_folders,
+    pdfs_in_fy,
+    resolve_fy_limit,
+    txt_is_current,
+    txt_path_for_pdf,
+)
+from src.core.transactions import Transaction
+from src.parsers.statement import parse_statement_text
+from src.settings import ResolvedAccount
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +52,10 @@ def _write_csv(path: Path, transactions: list[Transaction]) -> None:
 
 def _should_parse_txt(pdf_path: Path, txt_path: Path) -> bool:
     if not txt_path.is_file():
-        logger.info("skip (no txt): %s", txt_path.name)
+        logger.warning(
+            "ignored %s: no txt file (identifier did not match)",
+            pdf_path.name,
+        )
         return False
     if not pdf_path.is_file():
         logger.warning("source PDF missing for %s, skipping", txt_path.name)
@@ -62,9 +68,8 @@ def _should_parse_txt(pdf_path: Path, txt_path: Path) -> bool:
 def process_fy_folder(
     download_dir: Path,
     fy_dir: Path,
-    parser: BankParser,
 ) -> tuple[int, list[Transaction]]:
-    pdfs = sorted(fy_dir.glob("*.pdf"))
+    pdfs = pdfs_in_fy(download_dir, fy_dir)
     if not pdfs:
         print(f"skip (no pdfs): {fy_dir}")
         return 0, []
@@ -76,7 +81,7 @@ def process_fy_folder(
         if not _should_parse_txt(pdf_path, txt_path):
             continue
         text = txt_path.read_text(encoding="utf-8")
-        rows = parser.parse_text(text, source_file=pdf_path.name)
+        rows = parse_statement_text(text, source_file=pdf_path.name)
         transactions.extend(rows)
         parsed_count += 1
         print(f"  {txt_path.name}: {len(rows)} transaction(s)")
@@ -89,19 +94,19 @@ def process_fy_folder(
 
 def run(
     download_dir: Path,
-    bank: str,
-    create_combined_csv: bool,
+    account: ResolvedAccount,
+    ctx: RunContext,
+    *,
     fy_limit: Path | None = None,
 ) -> None:
     if not download_dir.is_dir():
         raise SystemExit(f"error: download directory not found: {download_dir}")
 
-    parser = get_parser(bank)
     fy_folders = discover_fy_folders(download_dir, fy_limit)
     if not fy_folders:
         return
 
-    print(f"parse: bank={bank}, download_path={download_dir}")
+    print(f"parse: {account.bank} {download_dir}")
     print()
 
     total_txts = 0
@@ -109,12 +114,12 @@ def run(
 
     for fy_dir in fy_folders:
         print(f"folder: {fy_dir.name}")
-        txt_count, transactions = process_fy_folder(download_dir, fy_dir, parser)
+        txt_count, transactions = process_fy_folder(download_dir, fy_dir)
         total_txts += txt_count
         all_transactions.extend(transactions)
         print()
 
-    if create_combined_csv and fy_limit is None:
+    if ctx.settings.run.create_combined_csv and fy_limit is None:
         combined_path = download_dir / "combined_transactions.csv"
         _write_csv(combined_path, all_transactions)
         print(f"wrote combined: {combined_path} ({len(all_transactions)} transaction(s))")
@@ -125,40 +130,14 @@ def run(
     )
 
 
-def _resolve_fy_limit(download_dir: Path, fy_name: str | None) -> Path | None:
-    if fy_name is None:
-        return None
-    limit = Path(fy_name).expanduser()
-    if not limit.is_absolute():
-        limit = (download_dir / limit).resolve()
-    return limit
-
-
 def main() -> None:
-    configure_logging()
-    parser = argparse.ArgumentParser(description="Parse statement text files into CSV files.")
-    add_config_argument(parser)
-    parser.add_argument(
-        "--account",
-        type=Path,
-        default=None,
-        metavar="DIR",
-        help="Single account directory (must match a configured {download_path}/{bank}/ path)",
-    )
-    parser.add_argument(
-        "--fy",
-        default=None,
-        metavar="NAME",
-        help="Optional FY folder name (e.g. FY23-2024) within each account directory",
-    )
-    args = parser.parse_args()
-    settings = load_settings(resolve_config_path(args.config))
+    from src.cli import run_stage_main
 
-    def run_account(download_dir: Path, account: AccountSettings, settings: Settings) -> None:
-        fy_limit = _resolve_fy_limit(download_dir, args.fy)
-        run(download_dir, parser_bank(account), settings.create_combined_csv, fy_limit)
+    def run_account(download_dir: Path, account: ResolvedAccount, ctx: RunContext) -> None:
+        fy_limit = resolve_fy_limit(download_dir, ctx.settings.run.fy)
+        run(download_dir, account, ctx, fy_limit=fy_limit)
 
-    iter_accounts(settings, run_account, download_dir=args.account)
+    run_stage_main(run_account=run_account)
 
 
 if __name__ == "__main__":

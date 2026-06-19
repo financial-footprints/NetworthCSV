@@ -1,35 +1,31 @@
 from pathlib import Path
 
-from src.cli import parse_args_with_config
+from src.cli import load_context
 from src.core.accounts import iter_accounts
-from src.logging_config import configure_logging
 from src.pipeline.cleanup import run as cleanup_run
 from src.pipeline.parse import run as parse_run
+from src.core.paths import resolve_fy_limit
 from src.pipeline.text_extract import run as text_extract_run
 from src.pipeline.thunderbird import run_account as thunderbird_run_account
-from src.settings import AccountSettings, Settings, account_download_path, load_settings, parser_bank
+from src.settings import ResolvedAccount, account_download_path
 
 
 def main() -> None:
-    configure_logging()
-    config_path, _ = parse_args_with_config("Run the full CCParser pipeline.")
-    settings = load_settings(config_path)
+    ctx = load_context()
 
-    def run_pipeline(_download_dir: Path, account: AccountSettings, settings: Settings) -> None:
-        account_dir = account_download_path(settings, account)
-        thunderbird_run_account(settings, account)
+    def run_pipeline(_download_dir: Path, account: ResolvedAccount, _settings: object) -> None:
+        account_dir = account_download_path(ctx.settings, account)
+        thunderbird_run_account(ctx, account)
         print()
-        cleanup_run(account_dir, account.passwords, bank=account.bank)
+        cleanup_run(account_dir, account)
         print()
-        text_extract_run(account_dir, account.passwords, bank=account.bank)
+        text_extract_run(account_dir, account, ctx)
         print()
-        parse_run(
-            account_dir,
-            parser_bank(account),
-            settings.create_combined_csv,
-        )
+        fy_limit = resolve_fy_limit(account_dir, ctx.settings.run.fy)
+        parse_run(account_dir, account, ctx, fy_limit=fy_limit)
 
-    iter_accounts(settings, run_pipeline)
+    iter_accounts(ctx.settings, run_pipeline)
+    ctx.alerts.flush()
 
 
 if __name__ == "__main__":

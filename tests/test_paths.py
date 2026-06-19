@@ -15,7 +15,7 @@ class PathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             first = unique_path(directory, "2024-01.pdf")
-            first.write_text("a", encoding="utf-8")
+            _ = first.write_text("a", encoding="utf-8")
             second = unique_path(directory, "2024-01.pdf")
             self.assertEqual(second.name, "2024-01 (1).pdf")
 
@@ -38,14 +38,14 @@ class PathTests(unittest.TestCase):
             root = Path(tmp)
             pdf_path = root / "2024-01.pdf"
             txt_path = root / "2024-01.txt"
-            pdf_path.write_text("pdf", encoding="utf-8")
+            _ = pdf_path.write_text("pdf", encoding="utf-8")
             self.assertFalse(txt_is_current(pdf_path, txt_path))
-            txt_path.write_text("txt", encoding="utf-8")
+            _ = txt_path.write_text("txt", encoding="utf-8")
             self.assertTrue(txt_is_current(pdf_path, txt_path))
             time.sleep(0.01)
-            pdf_path.write_text("newer", encoding="utf-8")
+            _ = pdf_path.write_text("newer", encoding="utf-8")
             self.assertFalse(txt_is_current(pdf_path, txt_path))
 
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

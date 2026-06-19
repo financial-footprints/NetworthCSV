@@ -29,9 +29,12 @@ def extract_pdf_text_plumber(path: Path, passwords: list[str]) -> str:
     last_error: Exception | None = None
 
     for password in candidates:
-        kwargs = {} if password is None else {"password": password}
         try:
-            with pdfplumber.open(str(path), **kwargs) as pdf:
+            if password is None:
+                pdf_context = pdfplumber.open(str(path))
+            else:
+                pdf_context = pdfplumber.open(str(path), password=password)
+            with pdf_context as pdf:
                 pages: list[str] = []
                 for page in pdf.pages:
                     text = page.extract_text(layout=True)

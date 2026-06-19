@@ -2,84 +2,41 @@
 
 from __future__ import annotations
 
-import argparse
 from collections.abc import Callable
 from pathlib import Path
 
+from src.alerts.service import build_alert_service
+from src.context import RunContext
 from src.core.accounts import iter_accounts
 from src.logging_config import configure_logging
-from src.settings import (
-    DEFAULT_CONFIG_PATH,
-    ENV_CONFIG_VAR,
-    AccountSettings,
-    Settings,
-    load_settings,
-    resolve_config_path,
-)
+from src.settings import ResolvedAccount, Settings, load_settings
 
 __all__ = [
-    "add_config_argument",
-    "parse_args_with_config",
+    "load_context",
     "run_stage_main",
 ]
 
 
-def add_config_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "-c",
-        "--config",
-        metavar="PATH",
-        help=(
-            f"Path to extractor.config.json "
-            f"(default: ${ENV_CONFIG_VAR} or {DEFAULT_CONFIG_PATH})"
-        ),
+def load_context() -> RunContext:
+    configure_logging()
+    settings = load_settings()
+    return RunContext(
+        settings=settings,
+        alerts=build_alert_service(alerts=settings.alerts),
     )
-
-
-def parse_args_with_config(
-    description: str,
-    *,
-    positional_name: str | None = None,
-    positional_help: str | None = None,
-    extra_arguments: Callable[[argparse.ArgumentParser], None] | None = None,
-) -> tuple[Path, str | None]:
-    parser = argparse.ArgumentParser(description=description)
-    add_config_argument(parser)
-    if extra_arguments is not None:
-        extra_arguments(parser)
-    if positional_name is not None:
-        parser.add_argument(
-            positional_name,
-            nargs="?",
-            default=None,
-            help=positional_help,
-        )
-    args = parser.parse_args()
-    config_path = resolve_config_path(getattr(args, "config", None))
-    positional = getattr(args, positional_name, None) if positional_name else None
-    return config_path, positional
 
 
 def run_stage_main(
-    description: str,
     *,
-    positional_name: str = "download_dir",
-    positional_help: str,
-    run_account: Callable[[Path, AccountSettings, Settings], None],
-    extra_arguments: Callable[[argparse.ArgumentParser], None] | None = None,
+    run_account: Callable[[Path, ResolvedAccount, RunContext], None],
+    flush_alerts: bool = True,
 ) -> None:
-    """Load config and run a stage for one account dir or all configured accounts."""
-    configure_logging()
-    config_path, download_dir_arg = parse_args_with_config(
-        description,
-        positional_name=positional_name,
-        positional_help=positional_help,
-        extra_arguments=extra_arguments,
-    )
-    settings = load_settings(config_path)
+    """Load config and run a stage for configured account(s)."""
+    ctx = load_context()
 
-    argv_download_dir: Path | None = None
-    if download_dir_arg is not None:
-        argv_download_dir = Path(download_dir_arg).expanduser()
+    def run_for_account(download_dir: Path, account: ResolvedAccount, _settings: Settings) -> None:
+        run_account(download_dir, account, ctx)
 
-    iter_accounts(settings, run_account, download_dir=argv_download_dir)
+    iter_accounts(ctx.settings, run_for_account)
+    if flush_alerts:
+        ctx.alerts.flush()

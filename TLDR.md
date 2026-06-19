@@ -4,74 +4,73 @@
 
 ```bash
 pip install -e .
-cp extractor.config.sample.json extractor.config.json   # edit paths/passwords
+# edit user.config.json — paths and passwords
 ```
 
-Requires Python 3.12+. Each account must use a `passwords` array (legacy `password` field removed).
+Requires Python 3.11+. Each account must use a `passwords` array (legacy `password` field removed).
 
 Close Thunderbird before running against a live profile.
 
-## Config (pick one)
+## Config
 
-| Method  | Example                                                 |
-| ------- | ------------------------------------------------------- |
-| Default | `extractor.config.json` (repo root)                     |
-| Env var | `export CCPARSER_CONFIG=/path/to/extractor.config.json` |
-| Flag    | `-c /path/to/extractor.config.json`                     |
+| Method  | Example                                                                                       |
+| ------- | --------------------------------------------------------------------------------------------- |
+| Default | `app.config.json` (repo root)                                                                 |
+| Env var | `export CCPARSER_CONFIG=/path/to/app.config.json`                                             |
 
-Production: `/invar/secret-manager/c05/financial-footprints/extractor.config.json`
+There are no CLI flags. Account scope, FY limits, force re-extract, and combined CSV are set in the user config `run` block. See [README — Configuration](README.md#configuration).
 
-All commands accept `-c PATH`.
+Copy [`user.config.sample.json`](user.config.sample.json) to `user.config.json` and edit.
+
+The app config points to the user/secrets file via `user_config` (default: `user.config.json`).
+
+Production:
+
+```bash
+export CCPARSER_CONFIG=/invar/secret-manager/c05/financial-footprints/app.config.json
+```
+
+Production user config: `/invar/secret-manager/c05/financial-footprints/user.config.json`
 
 ---
 
-## Full pipeline (all accounts)
+## Full pipeline
 
 ```bash
 ccparser
 python -m src
-python -m src -c /path/to/extractor.config.json
 ```
 
 ---
 
-## One stage only (all accounts)
+## One stage only
 
 ```bash
-python -m src.pipeline.thunderbird      # extract PDFs from mbox
-python -m src.pipeline.cleanup          # decrypt, dedupe, rename, FY folders
-python -m src.pipeline.text_extract     # PDF → txt/
-python -m src.pipeline.parse            # txt → transactions.csv
+python -m src.pipeline.thunderbird
+python -m src.pipeline.cleanup
+python -m src.pipeline.text_extract
+python -m src.pipeline.parse
 ```
 
 Run `text_extract` before `parse`.
 
 ---
 
-## Single account
+## Limit to one account or FY
 
-Replace `idfc` with your bank folder (`pnb`, `bob`, `idfc`).
+Edit `user.config.json`:
 
-```bash
-python -m src.pipeline.cleanup      /path/to/statements/idfc
-python -m src.pipeline.text_extract /path/to/statements/idfc
-python -m src.pipeline.parse --account /path/to/statements/idfc
+```json
+"run": {
+  "bank": "idfc",
+  "variant": "wow",
+  "fy": "FY23-2024",
+  "force_text_extract": false,
+  "create_combined_csv": false
+}
 ```
 
-With custom config:
-
-```bash
-python -m src.pipeline.cleanup -c /path/to/extractor.config.json /path/to/statements/idfc
-```
-
----
-
-## Parse: limit to one FY folder
-
-```bash
-python -m src.pipeline.parse --fy FY23-2024
-python -m src.pipeline.parse --account /path/to/statements/idfc --fy FY23-2024
-```
+Then run the stage command as usual (no extra CLI args).
 
 ---
 
@@ -87,7 +86,7 @@ python -m unittest discover -s tests
 
 | Stage        | Output                                                                                 |
 | ------------ | -------------------------------------------------------------------------------------- |
-| Extract      | `{download_path}/{bank}/*.pdf` (raw)                                                   |
-| Cleanup      | `{download_path}/{bank}/FY*/YYYY-MM.pdf`                                               |
-| Text extract | `{download_path}/{bank}/txt/FY*/YYYY-MM.txt`                                           |
-| Parse        | `{download_path}/{bank}/FY*/transactions.csv` (+ optional `combined_transactions.csv`) |
+| Extract      | `{download_path}/{bank}/*.pdf` or `{download_path}/{bank}/{variant}/*.pdf` (raw)       |
+| Cleanup      | `{download_path}/{bank}/FY*/YYYY-MM.pdf` or `{download_path}/{bank}/{variant}/FY*/...` |
+| Text extract | `.../txt/FY*/YYYY-MM.txt` under the same account folder                                |
+| Parse        | `.../FY*/transactions.csv` (+ optional `combined_transactions.csv`)                    |

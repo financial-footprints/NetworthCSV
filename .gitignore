@@ -1,5 +1,8 @@
 .local
 *.config.json
+*.local.json
+!app.config.json
+!user.config.json
 
 # Python Environment
 **/__pycache__/

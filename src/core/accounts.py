@@ -5,24 +5,24 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from src.settings import AccountSettings, Settings, account_download_path, account_for_download_dir
+from src.settings import (
+    ResolvedAccount,
+    Settings,
+    account_download_path,
+    account_label,
+    accounts_to_run,
+)
 
 
 def iter_accounts(
     settings: Settings,
-    fn: Callable[[Path, AccountSettings, Settings], None],
-    *,
-    download_dir: Path | None = None,
+    fn: Callable[[Path, ResolvedAccount, Settings], None],
 ) -> None:
-    if download_dir is not None:
-        account = account_for_download_dir(settings, download_dir)
-        fn(download_dir, account, settings)
-        return
-
-    for index, account in enumerate(settings.accounts):
+    selected = accounts_to_run(settings)
+    for index, account in enumerate(selected):
         if index > 0:
             print()
-        if len(settings.accounts) > 1:
-            print(f"=== {account.bank} ===")
+        if len(selected) > 1:
+            print(f"=== {account_label(account)} ===")
             print()
         fn(account_download_path(settings, account), account, settings)

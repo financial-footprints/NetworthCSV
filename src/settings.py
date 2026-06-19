@@ -1,100 +1,428 @@
-"""Load settings from extractor.config.json."""
+"""Load settings from app.config.json and user.config.json."""
 
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Annotated, ClassVar, Literal, cast
 
-from typing import ClassVar, cast
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "extractor.config.json"
-ENV_CONFIG_VAR = "CCPARSER_CONFIG"
+DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "app.config.json"
+CONFIG_ENV_VAR = "CCPARSER_CONFIG"
+
+_MATCHING_FIELD_NAMES = frozenset(
+    {"subjects", "bodies", "from_filters", "start_marker", "end_marker", "information_markers"}
+)
 
 
-class AccountSettings(BaseModel):
+def normalize_bank(value: object) -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        raise ValueError("bank is required")
+    if "/" in raw or "\\" in raw:
+        raise ValueError("bank must not contain path separators")
+    return raw
+
+
+def normalize_variant(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    variant = str(value).strip().lower()
+    if not variant:
+        return None
+    if "/" in variant or "\\" in variant:
+        raise ValueError("variant must not contain path separators")
+    return variant
+
+
+def normalize_subjects(value: object) -> list[str]:
+    if isinstance(value, str):
+        items: list[object] = [value]
+    elif isinstance(value, list):
+        items = cast(list[object], value)
+    else:
+        raise ValueError("subjects must be a string or a non-empty array")
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        subject = str(item).strip()
+        if subject and subject.lower() not in seen:
+            seen.add(subject.lower())
+            unique.append(subject)
+    if not unique:
+        raise ValueError("subjects must contain at least one non-empty value")
+    return unique
+
+
+def normalize_marker(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    marker = str(value).strip()
+    return marker or None
+
+
+def normalize_information_markers(value: object) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        items: list[object] = [value]
+    elif isinstance(value, list):
+        items = cast(list[object], value)
+    else:
+        raise ValueError("information_markers must be a string or an array")
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        marker = str(item).strip()
+        if marker and marker not in seen:
+            seen.add(marker)
+            unique.append(marker)
+    return unique
+
+
+def normalize_bodies(value: object) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        items: list[object] = [value]
+    elif isinstance(value, list):
+        items = cast(list[object], value)
+    else:
+        raise ValueError("bodies must be a string or an array")
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        body = str(item).strip()
+        if body and body.lower() not in seen:
+            seen.add(body.lower())
+            unique.append(body)
+    return unique
+
+
+def normalize_from(value: object) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        items: list[object] = [value]
+    elif isinstance(value, list):
+        items = cast(list[object], value)
+    else:
+        raise ValueError("from must be a string or an array")
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        entry = str(item).strip().lower()
+        if not entry:
+            continue
+        if any(ch.isspace() for ch in entry):
+            raise ValueError("from entries must not contain whitespace")
+        if "@" in entry:
+            local, sep, domain = entry.partition("@")
+            if not local or not sep or not domain or "@" in domain:
+                raise ValueError(f"invalid from email address: {entry!r}")
+        if entry not in seen:
+            seen.add(entry)
+            unique.append(entry)
+    return unique
+
+
+def normalize_identifier(value: object) -> str:
+    identifier = str(value or "").strip()
+    if not identifier:
+        raise ValueError("identifier is required")
+    return identifier
+
+
+def normalize_passwords(value: object) -> list[str]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("passwords must be a non-empty array")
+    items: list[object] = cast(list[object], value)
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        password = str(item).strip()
+        if password and password not in seen:
+            seen.add(password)
+            unique.append(password)
+    if not unique:
+        raise ValueError("passwords must contain at least one non-empty value")
+    return unique
+
+
+def _optional(normalizer: Callable[[object], object]) -> Callable[[object], object]:
+    def wrap(value: object) -> object:
+        if value is None or value == "":
+            return None
+        return normalizer(value)
+
+    return wrap
+
+
+def _optional_bank(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    return normalize_bank(value)
+
+
+def _require_non_empty(value: object, *, field_name: str) -> str:
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return text
+
+
+def _require_field(field_name: str) -> Callable[[object], str]:
+    def validate(value: object) -> str:
+        return _require_non_empty(value, field_name=field_name)
+
+    return validate
+
+
+Subjects = Annotated[list[str], BeforeValidator(normalize_subjects)]
+OptionalSubjects = Annotated[list[str] | None, BeforeValidator(_optional(normalize_subjects))]
+Bodies = Annotated[list[str], BeforeValidator(normalize_bodies)]
+OptionalBodies = Annotated[list[str] | None, BeforeValidator(_optional(normalize_bodies))]
+FromFilters = Annotated[list[str], BeforeValidator(normalize_from)]
+OptionalFromFilters = Annotated[list[str] | None, BeforeValidator(_optional(normalize_from))]
+Marker = Annotated[str | None, BeforeValidator(normalize_marker)]
+InformationMarkers = Annotated[list[str], BeforeValidator(normalize_information_markers)]
+OptionalInformationMarkers = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_information_markers))
+]
+BankName = Annotated[str, BeforeValidator(normalize_bank)]
+OptionalBankName = Annotated[str | None, BeforeValidator(_optional_bank)]
+VariantName = Annotated[str | None, BeforeValidator(normalize_variant)]
+Identifier = Annotated[str, BeforeValidator(normalize_identifier)]
+Passwords = Annotated[list[str], BeforeValidator(normalize_passwords)]
+
+
+def _resolve_path(value: object, base: Path) -> Path:
+    path = Path(str(value)).expanduser()
+    if not path.is_absolute():
+        path = (base / path).resolve()
+    return path
+
+
+class MatchingFields(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", populate_by_name=True)
+
+    subjects: Subjects
+    bodies: Bodies = []
+    from_filters: FromFilters = Field(default_factory=list, alias="from")
+    start_marker: Marker = None
+    end_marker: Marker = None
+    information_markers: InformationMarkers = []
+
+
+class VariantOverride(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", populate_by_name=True)
+
+    subjects: OptionalSubjects = None
+    bodies: OptionalBodies = None
+    from_filters: OptionalFromFilters = Field(default=None, alias="from")
+    start_marker: Marker = None
+    end_marker: Marker = None
+    information_markers: OptionalInformationMarkers = None
+
+    @model_validator(mode="after")
+    def require_at_least_one_field(self) -> VariantOverride:
+        if (
+            self.subjects is None
+            and self.bodies is None
+            and self.from_filters is None
+            and self.start_marker is None
+            and self.end_marker is None
+            and self.information_markers is None
+        ):
+            raise ValueError("variant override must set at least one field")
+        return self
+
+
+BankVariantEntry = MatchingFields | VariantOverride
+
+
+class AppConfig(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    bank: str
-    subjects: list[str] = Field(min_length=1)
-    passwords: list[str] = Field(min_length=1)
+    user_config: Path
+    banks: dict[str, dict[str, BankVariantEntry]] = Field(min_length=1)
 
-    @model_validator(mode="before")
+    @field_validator("user_config", mode="before")
     @classmethod
-    def migrate_legacy_subject(cls, value: object) -> object:
+    def validate_user_config(cls, value: object) -> object:
+        if value is None or str(value).strip() == "":
+            raise ValueError("user_config is required")
+        return value
+
+    @field_validator("banks", mode="before")
+    @classmethod
+    def normalize_banks(cls, value: object) -> dict[str, dict[str, BankVariantEntry]]:
         if not isinstance(value, dict):
-            return value
-        data: dict[str, object] = cast(dict[str, object], value)
-        if "subject" in data and "subjects" in data:
-            raise ValueError("use either subject or subjects, not both")
-        if "subject" in data:
-            migrated = dict(data)
-            migrated["subjects"] = migrated.pop("subject")
-            return migrated
-        return data
+            raise ValueError("banks must be an object")
+        banks_raw = cast(dict[str, object], value)
+        normalized: dict[str, dict[str, BankVariantEntry]] = {}
+        for bank_key, bank_value in banks_raw.items():
+            if not isinstance(bank_value, dict):
+                raise ValueError(f"bank {bank_key!r} must be an object of variants")
+            variants_raw = cast(dict[str, object], bank_value)
+            variants: dict[str, BankVariantEntry] = {}
+            for variant_key, variant_value in variants_raw.items():
+                variant_name = normalize_variant(variant_key)
+                if variant_name is None:
+                    raise ValueError("variant keys must be non-empty")
+                if variant_name == "default":
+                    variants[variant_name] = MatchingFields.model_validate(variant_value)
+                else:
+                    variants[variant_name] = VariantOverride.model_validate(variant_value)
+            if not variants:
+                raise ValueError(f"bank {bank_key!r} must contain at least one variant")
+            if "default" not in variants:
+                raise ValueError(f"bank {normalize_bank(bank_key)!r} must define a default variant")
+            normalized[normalize_bank(bank_key)] = variants
+        if not normalized:
+            raise ValueError("banks must contain at least one entry")
+        return normalized
 
-    @field_validator("bank", mode="before")
     @classmethod
-    def normalize_bank(cls, value: object) -> str:
-        raw = str(value or "").strip()
-        if not raw:
-            raise ValueError("bank is required")
-        segments = [segment.strip().lower() for segment in raw.split("/") if segment.strip()]
-        if not segments:
-            raise ValueError("bank is required")
-        return "/".join(segments)
-
-    @field_validator("subjects", mode="before")
-    @classmethod
-    def normalize_subjects(cls, value: object) -> list[str]:
-        if isinstance(value, str):
-            items: list[object] = [value]
-        elif isinstance(value, list):
-            items = cast(list[object], value)
-        else:
-            raise ValueError("subjects must be a string or a non-empty array")
-        unique: list[str] = []
-        seen: set[str] = set()
-        for item in items:
-            subject = str(item).strip()
-            if subject and subject.lower() not in seen:
-                seen.add(subject.lower())
-                unique.append(subject)
-        if not unique:
-            raise ValueError("subjects must contain at least one non-empty value")
-        return unique
-
-    @field_validator("passwords", mode="before")
-    @classmethod
-    def normalize_passwords(cls, value: object) -> list[str]:
-        if not isinstance(value, list) or not value:
-            raise ValueError("passwords must be a non-empty array")
-        items: list[object] = cast(list[object], value)
-        unique: list[str] = []
-        seen: set[str] = set()
-        for item in items:
-            password = str(item).strip()
-            if password and password not in seen:
-                seen.add(password)
-                unique.append(password)
-        if not unique:
-            raise ValueError("passwords must contain at least one non-empty value")
-        return unique
+    def from_json(cls, data: dict[str, object], *, config_path: Path) -> AppConfig:
+        base = config_path.parent
+        user_config_raw = data.get("user_config")
+        if not user_config_raw:
+            raise ValueError("user_config is required")
+        return cls.model_validate(
+            {
+                "user_config": _resolve_path(user_config_raw, base),
+                "banks": data.get("banks", {}),
+            }
+        )
 
 
-class Settings(BaseModel):
+class UserAccountConfig(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", populate_by_name=True)
+
+    bank: BankName
+    variant: VariantName = None
+    identifier: Identifier
+    passwords: Passwords
+    subjects: OptionalSubjects = None
+    bodies: OptionalBodies = None
+    from_filters: OptionalFromFilters = Field(default=None, alias="from")
+    start_marker: Marker = None
+    end_marker: Marker = None
+    information_markers: OptionalInformationMarkers = None
+
+
+def normalize_alert_recipients(value: object) -> list[str]:
+    if isinstance(value, str):
+        items: list[object] = [value]
+    elif isinstance(value, list):
+        items = cast(list[object], value)
+    else:
+        raise ValueError("to must be a string or a non-empty array")
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        address = str(item).strip()
+        if not address:
+            continue
+        lowered = address.lower()
+        if lowered not in seen:
+            seen.add(lowered)
+            unique.append(address)
+    if not unique:
+        raise ValueError("to must contain at least one non-empty email address")
+    return unique
+
+
+class EmailAlertSettings(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    smtp_host: Annotated[str, BeforeValidator(_require_field("smtp_host"))]
+    smtp_port: int
+    use_tls: bool = True
+    username: Annotated[str, BeforeValidator(_require_field("username"))]
+    password: Annotated[str, BeforeValidator(_require_field("password"))]
+    from_address: Annotated[str, BeforeValidator(_require_field("from_address"))]
+    to: Annotated[list[str], BeforeValidator(normalize_alert_recipients)]
+
+
+class ConsoleAlertSettings(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    type: Literal["console"] = "console"
+
+
+class EmailAlertsSettings(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    type: Literal["email"] = "email"
+    email: EmailAlertSettings
+
+
+AlertSettings = Annotated[
+    ConsoleAlertSettings | EmailAlertsSettings,
+    Field(discriminator="type"),
+]
+
+
+class RunSettings(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    bank: OptionalBankName = None
+    variant: VariantName = None
+    fy: Marker = None
+    force_text_extract: bool = False
+    create_combined_csv: bool = False
+
+
+class UserConfig(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     profile: Path
     download_path: Path
     start_date: date | None = None
     mbox: Path | None = None
-    accounts: list[AccountSettings] = Field(min_length=1)
-    create_combined_csv: bool = False
+    accounts: list[UserAccountConfig] = Field(min_length=1)
+    alerts: AlertSettings | None = None
+    run: RunSettings | None = None
+
+    @model_validator(mode="after")
+    def validate_run_filter(self) -> UserConfig:
+        if self.run is None:
+            return self
+        if self.run.variant is not None and self.run.bank is None:
+            raise ValueError("run.variant requires run.bank")
+        if self.run.bank is not None:
+            matches = [
+                account
+                for account in self.accounts
+                if account.bank == self.run.bank
+                and (self.run.variant is None or account.variant == self.run.variant)
+            ]
+            if not matches:
+                known = ", ".join(
+                    account_label_from_parts(account.bank, account.variant)
+                    for account in self.accounts
+                )
+                raise ValueError(f"run filter matches no account (known: {known})")
+        return self
+
+    @model_validator(mode="after")
+    def reject_duplicate_accounts(self) -> UserConfig:
+        seen: set[tuple[str, str]] = set()
+        for account in self.accounts:
+            key = (account.bank, account.variant or "")
+            if key in seen:
+                label = account_label_from_parts(account.bank, account.variant)
+                raise ValueError(f"duplicate account: {label}")
+            seen.add(key)
+        return self
 
     @field_validator("start_date", mode="before")
     @classmethod
@@ -111,14 +439,7 @@ class Settings(BaseModel):
         return date.fromisoformat(stripped)
 
     @classmethod
-    def _resolve_path(cls, value: object, base: Path) -> Path:
-        path = Path(str(value)).expanduser()
-        if not path.is_absolute():
-            path = (base / path).resolve()
-        return path
-
-    @classmethod
-    def from_json(cls, data: dict[str, object], *, config_path: Path) -> Settings:
+    def from_json(cls, data: dict[str, object], *, config_path: Path) -> UserConfig:
         base = config_path.parent
         profile_raw = data.get("profile")
         download_raw = data.get("download_path")
@@ -130,71 +451,187 @@ class Settings(BaseModel):
         mbox_raw = data.get("mbox")
         return cls.model_validate(
             {
-                "profile": cls._resolve_path(profile_raw, base),
-                "download_path": cls._resolve_path(download_raw, base),
+                "profile": _resolve_path(profile_raw, base),
+                "download_path": _resolve_path(download_raw, base),
                 "start_date": data.get("start_date"),
-                "mbox": cls._resolve_path(mbox_raw, base) if mbox_raw else None,
+                "mbox": _resolve_path(mbox_raw, base) if mbox_raw else None,
                 "accounts": data.get("accounts", []),
-                "create_combined_csv": bool(data.get("create_combined_csv", False)),
+                "alerts": data.get("alerts"),
+                "run": data.get("run"),
             }
         )
 
 
-def account_download_path(settings: Settings, account: AccountSettings) -> Path:
-    return settings.download_path / account.bank
+class ResolvedAccount(MatchingFields):
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", populate_by_name=True, frozen=True
+    )
+
+    bank: str
+    variant: str | None = None
+    identifier: str
+    passwords: list[str] = Field(min_length=1)
 
 
-def parser_bank(account: AccountSettings) -> str:
-    return account.bank.split("/")[0]
+@dataclass(frozen=True)
+class Settings:
+    profile: Path
+    download_path: Path
+    accounts: list[ResolvedAccount]
+    alerts: ConsoleAlertSettings | EmailAlertsSettings | None
+    run: RunSettings
+    start_date: date | None = None
+    mbox: Path | None = None
 
 
-def account_txt_path(settings: Settings, account: AccountSettings) -> Path:
-    return account_download_path(settings, account) / "txt"
+def _matching_overlay(model: BaseModel) -> dict[str, object]:
+    dumped = cast(dict[str, object], model.model_dump(exclude_none=True))
+    return {key: value for key, value in dumped.items() if key in _MATCHING_FIELD_NAMES}
 
 
-def find_account(settings: Settings, download_dir: Path) -> AccountSettings | None:
-    resolved = download_dir.expanduser().resolve()
-    for account in settings.accounts:
-        if account_download_path(settings, account).resolve() == resolved:
-            return account
-    return None
+def merge_matching(base: MatchingFields, *overlays: BaseModel) -> MatchingFields:
+    merged = base.model_dump()
+    for overlay in overlays:
+        merged.update(_matching_overlay(overlay))
+    return MatchingFields.model_validate(merged)
 
 
-def account_for_download_dir(settings: Settings, download_dir: Path) -> AccountSettings:
-    account = find_account(settings, download_dir)
-    if account is None:
-        known = ", ".join(str(account_download_path(settings, a)) for a in settings.accounts)
-        raise SystemExit(
-            f"error: {download_dir} does not match any account download path (known: {known})"
-        )
-    return account
+def _resolve_variant_defaults(
+    bank_variants: dict[str, BankVariantEntry], variant: str | None
+) -> MatchingFields:
+    default_entry = bank_variants["default"]
+    if not isinstance(default_entry, MatchingFields):
+        raise ValueError("bank must define a default variant with subjects")
+    if variant is None or variant == "default":
+        return default_entry
+    overlay = bank_variants.get(variant)
+    if overlay is None:
+        return default_entry
+    if isinstance(overlay, MatchingFields):
+        return overlay
+    return merge_matching(default_entry, overlay)
+
+
+def _resolved_account(
+    user_account: UserAccountConfig, defaults: MatchingFields, *, bank_key: str
+) -> ResolvedAccount:
+    matching = merge_matching(defaults, user_account)
+    return ResolvedAccount.model_validate(
+        {
+            "bank": bank_key,
+            "variant": user_account.variant,
+            "identifier": user_account.identifier,
+            "passwords": user_account.passwords,
+            **matching.model_dump(),
+        }
+    )
+
+
+def merge_settings(app: AppConfig, user: UserConfig) -> Settings:
+    accounts: list[ResolvedAccount] = []
+    for user_account in user.accounts:
+        bank_key = user_account.bank
+        bank_variants = app.banks.get(bank_key)
+        if bank_variants is None:
+            known = ", ".join(sorted(app.banks))
+            raise ValueError(
+                f"bank {bank_key!r} is not defined in app config banks (known: {known})"
+            )
+        defaults = _resolve_variant_defaults(bank_variants, user_account.variant)
+        accounts.append(_resolved_account(user_account, defaults, bank_key=bank_key))
+
+    return Settings(
+        profile=user.profile,
+        download_path=user.download_path,
+        start_date=user.start_date,
+        mbox=user.mbox,
+        accounts=accounts,
+        alerts=user.alerts,
+        run=user.run or RunSettings(),
+    )
+
+
+def accounts_to_run(settings: Settings) -> list[ResolvedAccount]:
+    run = settings.run
+    if run.bank is None:
+        return list(settings.accounts)
+    matches = [
+        account
+        for account in settings.accounts
+        if account.bank == run.bank
+        and (run.variant is None or account.variant == run.variant)
+    ]
+    if not matches:
+        known = ", ".join(account_label(account) for account in settings.accounts)
+        raise SystemExit(f"error: run filter matches no account (known: {known})")
+    return matches
+
+
+def account_label_from_parts(bank: str, variant: str | None) -> str:
+    if variant:
+        return f"{bank}/{variant}"
+    return bank
+
+
+def account_label(account: ResolvedAccount) -> str:
+    return account_label_from_parts(account.bank, account.variant)
+
+
+def account_download_path(settings: Settings, account: ResolvedAccount) -> Path:
+    base = settings.download_path / account.bank
+    if account.variant:
+        return base / account.variant
+    return base
 
 
 def resolve_config_path(override: str | Path | None = None) -> Path:
-    """Resolve config path: CLI override, then $CCPARSER_CONFIG, then default."""
+    """Resolve app config path: explicit override, then CCPARSER_CONFIG, then default."""
     if override is not None:
         value = str(override).strip()
         if value:
             return Path(value).expanduser().resolve()
 
-    env_value = os.environ.get(ENV_CONFIG_VAR, "").strip()
+    env_value = os.environ.get(CONFIG_ENV_VAR, "").strip()
     if env_value:
         return Path(env_value).expanduser().resolve()
 
     return DEFAULT_CONFIG_PATH.resolve()
 
 
-def load_settings(config_path: str | Path | None = None) -> Settings:
-    resolved_config = resolve_config_path(config_path)
-    if not resolved_config.is_file():
-        raise SystemExit(f"error: config not found: {resolved_config}")
+def _load_json_object(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        raise SystemExit(f"error: config not found: {path}")
 
-    with resolved_config.open(encoding="utf-8") as fh:
+    with path.open(encoding="utf-8") as fh:
         loaded = cast(object, json.load(fh))
     if not isinstance(loaded, dict):
-        raise SystemExit(f"error: config must be a JSON object: {resolved_config}")
+        raise SystemExit(f"error: config must be a JSON object: {path}")
+    return cast(dict[str, object], loaded)
 
+
+def load_app_config(config_path: str | Path) -> AppConfig:
+    resolved = Path(config_path).expanduser().resolve()
     try:
-        return Settings.from_json(cast(dict[str, object], loaded), config_path=resolved_config)
+        return AppConfig.from_json(_load_json_object(resolved), config_path=resolved)
     except (ValidationError, ValueError, TypeError) as exc:
-        raise SystemExit(f"error: invalid config {resolved_config}: {exc}") from exc
+        raise SystemExit(f"error: invalid app config {resolved}: {exc}") from exc
+
+
+def load_user_config(config_path: str | Path) -> UserConfig:
+    resolved = Path(config_path).expanduser().resolve()
+    try:
+        return UserConfig.from_json(_load_json_object(resolved), config_path=resolved)
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise SystemExit(f"error: invalid user config {resolved}: {exc}") from exc
+
+
+def load_settings(config_path: str | Path | None = None) -> Settings:
+    resolved_app_config = resolve_config_path(config_path)
+    app_config = load_app_config(resolved_app_config)
+    user_config = load_user_config(app_config.user_config)
+    try:
+        return merge_settings(app_config, user_config)
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise SystemExit(
+            f"error: invalid merged config (app: {resolved_app_config}, user: {app_config.user_config}): {exc}"
+        ) from exc

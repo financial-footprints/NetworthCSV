@@ -1,0 +1,83 @@
+{
+  "profile": "/path/to/thunderbird/profile",
+  "download_path": "/path/to/statements",
+  "start_date": null,
+  "mbox": null,
+  "alerts": {
+    "type": "console"
+  },
+  "accounts": [
+    {
+      "bank": "bob",
+      "variant": "easy",
+      "identifier": "5678",
+      "passwords": [
+        "bob-password"
+      ]
+    },
+    {
+      "bank": "csb",
+      "variant": "edge",
+      "identifier": "7777",
+      "passwords": [
+        "your-csb-edge-password"
+      ]
+    },
+    {
+      "bank": "federal",
+      "variant": "signet",
+      "identifier": "1234",
+      "passwords": [
+        "federal-signet-password"
+      ]
+    },
+    {
+      "bank": "hdfc",
+      "variant": "swiggy",
+      "identifier": "2222",
+      "passwords": [
+        "your-hdfc-swiggy-password"
+      ]
+    },
+    {
+      "bank": "icici",
+      "identifier": "7890",
+      "passwords": [
+        "your-icici-password"
+      ]
+    },
+    {
+      "bank": "idfc",
+      "variant": "wow",
+      "identifier": "1234",
+      "passwords": [
+        "password-option-1",
+        "password-option-2"
+      ]
+    },
+    {
+      "bank": "indusind",
+      "identifier": "4444",
+      "passwords": [
+        "your-indusind-password"
+      ]
+    },
+    {
+      "bank": "pnb",
+      "variant": "platinum",
+      "identifier": "543212XXXXXX1234",
+      "passwords": [
+        "pnb-password-1",
+        "pnb-password-2"
+      ]
+    },
+    {
+      "bank": "yes",
+      "variant": "ace",
+      "identifier": "6666",
+      "passwords": [
+        "your-yes-ace-password"
+      ]
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 """
 Extract attachments from Thunderbird profile mbox folders by subject.
 
-Configure via extractor.config.json (see src/settings.py). Override with -c/--config or $CCPARSER_CONFIG.
+Configure via app.config.json and user.config.json (see src/settings.py). Override app config with CCPARSER_CONFIG.
 Close Thunderbird before running against a live profile path.
 """
 
@@ -16,13 +16,11 @@ from pathlib import Path
 from typing import cast
 from email.header import decode_header
 from email.message import Message
-from email.utils import parsedate_to_datetime
+from email.utils import getaddresses, parsedate_to_datetime
 
-from src.cli import parse_args_with_config
-from src.core.accounts import iter_accounts
-from src.logging_config import configure_logging
+from src.context import RunContext
 from src.core.paths import unique_path
-from src.settings import AccountSettings, Settings, account_download_path, load_settings
+from src.settings import ResolvedAccount, account_download_path
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +65,74 @@ def subject_matches(msg: Message, subjects: list[str]) -> bool:
     decoded = decode_mime_header(msg.get("Subject"))
     lowered = decoded.lower()
     return any(subject.lower() in lowered for subject in subjects)
+
+
+def _decode_part_payload(part: Message) -> str:
+    payload = part.get_payload(decode=True)
+    if not isinstance(payload, (bytes, bytearray)):
+        return ""
+    charset = part.get_content_charset()
+    enc = _charset_for_decode(charset)
+    try:
+        return bytes(payload).decode(enc, errors="replace")
+    except LookupError:
+        return bytes(payload).decode("latin-1", errors="replace")
+
+
+def extract_message_body(msg: Message) -> str:
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
+    for part in msg.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        if part.get_content_disposition() == "attachment":
+            continue
+        content_type = part.get_content_type()
+        text = _decode_part_payload(part)
+        if not text:
+            continue
+        if content_type == "text/plain":
+            plain_parts.append(text)
+        elif content_type == "text/html":
+            html_parts.append(re.sub(r"<[^>]+>", " ", text))
+    parts = plain_parts if plain_parts else html_parts
+    return " ".join(parts)
+
+
+def body_matches(msg: Message, bodies: list[str]) -> bool:
+    if not bodies:
+        return True
+    lowered = extract_message_body(msg).lower()
+    return any(body.lower() in lowered for body in bodies)
+
+
+def parse_from_addresses(msg: Message) -> list[tuple[str, str]]:
+    decoded = decode_mime_header(msg.get("From"))
+    addresses: list[tuple[str, str]] = []
+    for _name, addr in getaddresses([decoded]):
+        if not addr or "@" not in addr:
+            continue
+        local, domain = addr.rsplit("@", 1)
+        addresses.append((local.lower(), domain.lower()))
+    return addresses
+
+
+def from_matches(msg: Message, from_filters: list[str]) -> bool:
+    if not from_filters:
+        return True
+    addresses = parse_from_addresses(msg)
+    if not addresses:
+        return False
+    for entry in from_filters:
+        if "@" in entry:
+            for local, domain in addresses:
+                if f"{local}@{domain}" == entry:
+                    return True
+        else:
+            for _local, domain in addresses:
+                if domain == entry:
+                    return True
+    return False
 
 
 def message_received_datetime(msg: Message) -> datetime | None:
@@ -187,6 +253,8 @@ def save_attachments(
 def process_mbox(
     mbox_path: Path,
     subjects: list[str],
+    from_filters: list[str],
+    bodies: list[str],
     download_dir: Path,
     folder_prefix: str,
     start_date: date | None,
@@ -202,6 +270,10 @@ def process_mbox(
     for msg in mbox:
         if not subject_matches(msg, subjects):
             continue
+        if not from_matches(msg, from_filters):
+            continue
+        if not body_matches(msg, bodies):
+            continue
         if not message_on_or_after(msg, start_date):
             continue
         if not list(iter_attachment_parts(msg)):
@@ -215,6 +287,8 @@ def process_mbox(
 def print_run_settings(
     profile: Path,
     subjects: list[str],
+    from_filters: list[str],
+    bodies: list[str],
     download_dir: Path,
     start_date: date | None,
     mbox: Path | None,
@@ -226,6 +300,10 @@ def print_run_settings(
         print(f"  bank:          {bank}")
     print(f"  profile:       {profile}")
     print(f"  subjects:      {subjects!r}")
+    if from_filters:
+        print(f"  from:          {from_filters!r}")
+    if bodies:
+        print(f"  bodies:        {bodies!r}")
     print(f"  download_path: {download_dir}")
     if start_date is None:
         print("  start_date:    (all emails)")
@@ -240,6 +318,8 @@ def print_run_settings(
 def run(
     profile: Path,
     subjects: list[str],
+    from_filters: list[str],
+    bodies: list[str],
     download_dir: Path,
     start_date: date | None,
     mbox: Path | None = None,
@@ -249,7 +329,7 @@ def run(
     if not profile.is_dir():
         raise SystemExit(f"error: profile directory not found: {profile}")
 
-    download_dir.mkdir(parents=True, exist_ok=True)
+    _ = download_dir.mkdir(parents=True, exist_ok=True)
 
     if mbox:
         if not mbox.is_file():
@@ -260,7 +340,17 @@ def run(
         if not mbox_files:
             raise SystemExit("error: no mbox stores found")
 
-    print_run_settings(profile, subjects, download_dir, start_date, mbox, len(mbox_files), bank)
+    print_run_settings(
+        profile,
+        subjects,
+        from_filters,
+        bodies,
+        download_dir,
+        start_date,
+        mbox,
+        len(mbox_files),
+        bank,
+    )
     print()
 
     total_messages = 0
@@ -272,6 +362,8 @@ def run(
         matched, saved = process_mbox(
             mbox_path,
             subjects,
+            from_filters,
+            bodies,
             download_dir,
             folder_label,
             start_date,
@@ -287,26 +379,29 @@ def run(
     )
 
 
-def run_account(settings: Settings, account: AccountSettings) -> None:
+def run_account(ctx: RunContext, account: ResolvedAccount) -> None:
     run(
-        settings.profile,
+        ctx.settings.profile,
         account.subjects,
-        account_download_path(settings, account),
-        settings.start_date,
-        settings.mbox,
+        account.from_filters,
+        account.bodies,
+        account_download_path(ctx.settings, account),
+        ctx.settings.start_date,
+        ctx.settings.mbox,
         bank=account.bank,
     )
 
 
 def main() -> None:
-    configure_logging()
-    config_path, _ = parse_args_with_config("Extract statement PDF attachments from Thunderbird.")
-    settings = load_settings(config_path)
+    from src.cli import run_stage_main
 
-    def run_one(_download_dir: Path, account: AccountSettings, settings: Settings) -> None:
-        run_account(settings, account)
+    def run_one(_download_dir: Path, account: ResolvedAccount, ctx: RunContext) -> None:
+        run_account(ctx, account)
 
-    iter_accounts(settings, run_one)
+    run_stage_main(
+        run_account=run_one,
+        flush_alerts=False,
+    )
 
 
 if __name__ == "__main__":

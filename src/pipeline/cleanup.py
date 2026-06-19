@@ -10,9 +10,9 @@ from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 
-from src.cli import run_stage_main
+from src.context import RunContext
 from src.core.paths import fy_folder_name, unique_path
-from src.settings import AccountSettings, Settings
+from src.settings import ResolvedAccount
 from src.core.pdf import open_pdf_reader
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def prune_non_pdfs(download_dir: Path) -> int:
             continue
         if path.suffix.lower() == ".pdf":
             continue
-        path.unlink()
+        _ = path.unlink()
         print(f"removed (non-pdf): {path}")
         removed += 1
     return removed
@@ -76,7 +76,7 @@ def dedupe_pdfs(download_dir: Path) -> int:
         for path in paths:
             if path == keep:
                 continue
-            path.unlink()
+            _ = path.unlink()
             print(f"removed (duplicate of {keep.name}): {path}")
             deleted += 1
     return deleted
@@ -97,7 +97,7 @@ def organize_by_financial_year(download_dir: Path) -> int:
         month_stem = _month_stem_from_name(path.name)
         target_name = f"{month_stem}.pdf"
         fy_dir = download_dir / fy_folder_name(month_stem)
-        fy_dir.mkdir(parents=True, exist_ok=True)
+        _ = fy_dir.mkdir(parents=True, exist_ok=True)
         target = fy_dir / target_name
         if target.exists() and target.resolve() != path.resolve():
             target = unique_path(fy_dir, target_name)
@@ -128,16 +128,15 @@ def rename_pdfs(download_dir: Path) -> int:
     return renamed
 
 
-def run(download_dir: Path, passwords: list[str], *, bank: str | None = None) -> None:
+def run(download_dir: Path, account: ResolvedAccount) -> None:
     if not download_dir.is_dir():
         raise SystemExit(f"error: download directory not found: {download_dir}")
 
-    label = f"{bank} " if bank else ""
-    print(f"cleanup: {label}{download_dir}")
+    print(f"cleanup: {account.bank} {download_dir}")
     print()
 
     removed = prune_non_pdfs(download_dir)
-    decrypted = decrypt_pdfs_in_place(download_dir, passwords)
+    decrypted = decrypt_pdfs_in_place(download_dir, account.passwords)
     deleted = dedupe_pdfs(download_dir)
     renamed = rename_pdfs(download_dir)
     organized = organize_by_financial_year(download_dir)
@@ -150,14 +149,12 @@ def run(download_dir: Path, passwords: list[str], *, bank: str | None = None) ->
 
 
 def main() -> None:
-    def run_account(download_dir: Path, account: AccountSettings, _: Settings) -> None:
-        run(download_dir, account.passwords, bank=account.bank)
+    from src.cli import run_stage_main
 
-    run_stage_main(
-        "Clean downloaded statement PDFs.",
-        positional_help="Single account directory (must match a configured {download_path}/{bank}/ path)",
-        run_account=run_account,
-    )
+    def run_account(download_dir: Path, account: ResolvedAccount, _ctx: RunContext) -> None:
+        run(download_dir, account)
+
+    run_stage_main(run_account=run_account)
 
 
 if __name__ == "__main__":

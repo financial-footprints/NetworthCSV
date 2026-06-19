@@ -1,0 +1,135 @@
+{
+  "user_config": "user.config.json",
+  "banks": {
+    "bob": {
+      "default": {
+        "subjects": [
+          "E-statement for your BOB"
+        ]
+      },
+      "easy": {
+        "subjects": [
+          "E-statement for your BOB EASY credit card ending in"
+        ]
+      }
+    },
+    "csb": {
+      "default": {
+        "subjects": [
+          "Credit Card Statement"
+        ]
+      },
+      "edge": {
+        "subjects": [
+          "Edge CSB Bank RuPay Credit Card Statement"
+        ]
+      }
+    },
+    "federal": {
+      "default": {
+        "subjects": [
+          "Federal Bank Credit Card Statement"
+        ]
+      },
+      "edge": {
+        "subjects": [
+          "Edge Federal Bank Credit Card Statement"
+        ]
+      },
+      "signet": {
+        "subjects": [
+          "Credit Card Statement"
+        ],
+        "bodies": [
+          "<title>Signet</title>"
+        ]
+      }
+    },
+    "hdfc": {
+      "default": {
+        "subjects": [
+          "HDFC Bank Credit Card Statement"
+        ]
+      },
+      "diners": {
+        "subjects": [
+          "Your HDFC Bank - Diners Club International Credit Card Statement"
+        ]
+      },
+      "regalia": {
+        "subjects": [
+          "Your HDFC Bank - Regalia MasterCard Credit Card Statement"
+        ]
+      },
+      "regalia-gold": {
+        "subjects": [
+          "Your HDFC Bank - HDFC Bank Regalia Gold Credit Card Statement"
+        ]
+      },
+      "swiggy": {
+        "subjects": [
+          "HDFC Bank - Swiggy HDFC Bank Credit Card Statement"
+        ]
+      },
+      "tata-neu-infinity": {
+        "subjects": [
+          "Your HDFC Bank - Tata Neu Infinity HDFC Bank Credit Card Statement"
+        ]
+      }
+    },
+    "icici": {
+      "default": {
+        "subjects": [
+          "ICICI Bank Credit Card Statement for the period"
+        ]
+      },
+      "amazon": {
+        "subjects": [
+          "Amazon Pay ICICI Bank Credit Card Statement for the period"
+        ]
+      }
+    },
+    "idfc": {
+      "default": {
+        "subjects": [
+          "Credit Card Statement"
+        ]
+      },
+      "wow": {
+        "subjects": [
+          "FIRST WOW! Credit Card Statement"
+        ]
+      }
+    },
+    "indusind": {
+      "default": {
+        "subjects": [
+          "IndusInd Bank Credit Card"
+        ]
+      }
+    },
+    "pnb": {
+      "default": {
+        "subjects": [
+          "Your PNB Credit Card Statement for the month"
+        ],
+        "end_marker": "********** End of Statement **********",
+        "information_markers": [
+          "*TAD for the month consists of current month purchases, charges, cash advances and amount of BT/EMI due for the month if any. Making only the minimum payment if any month would result in the repayment stretching over subsequent Always get MORE with months with consequent interest payment on your outstanding balance. Please examine your statement immediately upon receipt. If no error is reported within 60 days from the date PNB Credit Cards of statement, the account will be considered correct. Place of supply : PNB, Credit Card Processing Center, Ground Floor, C-24, Sec-58, Noida, Uttar Pradesh 201301, State Code : 09 GSTIN No.: 07AAACP0165G3ZP Registered Address : Punjab National Bank, Plot No. 7, East Block Road, Bhikaji Cama Place, New Delhi, New Delhi, Delhi, 110066 State Code : 07"
+        ]
+      }
+    },
+    "yes": {
+      "default": {
+        "subjects": [
+          "Your YES_BANK"
+        ]
+      },
+      "ace": {
+        "subjects": [
+          "Your YES_BANK_ACE Rupay Credit Card E-Statement"
+        ]
+      }
+    }
+  }
+}

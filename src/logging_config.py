@@ -5,12 +5,17 @@ from __future__ import annotations
 import logging
 import sys
 
+from typing_extensions import override
+
 
 class _MaxLevelFilter(logging.Filter):
+    _max_level: int
+
     def __init__(self, max_level: int) -> None:
         super().__init__()
         self._max_level = max_level
 
+    @override
     def filter(self, record: logging.LogRecord) -> bool:
         return record.levelno <= self._max_level
 
@@ -31,6 +36,9 @@ def configure_logging() -> None:
     stderr_handler.setLevel(logging.WARNING)
     stderr_handler.setFormatter(formatter)
 
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     root.addHandler(stdout_handler)
     root.addHandler(stderr_handler)
+
+    for name in ("pdfminer", "pdfplumber", "pypdf"):
+        logging.getLogger(name).setLevel(logging.WARNING)

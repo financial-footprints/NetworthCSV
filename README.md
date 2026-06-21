@@ -1,6 +1,6 @@
 ## CCParser
 
-A tool to parse credit card statements from a Thunderbird profile into CSV files. One run processes every configured bank account: extract statement emails, clean PDFs, extract text, and parse transactions.
+A tool to parse credit card statements from a Thunderbird profile into CSV files. One run processes every configured bank account: extract statement emails, prepare paired PDF/TXT files, and parse transactions.
 
 **Quick reference:** [TLDR.md](TLDR.md) — commands only, no long docs.
 
@@ -28,19 +28,19 @@ CCParser/
 flowchart LR
     TB[Thunderbird mbox] --> Thunderbird
     Thunderbird --> Cleanup
-    Cleanup --> TextExtract
-    TextExtract --> Parse
+    Cleanup --> Parse
     Parse --> CSV[transactions.csv]
 ```
 
-| Stage        | Command                     | Input → Output                                                  |
-| ------------ | --------------------------- | --------------------------------------------------------------- |
-| Extract      | `src.pipeline.thunderbird`  | mbox attachments → raw PDFs in `{bank}/` or `{bank}/{variant}/` |
-| Cleanup      | `src.pipeline.cleanup`      | loose PDFs → decrypted `FY*/YYYY-MM.pdf`                        |
-| Text extract | `src.pipeline.text_extract` | PDFs → sanitized `txt/FY*/YYYY-MM.txt`                          |
-| Parse        | `src.pipeline.parse`        | `.txt` files → `transactions.csv`                               |
+| Stage   | Command                    | Input → Output                                                                 |
+| ------- | -------------------------- | ------------------------------------------------------------------------------ |
+| Extract | `src.pipeline.thunderbird` | mbox attachments → raw PDFs in `{bank}/` or `{bank}/{variant}/`              |
+| Cleanup | `src.pipeline.cleanup`     | raw PDFs → paired `FY*/YYYY-MM.pdf` + `FY*/YYYY-MM.txt` (sibling files, one extract) |
+| Parse   | `src.pipeline.parse`       | paired `.txt` files → `FY*/transactions.csv`                                         |
 
-The parse stage reads **text files only** (not PDFs). Run `text_extract` before `parse`.
+Cleanup decrypts each PDF, extracts text once, validates the account `identifier` against sanitized text, and writes matching PDF/TXT siblings in FY folders. The parse stage reads **text files only** (not PDFs). Run `cleanup` before `parse`.
+
+`python -m src.pipeline.text_extract` still works as an alias for cleanup.
 
 ### Configuration
 
@@ -165,7 +165,7 @@ Optional `run` block (controls which accounts run and stage-specific options):
 | `run.bank`                | omitted → all accounts                | Limit stages to accounts with this bank id                       |
 | `run.variant`             | omitted → all variants for `run.bank` | Further limit to one variant (requires `run.bank`)               |
 | `run.fy`                  | `null` → all FY folders               | Parse only this FY folder name (e.g. `FY23-2024`)                |
-| `run.force_text_extract`  | `false`                               | Re-extract all PDFs even when txt is up to date                  |
+| `run.force_text_extract`  | `false`                               | Re-prepare all statement pairs even when TXT is up to date       |
 | `run.create_combined_csv` | `false`                               | Write `combined_transactions.csv` across FY folders when parsing |
 
 Each entry in `accounts`:
@@ -173,7 +173,7 @@ Each entry in `accounts`:
 | Field        | Required | Description                                                                                                                                                                                                                                           |
 | ------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bank`       | Yes      | Bank id matching a key in app config `banks` (e.g. `pnb`, `icici`, `hdfc`)                                                                                                                                                                            |
-| `identifier` | Yes      | Substring that must appear in each statement PDF (e.g. last 4 digits or masked card number). Used during text extraction to verify the PDF belongs to this account.                                                                                   |
+| `identifier` | Yes      | Substring that must appear in each statement's sanitized text (e.g. last 4 digits or masked card number). Used during cleanup to pick the correct PDF when multiple downloads share the same month; if none match, no PDF or TXT is kept for that month.                                                                                   |
 | `passwords`  | Yes      | Non-empty array of PDF passwords to try, in order. Duplicates are removed.                                                                                                                                                                            |
 | `variant`    | No       | Card product id for folder layout (`{bank}/{variant}/`). When set, app-config `default` merges with that named override if present. When omitted, `default` alone applies. Any id works (e.g. `coral`); unknown ids inherit `default` matching rules. |
 
@@ -194,19 +194,28 @@ Optional per-account overrides (applied after app-config merge):
 
 **Secrets:** `user.config.json` holds PDF passwords and, when email alerts are used, the SMTP password. Do not commit it with real values.
 
-Statement PDFs are password-protected. Each bank account has its own password list; cleanup and text extraction try each password until one works.
+Statement PDFs are password-protected. Each bank account has its own password list; cleanup tries each password until one works.
 
-After cleanup, statement PDFs live under `{download_path}/{bank}/FY*/` or `{download_path}/{bank}/{variant}/FY*/`. Text extraction writes sanitized plain-text copies to `txt/FY*/` under the same account folder. During text extraction, each statement is checked for the account's `identifier`; if it is missing, a warning is logged, any existing `.txt` for that PDF is removed, and that PDF is skipped. Parsing reads only the `.txt` files that remain.
+After cleanup, each statement month has a paired PDF and TXT as sibling files in an FY folder:
+
+```
+{download_path}/{bank}/FY23-2024/2024-01.pdf
+{download_path}/{bank}/FY23-2024/2024-01.txt
+```
+
+When a variant is set, paths use `{download_path}/{bank}/{variant}/FY*/…`.
+
+When multiple raw downloads map to the same month, cleanup extracts text once per candidate, keeps the first whose **sanitized text** contains the account `identifier`, and deletes the rest. If none match, no PDF or TXT for that month is kept and an alert is emitted. Parsing reads only the `.txt` files in `FY*/`.
 
 #### Alerts
 
-Alerts notify you of pipeline validation failures (for example, a statement PDF whose extracted text does not contain the account `identifier`). They are optional and configured entirely in the user config.
+Alerts notify you of pipeline validation failures (for example, a statement whose sanitized text does not contain the account `identifier`). They are optional and configured entirely in the user config.
 
 **Choosing a delivery method:** Set `alerts.type` to exactly one of `"console"` or `"email"`. You cannot enable both at once.
 
 | `alerts.type` | When alerts are sent | How                                                                         |
 | ------------- | -------------------- | --------------------------------------------------------------------------- |
-| omitted       | Never                | No structured alert delivery (warnings still logged during text extraction) |
+| omitted       | Never                | No structured alert delivery (warnings still logged during cleanup) |
 | `"console"`   | As each alert occurs | Logged to stderr with `ALERT [...]` prefix                                  |
 | `"email"`     | End of run           | One batched SMTP message listing all alerts                                 |
 
@@ -311,7 +320,7 @@ Install from the repo root:
 pip install -e .
 ```
 
-Full pipeline for all accounts (extract → cleanup → text extract → parse):
+Full pipeline for all accounts (extract → cleanup → parse):
 
 ```bash
 ccparser
@@ -328,11 +337,10 @@ Extract only:
 python -m src.pipeline.thunderbird
 ```
 
-Cleanup, text extract, and parse (all configured accounts by default):
+Cleanup and parse (all configured accounts by default):
 
 ```bash
 python -m src.pipeline.cleanup
-python -m src.pipeline.text_extract
 python -m src.pipeline.parse
 ```
 
@@ -350,11 +358,11 @@ To limit a run to one account or FY, set the `run` block in `user.config.json`:
 
 Omit `run` entirely (or leave `bank` / `variant` null) to process every account in `accounts`.
 
-Cleanup steps: non-PDF removal, decrypt, dedupe, rename to `YYYY-MM.pdf`, then organize into India FY folders such as `FY23-2024/` for Apr 2023–Mar 2024.
+Cleanup steps: non-PDF removal, decrypt, single-pass extract with identifier validation on sanitized text, write paired `FY*/YYYY-MM.pdf` and `FY*/YYYY-MM.txt` as sibling files, orphan sweep, and removal of legacy `PDF/` and `TXT/` folders. India FY folders such as `FY23-2024/` cover Apr 2023–Mar 2024.
 
-Text extraction uses pdfplumber with layout-preserving extraction, then optionally trims content by per-account `start_marker` / `end_marker` substrings, drops lines matching `information_markers`, and sanitizes output to an English bank-statement character set (letters, digits, whitespace, common punctuation, and table line characters). Tabs are converted to spaces without collapsing other whitespace. Skips PDFs whose txt file is already up to date.
+Cleanup uses pdfplumber with layout-preserving extraction, then optionally trims content by per-account `start_marker` / `end_marker` substrings, drops lines matching `information_markers`, and sanitizes output to an English bank-statement character set (letters, digits, whitespace, common punctuation, and table line characters). Tabs are converted to spaces without collapsing other whitespace. Skips months whose paired TXT is already up to date unless `force_text_extract` is set.
 
-CSV columns: `Date`, `Description`, `Ref`, `Credited`, `Debited`, `File`. Parsing is implemented in `src/parsers/statement.py` and reads sanitized `.txt` files from the text-extract stage.
+CSV columns: `Date`, `Description`, `Ref`, `Credited`, `Debited`, `File`. Parsing is implemented in `src/parsers/statement.py` and reads sanitized `.txt` files from `FY*/`.
 
 Close Thunderbird before running against a live profile path.
 

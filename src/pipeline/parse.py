@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse statement text files in txt/FY folders into CSV files."""
+"""Parse statement text files in FY folders into CSV files."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from src.core.paths import (
     discover_fy_folders,
     pdfs_in_fy,
     resolve_fy_limit,
-    txt_is_current,
     txt_path_for_pdf,
 )
 from src.core.transactions import Transaction
@@ -51,17 +50,12 @@ def _write_csv(path: Path, transactions: list[Transaction]) -> None:
 
 
 def _should_parse_txt(pdf_path: Path, txt_path: Path) -> bool:
-    if not txt_path.is_file():
-        logger.warning(
-            "ignored %s: no txt file (identifier did not match)",
+    if not txt_path.is_file() or not pdf_path.is_file():
+        logger.debug(
+            "ignored %s: missing paired pdf or txt",
             pdf_path.name,
         )
         return False
-    if not pdf_path.is_file():
-        logger.warning("source PDF missing for %s, skipping", txt_path.name)
-        return False
-    if not txt_is_current(pdf_path, txt_path):
-        logger.warning("txt stale for %s, re-run text_extract", txt_path.name)
     return True
 
 
@@ -77,7 +71,7 @@ def process_fy_folder(
     transactions: list[Transaction] = []
     parsed_count = 0
     for pdf_path in pdfs:
-        txt_path = txt_path_for_pdf(download_dir, fy_dir, pdf_path)
+        txt_path = txt_path_for_pdf(download_dir, pdf_path)
         if not _should_parse_txt(pdf_path, txt_path):
             continue
         text = txt_path.read_text(encoding="utf-8")

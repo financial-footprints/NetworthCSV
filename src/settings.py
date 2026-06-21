@@ -10,10 +10,14 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
+from src.logging_config import LogLevel
+
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "app.config.json"
+BASE_APP_CONFIG_FILENAME = "app.config.json"
+LOCAL_APP_CONFIG_FILENAME = "app.config.local.json"
 CONFIG_ENV_VAR = "CCPARSER_CONFIG"
 
 _MATCHING_FIELD_NAMES = frozenset(
@@ -386,6 +390,7 @@ class UserConfig(BaseModel):
 
     profile: Path
     download_path: Path
+    log_level: LogLevel = "info"
     start_date: date | None = None
     mbox: Path | None = None
     accounts: list[UserAccountConfig] = Field(min_length=1)
@@ -453,6 +458,7 @@ class UserConfig(BaseModel):
             {
                 "profile": _resolve_path(profile_raw, base),
                 "download_path": _resolve_path(download_raw, base),
+                "log_level": data.get("log_level", "info"),
                 "start_date": data.get("start_date"),
                 "mbox": _resolve_path(mbox_raw, base) if mbox_raw else None,
                 "accounts": data.get("accounts", []),
@@ -480,6 +486,7 @@ class Settings:
     accounts: list[ResolvedAccount]
     alerts: ConsoleAlertSettings | EmailAlertsSettings | None
     run: RunSettings
+    log_level: LogLevel = "info"
     start_date: date | None = None
     mbox: Path | None = None
 
@@ -543,6 +550,7 @@ def merge_settings(app: AppConfig, user: UserConfig) -> Settings:
     return Settings(
         profile=user.profile,
         download_path=user.download_path,
+        log_level=user.log_level,
         start_date=user.start_date,
         mbox=user.mbox,
         accounts=accounts,
@@ -609,10 +617,46 @@ def _load_json_object(path: Path) -> dict[str, object]:
     return cast(dict[str, object], loaded)
 
 
+def _deep_merge_dict(
+    base: dict[str, object],
+    overlay: dict[str, object],
+) -> dict[str, object]:
+    merged = dict(base)
+    for key, overlay_value in overlay.items():
+        base_value = merged.get(key)
+        if isinstance(base_value, dict) and isinstance(overlay_value, dict):
+            merged[key] = _deep_merge_dict(
+                cast(dict[str, object], base_value),
+                cast(dict[str, object], overlay_value),
+            )
+        else:
+            merged[key] = overlay_value
+    return merged
+
+
+def _is_local_app_config_overlay(path: Path) -> bool:
+    return path.name == LOCAL_APP_CONFIG_FILENAME
+
+
+def _load_app_config_data(resolved: Path) -> dict[str, object]:
+    if not _is_local_app_config_overlay(resolved):
+        return _load_json_object(resolved)
+
+    base_path = resolved.parent / BASE_APP_CONFIG_FILENAME
+    if not base_path.is_file():
+        raise SystemExit(
+            f"error: app config overlay requires base config: {base_path}"
+        )
+
+    base_data = _load_json_object(base_path)
+    overlay_data = _load_json_object(resolved)
+    return _deep_merge_dict(base_data, overlay_data)
+
+
 def load_app_config(config_path: str | Path) -> AppConfig:
     resolved = Path(config_path).expanduser().resolve()
     try:
-        return AppConfig.from_json(_load_json_object(resolved), config_path=resolved)
+        return AppConfig.from_json(_load_app_config_data(resolved), config_path=resolved)
     except (ValidationError, ValueError, TypeError) as exc:
         raise SystemExit(f"error: invalid app config {resolved}: {exc}") from exc
 

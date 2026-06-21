@@ -36,6 +36,14 @@ def fy_folder_name(month_stem: str) -> str:
     return f"FY{fy_start % 100:02d}-{fy_end}"
 
 
+def fy_dir(download_dir: Path, fy_name: str) -> Path:
+    return download_dir / fy_name
+
+
+def statement_pdf_path(download_dir: Path, month_stem: str) -> Path:
+    return fy_dir(download_dir, fy_folder_name(month_stem)) / f"{month_stem}.pdf"
+
+
 def discover_fy_folders(download_dir: Path, limit: Path | None = None) -> list[Path]:
     if limit is not None:
         if not limit.is_dir():
@@ -47,8 +55,12 @@ def discover_fy_folders(download_dir: Path, limit: Path | None = None) -> list[P
     return folders
 
 
-def txt_path_for_pdf(download_dir: Path, fy_dir: Path, pdf_path: Path) -> Path:
-    return download_dir / "txt" / fy_dir.name / f"{pdf_path.stem}.txt"
+def txt_path_for_pdf(_download_dir: Path, pdf_path: Path) -> Path:
+    return pdf_path.with_suffix(".txt")
+
+
+def pdf_path_for_txt(_download_dir: Path, txt_path: Path) -> Path:
+    return txt_path.with_suffix(".pdf")
 
 
 def txt_is_current(pdf_path: Path, txt_path: Path) -> bool:
@@ -57,17 +69,19 @@ def txt_is_current(pdf_path: Path, txt_path: Path) -> bool:
     return txt_path.stat().st_mtime >= pdf_path.stat().st_mtime
 
 
-def iter_statement_pdfs(
+def iter_statement_pairs(
     download_dir: Path, fy_limit: Path | None = None
 ) -> Iterator[tuple[Path, Path]]:
-    """Yield (fy_dir, pdf_path) for each PDF in discovered FY folders."""
-    for fy_dir in discover_fy_folders(download_dir, fy_limit):
-        for pdf_path in sorted(fy_dir.glob("*.pdf")):
-            yield fy_dir, pdf_path
+    """Yield (pdf_path, txt_path) for each statement PDF in FY* folders."""
+    for folder in discover_fy_folders(download_dir, fy_limit):
+        for pdf_path in sorted(folder.glob("*.pdf")):
+            yield pdf_path, txt_path_for_pdf(download_dir, pdf_path)
 
 
-def pdfs_in_fy(download_dir: Path, fy_dir: Path) -> list[Path]:
-    return [pdf for folder, pdf in iter_statement_pdfs(download_dir) if folder == fy_dir]
+def pdfs_in_fy(download_dir: Path, fy_dir_path: Path) -> list[Path]:
+    if fy_dir_path.parent != download_dir:
+        return []
+    return sorted(fy_dir_path.glob("*.pdf"))
 
 
 def resolve_fy_limit(download_dir: Path, fy_name: str | None) -> Path | None:
@@ -75,5 +89,5 @@ def resolve_fy_limit(download_dir: Path, fy_name: str | None) -> Path | None:
         return None
     limit = Path(fy_name).expanduser()
     if not limit.is_absolute():
-        limit = (download_dir / limit).resolve()
+        limit = (download_dir / limit.name).resolve()
     return limit

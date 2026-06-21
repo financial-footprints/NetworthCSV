@@ -48,11 +48,10 @@ python -m src
 ```bash
 python -m src.pipeline.thunderbird
 python -m src.pipeline.cleanup
-python -m src.pipeline.text_extract
 python -m src.pipeline.parse
 ```
 
-Run `text_extract` before `parse`.
+Run `cleanup` before `parse`. `python -m src.pipeline.text_extract` is an alias for cleanup.
 
 ---
 
@@ -84,9 +83,8 @@ python -m unittest discover -s tests
 
 ## Outputs
 
-| Stage        | Output                                                                                 |
-| ------------ | -------------------------------------------------------------------------------------- |
-| Extract      | `{download_path}/{bank}/*.pdf` or `{download_path}/{bank}/{variant}/*.pdf` (raw)       |
-| Cleanup      | `{download_path}/{bank}/FY*/YYYY-MM.pdf` or `{download_path}/{bank}/{variant}/FY*/...` |
-| Text extract | `.../txt/FY*/YYYY-MM.txt` under the same account folder                                |
-| Parse        | `.../FY*/transactions.csv` (+ optional `combined_transactions.csv`)                    |
+| Stage   | Output                                                                                          |
+| ------- | ----------------------------------------------------------------------------------------------- |
+| Extract | `{download_path}/{bank}/*.pdf` or `{download_path}/{bank}/{variant}/*.pdf` (raw staging)        |
+| Cleanup | paired `FY*/YYYY-MM.pdf` + `FY*/YYYY-MM.txt` as sibling files under the account folder         |
+| Parse   | `FY*/transactions.csv` (+ optional `combined_transactions.csv` at account root)               |

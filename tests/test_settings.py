@@ -86,6 +86,15 @@ class SettingsTests(unittest.TestCase):
         )
         return config_path
 
+    def _write_app_config_overlay(
+        self,
+        directory: Path,
+        overlay: dict[str, object],
+    ) -> Path:
+        config_path = directory / "app.config.local.json"
+        self._write_json(config_path, overlay)
+        return config_path
+
     def _write_user_config(
         self,
         directory: Path,
@@ -517,6 +526,38 @@ class SettingsTests(unittest.TestCase):
         )
         self.assertEqual(len(user.accounts), 2)
 
+    def test_log_level_defaults_to_info(self) -> None:
+        user = UserConfig.model_validate(
+            {
+                "profile": "/profile",
+                "download_path": "/statements",
+                "accounts": [self._account(bank="bob")],
+            }
+        )
+        self.assertEqual(user.log_level, "info")
+
+    def test_log_level_accepts_debug(self) -> None:
+        user = UserConfig.model_validate(
+            {
+                "profile": "/profile",
+                "download_path": "/statements",
+                "log_level": "debug",
+                "accounts": [self._account(bank="bob")],
+            }
+        )
+        self.assertEqual(user.log_level, "debug")
+
+    def test_log_level_rejects_invalid_value(self) -> None:
+        with self.assertRaises(ValidationError):
+            _ = UserConfig.model_validate(
+                {
+                    "profile": "/profile",
+                    "download_path": "/statements",
+                    "log_level": "trace",
+                    "accounts": [self._account(bank="bob")],
+                }
+            )
+
     def test_account_download_path_with_variant(self) -> None:
         settings = self._settings(
             accounts=[
@@ -882,6 +923,76 @@ class SettingsTests(unittest.TestCase):
             _ = custom.write_text("{}", encoding="utf-8")
             with mock.patch.dict(os.environ, {CONFIG_ENV_VAR: "/other/app.config.json"}, clear=True):
                 self.assertEqual(resolve_config_path(custom), custom.resolve())
+
+    def test_local_app_config_overlay_inherits_banks_from_base(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = self._write_app_config(
+                root,
+                "user.config.json",
+                {
+                    "bob": self._bob_bank_config(),
+                    "icici": self._icici_bank_config(),
+                },
+            )
+            overlay_path = self._write_app_config_overlay(
+                root,
+                {
+                    "user_config": "/custom/user.config.json",
+                },
+            )
+
+            app_config = load_app_config(overlay_path)
+
+            self.assertEqual(app_config.user_config, Path("/custom/user.config.json"))
+            self.assertIn("bob", app_config.banks)
+            self.assertIn("icici", app_config.banks)
+            self.assertEqual(
+                app_config.banks["bob"]["easy"].subjects,
+                ["BOB CREDIT CARD"],
+            )
+
+    def test_local_app_config_overlay_deep_merges_bank_variants(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = self._write_app_config(
+                root,
+                "user.config.json",
+                {"bob": self._bob_bank_config()},
+            )
+            overlay_path = self._write_app_config_overlay(
+                root,
+                {
+                    "banks": {
+                        "bob": {
+                            "easy": {
+                                "subjects": ["BOB EASY override"],
+                            }
+                        }
+                    }
+                },
+            )
+
+            app_config = load_app_config(overlay_path)
+
+            self.assertEqual(
+                app_config.banks["bob"]["default"].subjects,
+                ["BOB"],
+            )
+            self.assertEqual(
+                app_config.banks["bob"]["easy"].subjects,
+                ["BOB EASY override"],
+            )
+
+    def test_local_app_config_overlay_requires_base_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            overlay_path = self._write_app_config_overlay(
+                root,
+                {"user_config": "user.config.json"},
+            )
+            with self.assertRaises(SystemExit):
+                _ = load_app_config(overlay_path)
 
     def test_run_settings_rejects_variant_without_bank(self) -> None:
         with self.assertRaises(ValidationError):

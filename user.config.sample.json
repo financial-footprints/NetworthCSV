@@ -1,6 +1,7 @@
 {
   "profile": "/path/to/thunderbird/profile",
   "download_path": "/path/to/statements",
+  "log_level": "info",
   "start_date": null,
   "mbox": null,
   "alerts": {

@@ -7,7 +7,15 @@ import time
 import unittest
 from pathlib import Path
 
-from src.core.paths import fy_folder_name, txt_is_current, txt_path_for_pdf, unique_path
+from src.core.paths import (
+    discover_fy_folders,
+    fy_folder_name,
+    pdf_path_for_txt,
+    statement_pdf_path,
+    txt_is_current,
+    txt_path_for_pdf,
+    unique_path,
+)
 
 
 class PathTests(unittest.TestCase):
@@ -25,13 +33,35 @@ class PathTests(unittest.TestCase):
         self.assertEqual(fy_folder_name("unknown-month"), "unknown-month")
 
     def test_txt_path_for_pdf(self) -> None:
-        download_dir = Path("/data/bob")
-        fy_dir = Path("/data/bob/FY23-2024")
-        pdf_path = Path("/data/bob/FY23-2024/2024-01.pdf")
+        download_dir = Path("/data/bob/easy")
+        pdf_path = Path("/data/bob/easy/FY23-2024/2024-01.pdf")
         self.assertEqual(
-            txt_path_for_pdf(download_dir, fy_dir, pdf_path),
-            Path("/data/bob/txt/FY23-2024/2024-01.txt"),
+            txt_path_for_pdf(download_dir, pdf_path),
+            Path("/data/bob/easy/FY23-2024/2024-01.txt"),
         )
+
+    def test_pdf_path_for_txt(self) -> None:
+        download_dir = Path("/data/bob/easy")
+        txt_path = Path("/data/bob/easy/FY23-2024/2024-01.txt")
+        self.assertEqual(
+            pdf_path_for_txt(download_dir, txt_path),
+            Path("/data/bob/easy/FY23-2024/2024-01.pdf"),
+        )
+
+    def test_statement_pdf_path(self) -> None:
+        download_dir = Path("/data/bob/easy")
+        self.assertEqual(
+            statement_pdf_path(download_dir, "2024-01"),
+            Path("/data/bob/easy/FY23-2024/2024-01.pdf"),
+        )
+
+    def test_discover_fy_folders(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            _ = (download_dir / "FY23-2024").mkdir(parents=True)
+            _ = (download_dir / "FY24-2025").mkdir()
+            folders = discover_fy_folders(download_dir)
+            self.assertEqual([folder.name for folder in folders], ["FY23-2024", "FY24-2025"])
 
     def test_txt_is_current(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

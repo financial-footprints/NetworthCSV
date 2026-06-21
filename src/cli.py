@@ -18,8 +18,8 @@ __all__ = [
 
 
 def load_context() -> RunContext:
-    configure_logging()
     settings = load_settings()
+    configure_logging(settings.log_level)
     return RunContext(
         settings=settings,
         alerts=build_alert_service(alerts=settings.alerts),

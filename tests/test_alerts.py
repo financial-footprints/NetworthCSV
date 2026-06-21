@@ -118,8 +118,8 @@ class AlertServiceTests(unittest.TestCase):
 
 
 class ConsoleAlertHandlerTests(unittest.TestCase):
-    @patch("src.alerts.handlers.console.logger.warning")
-    def test_logs_alert(self, mock_warning: MagicMock) -> None:
+    @patch("src.alerts.handlers.console.logger.debug")
+    def test_logs_alert(self, mock_debug: MagicMock) -> None:
         handler = ConsoleAlertHandler()
         alert = Alert(
             kind=AlertKind.IDENTIFIER_MISSING,
@@ -131,8 +131,8 @@ class ConsoleAlertHandlerTests(unittest.TestCase):
 
         handler.send([alert])
 
-        mock_warning.assert_called_once()
-        self.assertIn("ALERT", cast(str, mock_warning.call_args.args[0]))
+        mock_debug.assert_called_once()
+        self.assertIn("ALERT", cast(str, mock_debug.call_args.args[0]))
 
 
 class SmtpEmailAlertHandlerTests(unittest.TestCase):

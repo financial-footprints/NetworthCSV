@@ -150,8 +150,8 @@ class IdentifierValidationTests(unittest.TestCase):
         self.assertTrue(identifier_present("Card ending in 1234", "1234"))
         self.assertFalse(identifier_present("Card ending in 5678", "1234"))
 
-    @patch("src.pipeline.text_extract.logger.warning")
-    def test_identifier_found(self, mock_warning: MagicMock) -> None:
+    @patch("src.pipeline.statement_text.logger.debug")
+    def test_identifier_found(self, mock_debug: MagicMock) -> None:
         result = check_identifier(
             "Card ending in 1234",
             identifier="1234",
@@ -159,10 +159,10 @@ class IdentifierValidationTests(unittest.TestCase):
             account_label="pnb/platinum",
         )
         self.assertTrue(result)
-        mock_warning.assert_not_called()
+        mock_debug.assert_not_called()
 
-    @patch("src.pipeline.text_extract.logger.warning")
-    def test_identifier_missing(self, mock_warning: MagicMock) -> None:
+    @patch("src.pipeline.statement_text.logger.debug")
+    def test_identifier_missing(self, mock_debug: MagicMock) -> None:
         result = check_identifier(
             "Card ending in 5678",
             identifier="1234",
@@ -170,7 +170,7 @@ class IdentifierValidationTests(unittest.TestCase):
             account_label="pnb/platinum",
         )
         self.assertFalse(result)
-        mock_warning.assert_called_once_with(
+        mock_debug.assert_called_once_with(
             "ignored %s for %s: identifier %r not found",
             "2024-01.pdf",
             "pnb/platinum",

@@ -16,9 +16,12 @@ from src.settings import (
     ConsoleAlertSettings,
     EmailAlertSettings,
     EmailAlertsSettings,
+    EmailSource,
     ResolvedAccount,
     RunSettings,
     Settings,
+    ThunderbirdSource,
+    ThunderbirdSourceSettings,
     UserAccountConfig,
     UserConfig,
     account_download_path,
@@ -95,6 +98,9 @@ class SettingsTests(unittest.TestCase):
         self._write_json(config_path, overlay)
         return config_path
 
+    def _thunderbird_source(self, profile: Path = _DEFAULT_PROFILE) -> ThunderbirdSource:
+        return ThunderbirdSource(thunderbird=ThunderbirdSourceSettings(profile=profile))
+
     def _write_user_config(
         self,
         directory: Path,
@@ -103,15 +109,22 @@ class SettingsTests(unittest.TestCase):
         download_path: str = "statements",
         accounts: list[dict[str, object]],
         start_date: str | None = None,
+        source: dict[str, object] | None = None,
+        extra: dict[str, object] | None = None,
     ) -> Path:
         config_path = directory / "user.config.json"
         data: dict[str, object] = {
-            "profile": profile,
             "download_path": download_path,
             "accounts": accounts,
         }
+        if source is not None:
+            data["source"] = source
+        else:
+            data["profile"] = profile
         if start_date is not None:
             data["start_date"] = start_date
+        if extra:
+            data.update(extra)
         self._write_json(config_path, data)
         return config_path
 
@@ -123,22 +136,20 @@ class SettingsTests(unittest.TestCase):
     def _settings(
         self,
         *,
-        profile: Path = _DEFAULT_PROFILE,
+        source: ThunderbirdSource | EmailSource | None = None,
         download_path: Path = _DEFAULT_DOWNLOAD_PATH,
         accounts: list[ResolvedAccount] | None = None,
         alerts: ConsoleAlertSettings | EmailAlertsSettings | None = None,
         run: RunSettings | None = None,
         start_date: date | None = None,
-        mbox: Path | None = None,
     ) -> Settings:
         return Settings(
-            profile=profile,
+            source=source or self._thunderbird_source(),
             download_path=download_path,
             accounts=accounts or [self._account_settings()],
             alerts=alerts,
             run=run or RunSettings(),
             start_date=start_date,
-            mbox=mbox,
         )
 
     def _account_settings(
@@ -192,7 +203,9 @@ class SettingsTests(unittest.TestCase):
                 {"bob": self._bob_bank_config()},
             )
             settings = load_settings(app_config_path)
-            self.assertEqual(settings.profile, profile.resolve())
+            self.assertEqual(settings.source.type, "thunderbird")
+            assert isinstance(settings.source, ThunderbirdSource)
+            self.assertEqual(settings.source.thunderbird.profile, profile.resolve())
             self.assertEqual(settings.download_path, statements.resolve())
             self.assertEqual(settings.accounts[0].bank, "bob")
             self.assertIsNone(settings.accounts[0].variant)
@@ -774,7 +787,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(account_label(with_variant), "icici/amazon")
         self.assertEqual(account_label(without_variant), "icici")
 
-    def test_missing_profile_raises(self) -> None:
+    def test_missing_source_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             user_config_path = root / "user.config.json"
@@ -792,6 +805,71 @@ class SettingsTests(unittest.TestCase):
             )
             with self.assertRaises(SystemExit):
                 _ = load_settings(app_config_path)
+
+    def test_mbox_config_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="bob")],
+                extra={"mbox": None},
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {"bob": self._bob_bank_config()},
+            )
+            with self.assertRaises(SystemExit):
+                _ = load_settings(app_config_path)
+
+    def test_explicit_thunderbird_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            profile = root / "profile"
+            _ = profile.mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="bob")],
+                source={
+                    "type": "thunderbird",
+                    "thunderbird": {"profile": str(profile)},
+                },
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {"bob": self._bob_bank_config()},
+            )
+            settings = load_settings(app_config_path)
+            assert isinstance(settings.source, ThunderbirdSource)
+            self.assertEqual(settings.source.thunderbird.profile, profile.resolve())
+
+    def test_email_source_loads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="bob")],
+                source={
+                    "type": "email",
+                    "email": {
+                        "host": "imap.gmail.com",
+                        "username": "user@gmail.com",
+                        "password": "secret",
+                        "folder": "[Gmail]/All Mail",
+                    },
+                },
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {"bob": self._bob_bank_config()},
+            )
+            settings = load_settings(app_config_path)
+            assert isinstance(settings.source, EmailSource)
+            self.assertEqual(settings.source.email.host, "imap.gmail.com")
+            self.assertEqual(settings.source.email.folder, "[Gmail]/All Mail")
 
     def test_password_field_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,11 +1,11 @@
-"""Thunderbird extraction helpers."""
+"""Email message filtering helpers."""
 
 from __future__ import annotations
 
 import unittest
 from email.message import EmailMessage, Message
 
-from src.pipeline.thunderbird import (
+from src.utils.email.email_message import (
     body_matches,
     from_matches,
     subject_matches,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from src.core.transactions import Transaction
+from src.utils.transactions import Transaction
 
 logger = logging.getLogger(__name__)
 

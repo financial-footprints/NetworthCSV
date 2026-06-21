@@ -6,8 +6,8 @@ from __future__ import annotations
 import logging
 import re
 
-from src.alerts.models import Alert, AlertKind
-from src.alerts.service import AlertService
+from src.utils.alerts.models import Alert, AlertKind
+from src.utils.alerts.service import AlertService
 
 logger = logging.getLogger(__name__)
 

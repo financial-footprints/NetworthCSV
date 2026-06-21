@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from src.alerts.service import build_alert_service
+from src.utils.alerts.service import build_alert_service
 from src.context import RunContext
-from src.core.accounts import iter_accounts
+from src.utils.accounts import iter_accounts
 from src.logging_config import configure_logging
 from src.settings import ResolvedAccount, Settings, load_settings
 

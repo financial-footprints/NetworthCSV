@@ -1,21 +1,21 @@
 from pathlib import Path
 
 from src.cli import load_context
-from src.core.accounts import iter_accounts
-from src.pipeline.cleanup import run as cleanup_run
-from src.pipeline.parse import run as parse_run
-from src.core.paths import resolve_fy_limit
-from src.pipeline.thunderbird import run_account as thunderbird_run_account
+from src.utils.accounts import iter_accounts
+from src.pipeline.cleanup.cleanup import run as cleanup_run
+from src.pipeline.get_statements.extract import run_all as extract_run_all
+from src.pipeline.parse.parse import run as parse_run
+from src.utils.paths import resolve_fy_limit
 from src.settings import ResolvedAccount, account_download_path
 
 
 def main() -> None:
     ctx = load_context()
+    extract_run_all(ctx)
+    print()
 
     def run_pipeline(_download_dir: Path, account: ResolvedAccount, _settings: object) -> None:
         account_dir = account_download_path(ctx.settings, account)
-        thunderbird_run_account(ctx, account)
-        print()
         cleanup_run(account_dir, account, ctx)
         print()
         fy_limit = resolve_fy_limit(account_dir, ctx.settings.run.fy)

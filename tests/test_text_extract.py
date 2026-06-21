@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.pipeline.text_extract import (
+from src.pipeline.cleanup.text_extract import (
     check_identifier,
     identifier_present,
     purge_information_markers,
@@ -150,7 +150,7 @@ class IdentifierValidationTests(unittest.TestCase):
         self.assertTrue(identifier_present("Card ending in 1234", "1234"))
         self.assertFalse(identifier_present("Card ending in 5678", "1234"))
 
-    @patch("src.pipeline.statement_text.logger.debug")
+    @patch("src.pipeline.cleanup.statement_text.logger.debug")
     def test_identifier_found(self, mock_debug: MagicMock) -> None:
         result = check_identifier(
             "Card ending in 1234",
@@ -161,7 +161,7 @@ class IdentifierValidationTests(unittest.TestCase):
         self.assertTrue(result)
         mock_debug.assert_not_called()
 
-    @patch("src.pipeline.statement_text.logger.debug")
+    @patch("src.pipeline.cleanup.statement_text.logger.debug")
     def test_identifier_missing(self, mock_debug: MagicMock) -> None:
         result = check_identifier(
             "Card ending in 5678",

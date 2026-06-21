@@ -4,12 +4,14 @@
 
 ```bash
 pip install -e .
-# edit user.config.json — paths and passwords
+# edit user.config.json — source, paths, and passwords
 ```
 
 Requires Python 3.11+. Each account must use a `passwords` array (legacy `password` field removed).
 
-Close Thunderbird before running against a live profile.
+Set `source.type` to `thunderbird` (local Thunderbird cache) or `email` (live IMAP). See [README — Email sources](README.md#email-sources).
+
+Close Thunderbird before running when using `source.type: thunderbird`.
 
 ## Config
 
@@ -46,12 +48,13 @@ python -m src
 ## One stage only
 
 ```bash
-python -m src.pipeline.thunderbird
+python -m src.pipeline.get_statements
+python -m src.pipeline.get_statements.thunderbird
 python -m src.pipeline.cleanup
 python -m src.pipeline.parse
 ```
 
-Run `cleanup` before `parse`. `python -m src.pipeline.text_extract` is an alias for cleanup.
+Run `cleanup` before `parse`. `python -m src.pipeline.cleanup.text_extract` is an alias for cleanup.
 
 ---
 

@@ -1,3 +1,3 @@
-from src.pipeline.orchestrator import main
+from src.main import main
 
 main()

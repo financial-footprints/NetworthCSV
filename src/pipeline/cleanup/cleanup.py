@@ -11,16 +11,16 @@ from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 
-from src.alerts.service import AlertService
+from src.utils.alerts.service import AlertService
 from src.context import RunContext
-from src.core.paths import (
+from src.utils.paths import (
     pdf_path_for_txt,
     statement_pdf_path,
     txt_is_current,
     txt_path_for_pdf,
 )
-from src.core.pdf import extract_pdf_text_plumber, open_pdf_reader
-from src.pipeline.statement_text import (
+from src.utils.pdf import extract_pdf_text_plumber, open_pdf_reader
+from src.pipeline.cleanup.statement_text import (
     check_identifier,
     identifier_present,
     purge_information_markers,

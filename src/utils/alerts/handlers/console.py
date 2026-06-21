@@ -6,7 +6,7 @@ import logging
 from collections.abc import Sequence
 from typing import ClassVar
 
-from src.alerts.models import Alert, DeliverMode
+from src.utils.alerts.models import Alert, DeliverMode
 
 logger = logging.getLogger(__name__)
 

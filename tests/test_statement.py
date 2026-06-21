@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from src.parsers.statement import parse_statement_text
+from src.pipeline.parse.statement import parse_statement_text
 
 
 class ParseStatementTextTests(unittest.TestCase):

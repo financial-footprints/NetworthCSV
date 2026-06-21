@@ -8,8 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.core.paths import statement_pdf_path, txt_path_for_pdf
-from src.pipeline.cleanup import prepare_month
+from src.utils.paths import statement_pdf_path, txt_path_for_pdf
+from src.pipeline.cleanup.cleanup import prepare_month
 from src.settings import ResolvedAccount
 
 
@@ -47,7 +47,7 @@ class PrepareMonthTests(unittest.TestCase):
         _ = path.write_bytes(payload)
         return path
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_writes_paired_pdf_and_txt_for_matching_staging_file(
         self, mock_extract: MagicMock
     ) -> None:
@@ -71,7 +71,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertIn("5678", txt_out.read_text(encoding="utf-8"))
             self.assertFalse(staging.exists())
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_keeps_first_matching_identifier_for_same_month(
         self, mock_extract: MagicMock
     ) -> None:
@@ -101,7 +101,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_strict_rejects_month_when_no_identifier_matches(
         self, mock_extract: MagicMock
     ) -> None:
@@ -131,7 +131,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_reject_purges_existing_month_outputs(
         self, mock_extract: MagicMock
     ) -> None:
@@ -157,7 +157,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(txt_out.is_file())
             self.assertFalse(staging.exists())
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_identifier_must_appear_in_sanitized_text(
         self, mock_extract: MagicMock
     ) -> None:
@@ -181,7 +181,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertEqual((prepared, rejected), (1, 0))
             self.assertIn("5678", txt_out.read_text(encoding="utf-8"))
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_keeps_first_when_both_match_identifier(
         self, mock_extract: MagicMock
     ) -> None:
@@ -208,7 +208,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_hash_dedupe_staging_siblings_all_removed(
         self, mock_extract: MagicMock
     ) -> None:
@@ -246,7 +246,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(starred.exists())
             self.assertFalse(important.exists())
 
-    @patch("src.pipeline.cleanup.extract_pdf_text_plumber")
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_reject_removes_all_staging_duplicates_for_month(
         self, mock_extract: MagicMock
     ) -> None:

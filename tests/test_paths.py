@@ -7,7 +7,7 @@ import time
 import unittest
 from pathlib import Path
 
-from src.core.paths import (
+from src.utils.paths import (
     discover_fy_folders,
     fy_folder_name,
     pdf_path_for_txt,

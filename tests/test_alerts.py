@@ -7,11 +7,11 @@ from collections.abc import Sequence
 from typing import ClassVar, cast
 from unittest.mock import MagicMock, patch
 
-from src.alerts.handlers.console import ConsoleAlertHandler
-from src.alerts.handlers.email import SmtpEmailAlertHandler
-from src.alerts.models import Alert, AlertKind, DeliverMode
-from src.alerts.service import AlertService, build_alert_service
-from src.pipeline.text_extract import check_identifier
+from src.utils.alerts.handlers.console import ConsoleAlertHandler
+from src.utils.alerts.handlers.email import SmtpEmailAlertHandler
+from src.utils.alerts.models import Alert, AlertKind, DeliverMode
+from src.utils.alerts.service import AlertService, build_alert_service
+from src.pipeline.cleanup.text_extract import check_identifier
 from src.settings import ConsoleAlertSettings, EmailAlertSettings, EmailAlertsSettings
 
 
@@ -83,7 +83,7 @@ class AlertServiceTests(unittest.TestCase):
         service = build_alert_service(alerts=None)
         self.assertFalse(service.has_alerts)
 
-    @patch("src.alerts.service.ConsoleAlertHandler")
+    @patch("src.utils.alerts.service.ConsoleAlertHandler")
     def test_build_alert_service_console(self, mock_console_cls: MagicMock) -> None:
         mock_console_cls.return_value = _RecordingHandler()
         alerts = ConsoleAlertSettings()
@@ -101,7 +101,7 @@ class AlertServiceTests(unittest.TestCase):
 
     def test_build_alert_service_email_when_configured(self) -> None:
         alerts = EmailAlertsSettings(email=_complete_email_settings())
-        with patch("src.alerts.service.SmtpEmailAlertHandler") as mock_handler_cls:
+        with patch("src.utils.alerts.service.SmtpEmailAlertHandler") as mock_handler_cls:
             mock_handler_cls.return_value = _BatchHandler()
             service = build_alert_service(alerts=alerts)
             service.emit(
@@ -118,7 +118,7 @@ class AlertServiceTests(unittest.TestCase):
 
 
 class ConsoleAlertHandlerTests(unittest.TestCase):
-    @patch("src.alerts.handlers.console.logger.debug")
+    @patch("src.utils.alerts.handlers.console.logger.debug")
     def test_logs_alert(self, mock_debug: MagicMock) -> None:
         handler = ConsoleAlertHandler()
         alert = Alert(
@@ -136,7 +136,7 @@ class ConsoleAlertHandlerTests(unittest.TestCase):
 
 
 class SmtpEmailAlertHandlerTests(unittest.TestCase):
-    @patch("src.alerts.handlers.email.smtplib.SMTP")
+    @patch("src.utils.alerts.handlers.email.smtplib.SMTP")
     def test_sends_email(self, mock_smtp_cls: MagicMock) -> None:
         mock_smtp = MagicMock()
         mock_client = MagicMock()

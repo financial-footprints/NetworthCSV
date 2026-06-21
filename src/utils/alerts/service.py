@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import ClassVar, Protocol
 
-from src.alerts.handlers.console import ConsoleAlertHandler
-from src.alerts.handlers.email import SmtpEmailAlertHandler
-from src.alerts.models import Alert, DeliverMode
+from src.utils.alerts.handlers.console import ConsoleAlertHandler
+from src.utils.alerts.handlers.email import SmtpEmailAlertHandler
+from src.utils.alerts.models import Alert, DeliverMode
 from src.settings import AlertSettings, ConsoleAlertSettings, EmailAlertsSettings
 
 

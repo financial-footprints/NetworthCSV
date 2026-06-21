@@ -9,14 +9,14 @@ from decimal import Decimal
 from pathlib import Path
 
 from src.context import RunContext
-from src.core.paths import (
+from src.utils.paths import (
     discover_fy_folders,
     pdfs_in_fy,
     resolve_fy_limit,
     txt_path_for_pdf,
 )
-from src.core.transactions import Transaction
-from src.parsers.statement import parse_statement_text
+from src.utils.transactions import Transaction
+from src.pipeline.parse.statement import parse_statement_text
 from src.settings import ResolvedAccount
 
 logger = logging.getLogger(__name__)

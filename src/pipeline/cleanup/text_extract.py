@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.context import RunContext
-from src.pipeline.statement_text import (
+from src.pipeline.cleanup.statement_text import (
     check_identifier,
     identifier_present,
     purge_information_markers,
@@ -29,7 +29,7 @@ __all__ = [
 def run(download_dir: Path, account: ResolvedAccount, ctx: RunContext) -> None:
     print("note: text_extract is merged into cleanup; running cleanup instead")
     print()
-    from src.pipeline.cleanup import run as cleanup_run
+    from src.pipeline.cleanup.cleanup import run as cleanup_run
 
     cleanup_run(download_dir, account, ctx)
 

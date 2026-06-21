@@ -385,14 +385,50 @@ class RunSettings(BaseModel):
     create_combined_csv: bool = False
 
 
-class UserConfig(BaseModel):
+class EmailSourceSettings(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    host: Annotated[str, BeforeValidator(_require_field("host"))]
+    port: int = 993
+    username: Annotated[str, BeforeValidator(_require_field("username"))]
+    password: Annotated[str, BeforeValidator(_require_field("password"))]
+    folder: str = "INBOX"
+    use_ssl: bool = True
+
+
+class ThunderbirdSourceSettings(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     profile: Path
+
+
+class ThunderbirdSource(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    type: Literal["thunderbird"] = "thunderbird"
+    thunderbird: ThunderbirdSourceSettings
+
+
+class EmailSource(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    type: Literal["email"] = "email"
+    email: EmailSourceSettings
+
+
+SourceSettings = Annotated[
+    ThunderbirdSource | EmailSource,
+    Field(discriminator="type"),
+]
+
+
+class UserConfig(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    source: SourceSettings
     download_path: Path
     log_level: LogLevel = "info"
     start_date: date | None = None
-    mbox: Path | None = None
     accounts: list[UserAccountConfig] = Field(min_length=1)
     alerts: AlertSettings | None = None
     run: RunSettings | None = None
@@ -446,21 +482,36 @@ class UserConfig(BaseModel):
     @classmethod
     def from_json(cls, data: dict[str, object], *, config_path: Path) -> UserConfig:
         base = config_path.parent
-        profile_raw = data.get("profile")
         download_raw = data.get("download_path")
-        if not profile_raw:
-            raise ValueError("profile is required")
         if not download_raw:
             raise ValueError("download_path is required")
 
-        mbox_raw = data.get("mbox")
+        if "mbox" in data:
+            raise ValueError(
+                "mbox is no longer supported; remove mbox from user config (Thunderbird source always scans all profile folders)"
+            )
+
+        source_raw = data.get("source")
+        if source_raw is not None:
+            source = _parse_source_settings(source_raw, base)
+        elif "profile" in data:
+            profile_raw = data.get("profile")
+            if not profile_raw:
+                raise ValueError("profile must be a non-empty path when using legacy config")
+            source = ThunderbirdSource(
+                thunderbird=ThunderbirdSourceSettings(
+                    profile=_resolve_path(profile_raw, base),
+                )
+            )
+        else:
+            raise ValueError("source is required (or legacy top-level profile for thunderbird)")
+
         return cls.model_validate(
             {
-                "profile": _resolve_path(profile_raw, base),
+                "source": source,
                 "download_path": _resolve_path(download_raw, base),
                 "log_level": data.get("log_level", "info"),
                 "start_date": data.get("start_date"),
-                "mbox": _resolve_path(mbox_raw, base) if mbox_raw else None,
                 "accounts": data.get("accounts", []),
                 "alerts": data.get("alerts"),
                 "run": data.get("run"),
@@ -481,14 +532,39 @@ class ResolvedAccount(MatchingFields):
 
 @dataclass(frozen=True)
 class Settings:
-    profile: Path
+    source: ThunderbirdSource | EmailSource
     download_path: Path
     accounts: list[ResolvedAccount]
     alerts: ConsoleAlertSettings | EmailAlertsSettings | None
     run: RunSettings
     log_level: LogLevel = "info"
     start_date: date | None = None
-    mbox: Path | None = None
+
+
+def _parse_source_settings(raw: object, base: Path) -> ThunderbirdSource | EmailSource:
+    if not isinstance(raw, dict):
+        raise ValueError("source must be an object")
+    source_data = cast(dict[str, object], raw)
+    source_type = source_data.get("type")
+    if source_type == "thunderbird":
+        thunderbird_raw = source_data.get("thunderbird")
+        if not isinstance(thunderbird_raw, dict):
+            raise ValueError("source.thunderbird is required when type is thunderbird")
+        thunderbird_data = cast(dict[str, object], thunderbird_raw)
+        profile_raw = thunderbird_data.get("profile")
+        if not profile_raw:
+            raise ValueError("source.thunderbird.profile is required")
+        return ThunderbirdSource(
+            thunderbird=ThunderbirdSourceSettings(
+                profile=_resolve_path(profile_raw, base),
+            )
+        )
+    if source_type == "email":
+        email_raw = source_data.get("email")
+        if not isinstance(email_raw, dict):
+            raise ValueError("source.email is required when type is email")
+        return EmailSource(email=EmailSourceSettings.model_validate(email_raw))
+    raise ValueError("source.type must be 'thunderbird' or 'email'")
 
 
 def _matching_overlay(model: BaseModel) -> dict[str, object]:
@@ -548,11 +624,10 @@ def merge_settings(app: AppConfig, user: UserConfig) -> Settings:
         accounts.append(_resolved_account(user_account, defaults, bank_key=bank_key))
 
     return Settings(
-        profile=user.profile,
+        source=user.source,
         download_path=user.download_path,
         log_level=user.log_level,
         start_date=user.start_date,
-        mbox=user.mbox,
         accounts=accounts,
         alerts=user.alerts,
         run=user.run or RunSettings(),

@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from typing import ClassVar
 from email.message import EmailMessage
 
-from src.alerts.models import Alert, DeliverMode
+from src.utils.alerts.models import Alert, DeliverMode
 from src.settings import EmailAlertSettings
 
 logger = logging.getLogger(__name__)

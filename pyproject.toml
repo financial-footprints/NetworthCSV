@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ccparser"
 version = "0.1.0"
-description = "Parse credit card statement PDFs from Thunderbird into CSV"
+description = "Parse credit card statement PDFs from email (Thunderbird or IMAP) into CSV"
 requires-python = ">=3.11"
 dependencies = [
     "pypdf~=6.12",
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ccparser = "src.pipeline.orchestrator:main"
+ccparser = "src.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

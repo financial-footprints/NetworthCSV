@@ -1,6 +1,6 @@
 ## CCParser
 
-A tool to parse credit card statements from a Thunderbird profile into CSV files. One run processes every configured bank account: extract statement emails, prepare paired PDF/TXT files, and parse transactions.
+A tool to parse credit card statements from email into CSV files. One run processes every configured bank account: extract statement emails (Thunderbird local cache or live IMAP), prepare paired PDF/TXT files, and parse transactions.
 
 **Quick reference:** [TLDR.md](TLDR.md) — commands only, no long docs.
 
@@ -16,9 +16,11 @@ CCParser/
 ├── src/
 │   ├── cli.py               # shared entry-point helpers
 │   ├── settings.py          # Pydantic config loading
-│   ├── core/                # paths, PDF I/O, account iteration
-│   ├── pipeline/            # thunderbird, cleanup, text_extract, parse
-│   └── parsers/             # statement text parser (txt → transactions)
+│   ├── utils/               # paths, PDF I/O, email, alerts, account iteration
+│   └── pipeline/            # get_statements, cleanup, parse stages
+│       ├── get_statements/  # extract, imap, thunderbird
+│       ├── cleanup/         # cleanup, statement_text, text_extract alias
+│       └── parse/           # parse, statement parser
 └── tests/
 ```
 
@@ -26,25 +28,27 @@ CCParser/
 
 ```mermaid
 flowchart LR
-    TB[Thunderbird mbox] --> Thunderbird
-    Thunderbird --> Cleanup
+    Source[Thunderbird or IMAP] --> Extract
+    Extract --> Cleanup
     Cleanup --> Parse
     Parse --> CSV[transactions.csv]
 ```
 
-| Stage   | Command                    | Input → Output                                                                 |
-| ------- | -------------------------- | ------------------------------------------------------------------------------ |
-| Extract | `src.pipeline.thunderbird` | mbox attachments → raw PDFs in `{bank}/` or `{bank}/{variant}/`              |
-| Cleanup | `src.pipeline.cleanup`     | raw PDFs → paired `FY*/YYYY-MM.pdf` + `FY*/YYYY-MM.txt` (sibling files, one extract) |
-| Parse   | `src.pipeline.parse`       | paired `.txt` files → `FY*/transactions.csv`                                         |
+| Stage   | Command                          | Input → Output                                                                 |
+| ------- | -------------------------------- | ------------------------------------------------------------------------------ |
+| Extract | `src.pipeline.get_statements`    | email attachments → raw PDFs in `{bank}/` or `{bank}/{variant}/`               |
+| Cleanup | `src.pipeline.cleanup`           | raw PDFs → paired `FY*/YYYY-MM.pdf` + `FY*/YYYY-MM.txt` (sibling files, one extract) |
+| Parse   | `src.pipeline.parse`             | paired `.txt` files → `FY*/transactions.csv`                                   |
+
+`src.pipeline.get_statements.thunderbird` and `src.pipeline.get_statements.imap` still work for a single source type only.
 
 Cleanup decrypts each PDF, extracts text once, validates the account `identifier` against sanitized text, and writes matching PDF/TXT siblings in FY folders. The parse stage reads **text files only** (not PDFs). Run `cleanup` before `parse`.
 
-`python -m src.pipeline.text_extract` still works as an alias for cleanup.
+`python -m src.pipeline.cleanup.text_extract` still works as an alias for cleanup.
 
 ### Configuration
 
-CCParser uses two JSON files. The **app config** holds bank-specific defaults (email matching rules, text-extraction markers). The **user config** holds secrets and machine-local paths (Thunderbird profile, download folder, PDF passwords, optional alerts). At startup the app loads the app config, resolves the user config path from it, loads both, merges per-account defaults, and exits with an error if anything is invalid.
+CCParser uses two JSON files. The **app config** holds bank-specific defaults (email matching rules, text-extraction markers). The **user config** holds secrets and machine-local paths (email source, download folder, PDF passwords, optional alerts). At startup the app loads the app config, resolves the user config path from it, loads both, merges per-account defaults, and exits with an error if anything is invalid.
 
 ```mermaid
 flowchart LR
@@ -63,7 +67,7 @@ The app config path is chosen in this order (first match wins):
 1. `CCPARSER_CONFIG` environment variable
 2. `app.config.json` at the repo root (default)
 
-All entry points read config at startup: `src`, `src.pipeline.thunderbird`, `src.pipeline.cleanup`, `src.pipeline.text_extract`, and `src.pipeline.parse`. There are no CLI flags; account scope, FY limits, and other options are set in the user config `run` block.
+All entry points read config at startup: `src`, `src.pipeline.get_statements`, `src.pipeline.cleanup`, `src.pipeline.cleanup.text_extract`, and `src.pipeline.parse`. There are no CLI flags; account scope, FY limits, and other options are set in the user config `run` block.
 
 ```bash
 export CCPARSER_CONFIG=/invar/secret-manager/c05/financial-footprints/app.config.json
@@ -73,10 +77,10 @@ python -m src.pipeline.parse
 
 #### Path resolution
 
-| Path                                              | Resolved relative to         |
-| ------------------------------------------------- | ---------------------------- |
-| `user_config` in app config                       | App config file's directory  |
-| `profile`, `download_path`, `mbox` in user config | User config file's directory |
+| Path                                                         | Resolved relative to         |
+| ------------------------------------------------------------ | ---------------------------- |
+| `user_config` in app config                                  | App config file's directory  |
+| `source.thunderbird.profile`, `download_path` in user config | User config file's directory |
 
 Paths may be absolute or relative. Use absolute paths in production when the user config lives outside the repo.
 
@@ -150,13 +154,58 @@ Named variants must set at least one field (typically `subjects`). Identical dup
 
 | Field           | Required | Description                                                                                                                                |
 | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `profile`       | Yes      | Thunderbird profile directory                                                                                                              |
+| `source`        | Yes*     | Email source: `type` is `thunderbird` or `email` (see [Email sources](#email-sources)). *Legacy top-level `profile` is still accepted.     |
 | `download_path` | Yes      | Base folder for statement files. Each account uses `{download_path}/{bank}/` or `{download_path}/{bank}/{variant}/` when a variant is set. |
 | `start_date`    | No       | ISO date (`YYYY-MM-DD`) or `null`. When set, only emails on or after this date are extracted. Emails without a `Date` header are skipped.  |
-| `mbox`          | No       | Limit extraction to a single mbox file instead of scanning the profile                                                                     |
 | `accounts`      | Yes      | Non-empty list of enabled bank accounts (see below)                                                                                        |
 | `alerts`        | No       | Optional alert delivery settings (see [Alerts](#alerts)). Omit entirely to disable alert delivery.                                         |
 | `run`           | No       | Optional run scope and stage options (see below). Defaults to all accounts, all FYs.                                                       |
+
+#### Email sources
+
+CCParser can extract statement PDFs from email in two ways. Set `source.type` in `user.config.json`.
+
+**Thunderbird (`source.type: thunderbird`)** — reads locally cached mail from a Thunderbird profile. Mail must already be synced to disk (e.g. Gmail account added in Thunderbird). CCParser auto-discovers **all** mbox stores under `{profile}/ImapMail/**` and `{profile}/Mail/Local Folders/**` (files with a sibling `.msf` index). **Close Thunderbird** before running (file locking). No inbox/folder setting — every synced folder is scanned.
+
+**mbox** is an internal file format Thunderbird uses on disk; it is not a config option. Google Takeout `.mbox` exports are not supported as a direct source.
+
+**IMAP (`source.type: email`)** — connects read-only to any IMAP provider (Gmail, Outlook, etc.), searches by subject/date, and saves matching attachments. Uses only `EXAMINE`, `SEARCH`, and `BODY.PEEK` — never marks mail read, deletes, or uploads. Attachments are saved to local disk only.
+
+| Provider | `host` | Typical `folder` |
+| -------- | ------ | ---------------- |
+| Gmail | `imap.gmail.com` | `[Gmail]/All Mail` |
+| Outlook / M365 | `outlook.office365.com` | `INBOX` |
+
+Gmail IMAP setup: enable IMAP in Gmail settings, enable 2FA, create an [App Password](https://myaccount.google.com/apppasswords).
+
+**Thunderbird example:**
+
+```json
+"source": {
+  "type": "thunderbird",
+  "thunderbird": {
+    "profile": "/path/to/thunderbird/profile"
+  }
+}
+```
+
+**Gmail IMAP example:**
+
+```json
+"source": {
+  "type": "email",
+  "email": {
+    "host": "imap.gmail.com",
+    "username": "you@gmail.com",
+    "password": "your-app-password",
+    "folder": "[Gmail]/All Mail"
+  }
+}
+```
+
+`folder` is IMAP-only. Default `INBOX` if omitted; Gmail users should use `[Gmail]/All Mail` to include archived mail. v1 IMAP scans one folder per config.
+
+Legacy configs with top-level `profile` (no `source` block) still work. The `mbox` config key is **removed** — configs containing `mbox` fail with an error.
 
 Optional `run` block (controls which accounts run and stage-specific options):
 
@@ -272,7 +321,12 @@ Replace host, port, and addresses for your provider.
 
 ```json
 {
-  "profile": "/path/to/thunderbird/profile",
+  "source": {
+    "type": "thunderbird",
+    "thunderbird": {
+      "profile": "/path/to/thunderbird/profile"
+    }
+  },
   "download_path": "/path/to/statements",
   "start_date": "2024-06-01",
   "alerts": {
@@ -310,7 +364,7 @@ Replace host, port, and addresses for your provider.
 
 The `coral` account uses `default` subjects (no `coral` key in app config) plus the account-level `bodies` override. Statements land under `{download_path}/icici/coral/`.
 
-**Breaking changes:** Legacy single-password fields (`password`, `pdf_password`) and `card_id` are no longer supported. Slash-path bank keys (e.g. `hdfc/swiggy`) are replaced by `bank` + `variant`. Legacy alert keys (`alerts.console`, `alerts.email.enabled`, `password_env`) are replaced by `alerts.type` and nested `alerts.email`.
+**Breaking changes:** Legacy single-password fields (`password`, `pdf_password`) and `card_id` are no longer supported. Slash-path bank keys (e.g. `hdfc/swiggy`) are replaced by `bank` + `variant`. Legacy alert keys (`alerts.console`, `alerts.email.enabled`, `password_env`) are replaced by `alerts.type` and nested `alerts.email`. Top-level `profile` is deprecated in favor of `source.type: thunderbird`; the `mbox` config key is removed.
 
 ## Usage
 
@@ -334,8 +388,11 @@ All entry points use `CCPARSER_CONFIG` when set, otherwise repo-root `app.config
 Extract only:
 
 ```bash
-python -m src.pipeline.thunderbird
+python -m src.pipeline.get_statements
+python -m src.pipeline.get_statements.thunderbird   # thunderbird source only
 ```
+
+Close Thunderbird before running against a live profile path (Thunderbird source only).
 
 Cleanup and parse (all configured accounts by default):
 
@@ -362,9 +419,9 @@ Cleanup steps: non-PDF removal, decrypt, single-pass extract with identifier val
 
 Cleanup uses pdfplumber with layout-preserving extraction, then optionally trims content by per-account `start_marker` / `end_marker` substrings, drops lines matching `information_markers`, and sanitizes output to an English bank-statement character set (letters, digits, whitespace, common punctuation, and table line characters). Tabs are converted to spaces without collapsing other whitespace. Skips months whose paired TXT is already up to date unless `force_text_extract` is set.
 
-CSV columns: `Date`, `Description`, `Ref`, `Credited`, `Debited`, `File`. Parsing is implemented in `src/parsers/statement.py` and reads sanitized `.txt` files from `FY*/`.
+CSV columns: `Date`, `Description`, `Ref`, `Credited`, `Debited`, `File`. Parsing is implemented in `src/pipeline/parse/statement.py` and reads sanitized `.txt` files from `FY*/`.
 
-Close Thunderbird before running against a live profile path.
+Close Thunderbird before running against a live profile path (Thunderbird source only).
 
 ### Tests
 

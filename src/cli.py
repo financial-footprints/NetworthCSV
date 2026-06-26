@@ -1,4 +1,4 @@
-"""Shared CLI helpers for CCParser entry points."""
+"""Shared CLI helpers for NetworthCSV entry points."""
 
 from __future__ import annotations
 

@@ -14,10 +14,12 @@ from pypdf import PdfReader, PdfWriter
 from src.utils.alerts.service import AlertService
 from src.context import RunContext
 from src.utils.paths import (
+    iter_pdfs,
     pdf_path_for_txt,
     statement_pdf_path,
     txt_is_current,
     txt_path_for_pdf,
+    unique_path,
 )
 from src.utils.pdf import extract_pdf_text_plumber, open_pdf_reader
 from src.pipeline.cleanup.statement_text import (
@@ -33,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 _LEGACY_PDF_ROOT = "PDF"
 _LEGACY_TXT_ROOT = "TXT"
+_UNKNOWN_DIR = "unknown"
 
 _DATE_IN_NAME = re.compile(r"(\d{4}-\d{2})(?:-\d{2})?")
 
@@ -62,7 +65,7 @@ def _delete_staging_duplicates_for_month(
 ) -> int:
     removed = 0
     keep_resolved = keep.resolve() if keep is not None else None
-    for path in sorted(download_dir.glob("*.pdf")):
+    for path in iter_pdfs(download_dir):
         if not _is_staging_pdf(download_dir, path):
             continue
         if _month_stem_from_name(path.name) != month:
@@ -90,7 +93,7 @@ def prune_non_pdfs(download_dir: Path) -> int:
 
 def decrypt_pdfs_in_place(download_dir: Path, passwords: list[str]) -> int:
     decrypted = 0
-    for path in sorted(download_dir.glob("*.pdf")):
+    for path in iter_pdfs(download_dir):
         reader = PdfReader(str(path))
         if not reader.is_encrypted:
             logger.debug("skip (already decrypted): %s", path)
@@ -119,13 +122,13 @@ def _dedupe_paths_by_hash(paths: list[Path]) -> list[Path]:
     return list(seen.values())
 
 
-def _collect_month_groups(download_dir: Path) -> dict[str, list[Path]]:
+def collect_month_groups(download_dir: Path) -> dict[str, list[Path]]:
     by_month: dict[str, list[Path]] = {}
     seen: set[str] = set()
-    paths = list(download_dir.glob("*.pdf"))
+    paths = list(iter_pdfs(download_dir))
     for fy_dir in download_dir.glob("FY*"):
         if fy_dir.is_dir():
-            paths.extend(fy_dir.glob("*.pdf"))
+            paths.extend(iter_pdfs(fy_dir))
     for path in sorted(paths, key=lambda item: item.as_posix()):
         key = path.resolve().as_posix()
         if key in seen:
@@ -136,16 +139,13 @@ def _collect_month_groups(download_dir: Path) -> dict[str, list[Path]]:
     return by_month
 
 
-def _purge_month_outputs(download_dir: Path, month: str) -> None:
-    pdf_name = f"{month}.pdf"
-    txt_name = f"{month}.txt"
-    for fy_dir in download_dir.glob("FY*"):
-        if not fy_dir.is_dir():
-            continue
-        for path in (fy_dir / pdf_name, fy_dir / txt_name):
-            if path.is_file():
-                _ = path.unlink()
-                logger.debug("removed (no identifier match): %s", path)
+def _move_to_unknown(download_dir: Path, path: Path) -> Path:
+    dest_dir = download_dir / _UNKNOWN_DIR
+    _ = dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = unique_path(dest_dir, path.name)
+    _ = shutil.move(path, dest)
+    logger.debug("quarantined (wrong statement): %s -> %s", path, dest)
+    return dest
 
 
 def _write_txt_atomically(txt_path: Path, content: str) -> None:
@@ -212,17 +212,18 @@ def prepare_month(
         path: _sanitized_text(raw, account) for path, raw in raw_by_path.items()
     }
     label = account_label(account)
-    keeper = next(
-        (
-            path
-            for path in unique
-            if identifier_present(sanitized_by_path[path], account.identifier)
-        ),
-        None,
-    )
+    pdf_out = statement_pdf_path(download_dir, month)
+    canonical = pdf_out if pdf_out.is_file() else None
+
+    keeper = None
+    for path in unique:
+        if identifier_present(sanitized_by_path[path], account.identifier):
+            keeper = path
 
     if keeper is None:
         for path in unique:
+            if canonical is not None and path.resolve() == canonical.resolve():
+                continue
             _ = check_identifier(
                 sanitized_by_path[path],
                 identifier=account.identifier,
@@ -231,9 +232,7 @@ def prepare_month(
                 alerts=alerts,
             )
             if path.is_file():
-                _ = path.unlink()
-                logger.debug("removed (wrong statement): %s", path)
-        _purge_month_outputs(download_dir, month)
+                _ = _move_to_unknown(download_dir, path)
         _ = _delete_staging_duplicates_for_month(download_dir, month)
         return 0, 1
 
@@ -249,9 +248,11 @@ def prepare_month(
                 account_label=label,
                 alerts=alerts,
             )
-            logger.debug("removed (wrong statement): %s", path)
-        if path.is_file():
+            if path.is_file():
+                _ = _move_to_unknown(download_dir, path)
+        elif path.is_file():
             _ = path.unlink()
+            logger.debug("removed (duplicate month): %s", path)
 
     _ = _delete_staging_duplicates_for_month(download_dir, month, keep=keeper)
     _write_statement_pair(download_dir, month, keeper, raw, account)
@@ -263,7 +264,7 @@ def sweep_orphans(download_dir: Path) -> int:
     for fy_dir in sorted(download_dir.glob("FY*")):
         if not fy_dir.is_dir():
             continue
-        for pdf_path in sorted(fy_dir.glob("*.pdf")):
+        for pdf_path in iter_pdfs(fy_dir):
             txt_path = txt_path_for_pdf(download_dir, pdf_path)
             if txt_path.is_file():
                 continue
@@ -313,13 +314,19 @@ def run(
 
     prepared = 0
     rejected = 0
-    month_groups = _collect_month_groups(download_dir)
+    month_groups = collect_month_groups(download_dir)
 
     for month, candidates in sorted(month_groups.items()):
-        has_staging = any(_is_staging_pdf(download_dir, path) for path in candidates if path.is_file())
         pdf_out = statement_pdf_path(download_dir, month)
         txt_out = txt_path_for_pdf(download_dir, pdf_out)
-        if not has_staging and not force:
+        canonical = pdf_out if pdf_out.is_file() else None
+        extra = [
+            path
+            for path in candidates
+            if path.is_file()
+            and (canonical is None or path.resolve() != canonical.resolve())
+        ]
+        if not extra and not force:
             if pdf_out.is_file() and txt_out.is_file() and txt_is_current(pdf_out, txt_out):
                 txt_content = txt_out.read_text(encoding="utf-8")
                 if identifier_present(txt_content, account.identifier):

@@ -11,6 +11,18 @@
         "subjects": [
           "E-statement for your BOB EASY credit card ending in",
           "E-statement for your BOBCARD RUPAY EASY credit card ending"
+        ],
+        "end_marker": "Reward Summary at Card Level",
+        "information_markers": [
+          "Please register your Mobile No. & E-Mail ID",
+          "Loan Summary",
+          "GO DIGITAL to SELF-SERVICE",
+          "YOUR CONVENIENCE IS OUR PRIORITY",
+          "Did You Know",
+          "SCHEDULE OF CHARGES",
+          "IMPORTANT",
+          "CIBIL Information",
+          "Billing Dispute Resolution"
         ]
       }
     },
@@ -23,7 +35,8 @@
       "edge": {
         "subjects": [
           "Edge CSB Bank RuPay Credit Card Statement"
-        ]
+        ],
+        "end_marker": "------------------------------------------------ End of Transactions ------------------------------------------------"
       }
     },
     "federal": {
@@ -35,6 +48,11 @@
       "edge": {
         "subjects": [
           "Edge Federal Bank Credit Card Statement"
+        ],
+        "end_marker": "------------------------------------------------ End of Transactions ------------------------------------------------",
+        "information_markers": [
+          "IMPORTANT INFORMATION",
+          "Issued by"
         ]
       },
       "signet": {
@@ -50,6 +68,16 @@
       "default": {
         "subjects": [
           "HDFC Bank Credit Card Statement"
+        ],
+        "information_markers": [
+          "Benefits on your card",
+          "IMPORTANT INFORMATION",
+          "Your Card Control Setting",
+          "Purchase Indicator / Insights",
+          "Offers on your card",
+          "Important Information",
+          "Useful Links",
+          "To update your personal details, please write a letter to"
         ]
       },
       "diners": {
@@ -70,11 +98,26 @@
       "swiggy": {
         "subjects": [
           "HDFC Bank - Swiggy HDFC Bank Credit Card Statement"
-        ]
+        ],
+        "end_marker": "Cash Back Summary"
       },
       "tata-neu-infinity": {
         "subjects": [
           "Your HDFC Bank - Tata Neu Infinity HDFC Bank Credit Card Statement"
+        ],
+        "end_marker": "Bonus NeuCoins Summary",
+        "information_markers": [
+          "Benefits on your card",
+          "IMPORTANT INFORMATION",
+          "Your Card Control Setting",
+          "Purchase Indicator / Insights",
+          "Offers on your card",
+          "Important Information",
+          "Useful Links",
+          "To update your personal details, please write a letter to",
+          "NeuCoins with Bank Opening NeuCoins",
+          "Eligible for EMI",
+          "CONVERT TO EMI"
         ]
       }
     },
@@ -82,11 +125,32 @@
       "default": {
         "subjects": [
           "ICICI Bank Credit Card Statement for the period"
+        ],
+        "end_marker": "MOST IMPORTANT TERMS AND CONDITIONS (MITC)",
+        "information_markers": [
+          "For exclusive",
+          "offers, visit",
+          "IMPORTANT MESSAGES",
+          "Download the iMobile Pay app",
+          "CREDIT CARD STATEMENT",
+          "GREAT    OFFERS    ON   YOUR   CARD",
+          "IMPORTANT     INFORMATION      ON  YOUR   CREDIT   CARD",
+          "ICICl Bank Rewards"
         ]
       },
       "amazon": {
         "subjects": [
           "Amazon Pay ICICI Bank Credit Card Statement for the period"
+        ],
+        "information_markers": [
+          "For exclusive",
+          "offers, visit",
+          "IMPORTANT MESSAGES",
+          "Download the iMobile Pay app",
+          "CREDIT CARD STATEMENT",
+          "GREAT    OFFERS    ON   YOUR   CARD",
+          "IMPORTANT     INFORMATION      ON  YOUR   CREDIT   CARD",
+          "EARNINGS"
         ]
       }
     },
@@ -106,6 +170,17 @@
       "default": {
         "subjects": [
           "IndusInd Bank Credit Card"
+        ],
+        "end_marker": "Rewards Opening Balance",
+        "information_markers": [
+          "IMPORTANT MESSAGES:",
+          "PROMOTIONAL MESSAGES:",
+          "MARKETING MESSAGE",
+          "NOTE: *Total of points redeemed",
+          "With IndusAlerts",
+          "Secure your IndusInd Bank Credit Card on-the-go",
+          "HOW TO MAKE PAYMENTS",
+          "FEES & CHARGES"
         ]
       }
     },
@@ -116,7 +191,15 @@
         ],
         "end_marker": "********** End of Statement **********",
         "information_markers": [
-          "*TAD for the month consists of current month purchases, charges, cash advances and amount of BT/EMI due for the month if any. Making only the minimum payment if any month would result in the repayment stretching over subsequent Always get MORE with months with consequent interest payment on your outstanding balance. Please examine your statement immediately upon receipt. If no error is reported within 60 days from the date PNB Credit Cards of statement, the account will be considered correct. Place of supply : PNB, Credit Card Processing Center, Ground Floor, C-24, Sec-58, Noida, Uttar Pradesh 201301, State Code : 09 GSTIN No.: 07AAACP0165G3ZP Registered Address : Punjab National Bank, Plot No. 7, East Block Road, Bhikaji Cama Place, New Delhi, New Delhi, Delhi, 110066 State Code : 07"
+          "*TAD for the month consists of current month purchases, charges, cash advances and amount of BT/EMI due for the month if any. Making only the minimum payment if any month would result in the repayment stretching over subsequent Always get MORE with months with consequent interest payment on your outstanding balance. Please examine your statement immediately upon receipt. If no error is reported within 60 days from the date PNB Credit Cards of statement, the account will be considered correct. Place of supply : PNB, Credit Card Processing Center, Ground Floor, C-24, Sec-58, Noida, Uttar Pradesh 201301, State Code : 09 GSTIN No.: 07AAACP0165G3ZP Registered Address : Punjab National Bank, Plot No. 7, East Block Road, Bhikaji Cama Place, New Delhi, New Delhi, Delhi, 110066 State Code : 07",
+          "Presenting Rupay Platinum",
+          "PNB GENIE",
+          "Scan and download",
+          "Always get MORE",
+          "Reward points details",
+          "Why pay in Rupees",
+          "CAUTION :",
+          "Please make all Cheque"
         ]
       }
     },
@@ -124,6 +207,16 @@
       "default": {
         "subjects": [
           "Your YES_BANK"
+        ],
+        "end_marker": "------------------End of the Statement------------------",
+        "information_markers": [
+          "Your Reward Points Summary",
+          "To redeem your Reward Points",
+          "Important information :",
+          "Presenting EMI facility through e-Statements",
+          "SMS  Help  space",
+          "Important Safety Instructions",
+          "Dear Cardmember,"
         ]
       },
       "ace": {

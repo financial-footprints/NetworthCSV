@@ -10,6 +10,7 @@ from pathlib import Path
 from src.utils.paths import (
     discover_fy_folders,
     fy_folder_name,
+    iter_pdfs,
     pdf_path_for_txt,
     statement_pdf_path,
     txt_is_current,
@@ -75,6 +76,22 @@ class PathTests(unittest.TestCase):
             time.sleep(0.01)
             _ = pdf_path.write_text("newer", encoding="utf-8")
             self.assertFalse(txt_is_current(pdf_path, txt_path))
+
+
+class IterPdfsTests(unittest.TestCase):
+    def test_finds_mixed_pdf_extensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            lower = directory / "2024-01.pdf"
+            upper = directory / "All Mail__2024-02-21.PDF"
+            other = directory / "readme.txt"
+            _ = lower.write_bytes(b"%PDF-1.4")
+            _ = upper.write_bytes(b"%PDF-1.4")
+            _ = other.write_text("notes", encoding="utf-8")
+
+            found = list(iter_pdfs(directory))
+
+            self.assertEqual(found, [lower, upper])
 
 
 if __name__ == "__main__":

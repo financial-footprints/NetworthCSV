@@ -1,6 +1,8 @@
-## CCParser
+## NetworthCSV
 
-A tool to parse credit card statements from email into CSV files. One run processes every configured bank account: extract statement emails (Thunderbird local cache or live IMAP), prepare paired PDF/TXT files, and parse transactions.
+A tool to parse credit card & bank statements from email into CSV files. One run processes every configured bank account: extract statement emails (Thunderbird local cache or live IMAP), prepare paired PDF/TXT files, and parse transactions.
+
+**Scope:** Credit card and bank (savings/current) statements use the same pipeline and config model (`bank` + optional `variant` + `identifier`). Add bank accounts to `app.config.json` and `user.config.json` the same way as card products once you have email subjects and identifiers.
 
 **Quick reference:** [TLDR.md](TLDR.md) — commands only, no long docs.
 
@@ -9,8 +11,8 @@ A tool to parse credit card statements from email into CSV files. One run proces
 ### Project layout
 
 ```
-CCParser/
-├── pyproject.toml                 # dependencies and ccparser entry point
+NetworthCSV/
+├── pyproject.toml                 # dependencies and networthcsv entry point
 ├── app.config.json                # bank defaults (checked in)
 ├── user.config.json               # sample user config (edit paths/passwords)
 ├── src/
@@ -34,11 +36,11 @@ flowchart LR
     Parse --> CSV[transactions.csv]
 ```
 
-| Stage   | Command                          | Input → Output                                                                 |
-| ------- | -------------------------------- | ------------------------------------------------------------------------------ |
-| Extract | `src.pipeline.get_statements`    | email attachments → raw PDFs in `{bank}/` or `{bank}/{variant}/`               |
-| Cleanup | `src.pipeline.cleanup`           | raw PDFs → paired `FY*/YYYY-MM.pdf` + `FY*/YYYY-MM.txt` (sibling files, one extract) |
-| Parse   | `src.pipeline.parse`             | paired `.txt` files → `FY*/transactions.csv`                                   |
+| Stage   | Command                       | Input → Output                                                                       |
+| ------- | ----------------------------- | ------------------------------------------------------------------------------------ |
+| Extract | `src.pipeline.get_statements` | email attachments → raw PDFs in `{bank}/` or `{bank}/{variant}/`                     |
+| Cleanup | `src.pipeline.cleanup`        | raw PDFs → paired `FY*/YYYY-MM.pdf` + `FY*/YYYY-MM.txt` (sibling files, one extract) |
+| Parse   | `src.pipeline.parse`          | paired `.txt` files → `FY*/transactions.csv`                                         |
 
 `src.pipeline.get_statements.thunderbird` and `src.pipeline.get_statements.imap` still work for a single source type only.
 
@@ -48,7 +50,7 @@ Cleanup decrypts each PDF, extracts text once, validates the account `identifier
 
 ### Configuration
 
-CCParser uses two JSON files. The **app config** holds bank-specific defaults (email matching rules, text-extraction markers). The **user config** holds secrets and machine-local paths (email source, download folder, PDF passwords, optional alerts). At startup the app loads the app config, resolves the user config path from it, loads both, merges per-account defaults, and exits with an error if anything is invalid.
+NetworthCSV uses two JSON files. The **app config** holds bank-specific defaults (email matching rules, text-extraction markers). The **user config** holds secrets and machine-local paths (email source, download folder, PDF passwords, optional alerts). At startup the app loads the app config, resolves the user config path from it, loads both, merges per-account defaults, and exits with an error if anything is invalid.
 
 ```mermaid
 flowchart LR
@@ -64,13 +66,13 @@ Reference templates: [`app.config.json`](app.config.json), [`user.config.sample.
 
 The app config path is chosen in this order (first match wins):
 
-1. `CCPARSER_CONFIG` environment variable
+1. `NETWORTHCSV_CONFIG` environment variable
 2. `app.config.json` at the repo root (default)
 
 All entry points read config at startup: `src`, `src.pipeline.get_statements`, `src.pipeline.cleanup`, `src.pipeline.cleanup.text_extract`, and `src.pipeline.parse`. There are no CLI flags; account scope, FY limits, and other options are set in the user config `run` block.
 
 ```bash
-export CCPARSER_CONFIG=/invar/secret-manager/c05/financial-footprints/app.config.json
+export NETWORTHCSV_CONFIG=/invar/secret-manager/c05/financial-footprints/app.config.json
 python -m src
 python -m src.pipeline.parse
 ```
@@ -87,7 +89,7 @@ Paths may be absolute or relative. Use absolute paths in production when the use
 **Production layout:**
 
 ```
-export CCPARSER_CONFIG=/invar/secret-manager/c05/financial-footprints/app.config.json
+export NETWORTHCSV_CONFIG=/invar/secret-manager/c05/financial-footprints/app.config.json
 app.config.json   → user_config: /invar/secret-manager/c05/financial-footprints/user.config.json
 user.config.json  (secrets, real paths — outside repo or on secret-manager)
 ```
@@ -125,25 +127,25 @@ Each bank must define a `default` variant plus optional named overrides. Matchin
 }
 ```
 
-| Field                 | Required on `default` | Required on named variants | Description                                                                                                                                                                              |
-| --------------------- | --------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subjects`            | Yes                   | No                         | Non-empty array of subject substrings. Thunderbird extraction matches if **any** subject appears in the email subject (case-insensitive). A single string is also accepted.              |
-| `bodies`              | No                    | No                         | Body substrings; extraction matches if **any** substring appears in the email body (case-insensitive). Omit or `[]` to skip. Used when subject alone is ambiguous (e.g. Federal Signet). |
-| `from`                | No                    | No                         | Sender filters. Each entry is a full email (`user@bank.com`) or domain (`bank.com`). **Any** match (OR). Entries are lowercased. Omit or `[]` to skip.                                   |
-| `start_marker`        | No                    | No                         | Substring marking where statement text begins; lines before the first match are dropped. The matching line is kept. Defaults to the start of the file.                                   |
-| `end_marker`          | No                    | No                         | Substring marking where statement text ends; lines after the first match are dropped. The matching line is kept.                                                                         |
-| `information_markers` | No                    | No                         | Array of substrings; matching text is removed from sanitized output. Long markers also match as a line block from the first 6 words through the last 4 words.                            |
+| Field                 | Required on `default` | Required on named variants | Description                                                                                                                                                                                                                                                                  |
+| --------------------- | --------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subjects`            | Yes                   | No                         | Non-empty array of subject substrings. Thunderbird extraction matches if **any** subject appears in the email subject (case-insensitive). A single string is also accepted.                                                                                                  |
+| `bodies`              | No                    | No                         | Body substrings; extraction matches only if **all** listed substrings appear in the raw decoded text of every non-attachment `text/*` MIME part (case-insensitive, no HTML normalization). Omit or `[]` to skip. Used when subject alone is ambiguous (e.g. Federal Signet). |
+| `from`                | No                    | No                         | Sender filters. Each entry is a full email (`user@bank.com`) or domain (`bank.com`). **Any** match (OR). Entries are lowercased. Omit or `[]` to skip.                                                                                                                       |
+| `start_marker`        | No                    | No                         | Substring marking where statement text begins; lines before the first match are dropped. The matching line is kept. Defaults to the start of the file.                                                                                                                       |
+| `end_marker`          | No                    | No                         | Substring marking where statement text ends; lines after the first match are dropped. The matching line is kept.                                                                                                                                                             |
+| `information_markers` | No                    | No                         | Array of substrings; matching text is removed from sanitized output. Long markers also match as a line block from the first 6 words through the last 4 words.                                                                                                                |
 
 Named variants must set at least one field (typically `subjects`). Identical duplicate variants are omitted from app config; use any `variant` id in user config and inherit from `default`.
 
-**Supported banks** (defined in [`app.config.json`](app.config.json)):
+**Supported banks** (defined in [`app.config.json`](app.config.json); current entries are credit card products — bank accounts are configured the same way):
 
 | Bank       | Named overrides                                                    | Notes                                                            |
 | ---------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `bob`      | `easy`                                                             | BOB EASY                                                         |
+| `bob`      | `easy`                                                             | BOB EASY (credit card)                                           |
 | `csb`      | `edge`                                                             | Edge CSB Bank (Jupiter)                                          |
 | `federal`  | `edge`, `signet`                                                   | Signet uses `bodies` filter                                      |
-| `hdfc`     | `diners`, `regalia`, `regalia-gold`, `swiggy`, `tata-neu-infinity` | Each card has a specific subject override                        |
+| `hdfc`     | `diners`, `regalia`, `regalia-gold`, `swiggy`, `tata-neu-infinity` | Each product has a specific subject override                     |
 | `icici`    | `amazon`                                                           | Generic ICICI cards use `default` only                           |
 | `idfc`     | `wow`                                                              | IDFC FIRST WOW!                                                  |
 | `indusind` | —                                                                  | Generic IndusInd cards use `default` only                        |
@@ -154,7 +156,7 @@ Named variants must set at least one field (typically `subjects`). Identical dup
 
 | Field           | Required | Description                                                                                                                                |
 | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `source`        | Yes*     | Email source: `type` is `thunderbird` or `email` (see [Email sources](#email-sources)). *Legacy top-level `profile` is still accepted.     |
+| `source`        | Yes\*    | Email source: `type` is `thunderbird` or `email` (see [Email sources](#email-sources)). \*Legacy top-level `profile` is still accepted.    |
 | `download_path` | Yes      | Base folder for statement files. Each account uses `{download_path}/{bank}/` or `{download_path}/{bank}/{variant}/` when a variant is set. |
 | `start_date`    | No       | ISO date (`YYYY-MM-DD`) or `null`. When set, only emails on or after this date are extracted. Emails without a `Date` header are skipped.  |
 | `accounts`      | Yes      | Non-empty list of enabled bank accounts (see below)                                                                                        |
@@ -163,18 +165,18 @@ Named variants must set at least one field (typically `subjects`). Identical dup
 
 #### Email sources
 
-CCParser can extract statement PDFs from email in two ways. Set `source.type` in `user.config.json`.
+NetworthCSV can extract statement PDFs from email in two ways. Set `source.type` in `user.config.json`.
 
-**Thunderbird (`source.type: thunderbird`)** — reads locally cached mail from a Thunderbird profile. Mail must already be synced to disk (e.g. Gmail account added in Thunderbird). CCParser auto-discovers **all** mbox stores under `{profile}/ImapMail/**` and `{profile}/Mail/Local Folders/**` (files with a sibling `.msf` index). **Close Thunderbird** before running (file locking). No inbox/folder setting — every synced folder is scanned.
+**Thunderbird (`source.type: thunderbird`)** — reads locally cached mail from a Thunderbird profile. Mail must already be synced to disk (e.g. Gmail account added in Thunderbird). NetworthCSV auto-discovers **all** mbox stores under `{profile}/ImapMail/**` and `{profile}/Mail/Local Folders/**` (files with a sibling `.msf` index). **Close Thunderbird** before running (file locking). No inbox/folder setting — every synced folder is scanned.
 
 **mbox** is an internal file format Thunderbird uses on disk; it is not a config option. Google Takeout `.mbox` exports are not supported as a direct source.
 
 **IMAP (`source.type: email`)** — connects read-only to any IMAP provider (Gmail, Outlook, etc.), searches by subject/date, and saves matching attachments. Uses only `EXAMINE`, `SEARCH`, and `BODY.PEEK` — never marks mail read, deletes, or uploads. Attachments are saved to local disk only.
 
-| Provider | `host` | Typical `folder` |
-| -------- | ------ | ---------------- |
-| Gmail | `imap.gmail.com` | `[Gmail]/All Mail` |
-| Outlook / M365 | `outlook.office365.com` | `INBOX` |
+| Provider       | `host`                  | Typical `folder`   |
+| -------------- | ----------------------- | ------------------ |
+| Gmail          | `imap.gmail.com`        | `[Gmail]/All Mail` |
+| Outlook / M365 | `outlook.office365.com` | `INBOX`            |
 
 Gmail IMAP setup: enable IMAP in Gmail settings, enable 2FA, create an [App Password](https://myaccount.google.com/apppasswords).
 
@@ -219,12 +221,12 @@ Optional `run` block (controls which accounts run and stage-specific options):
 
 Each entry in `accounts`:
 
-| Field        | Required | Description                                                                                                                                                                                                                                           |
-| ------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bank`       | Yes      | Bank id matching a key in app config `banks` (e.g. `pnb`, `icici`, `hdfc`)                                                                                                                                                                            |
-| `identifier` | Yes      | Substring that must appear in each statement's sanitized text (e.g. last 4 digits or masked card number). Used during cleanup to pick the correct PDF when multiple downloads share the same month; if none match, no PDF or TXT is kept for that month.                                                                                   |
-| `passwords`  | Yes      | Non-empty array of PDF passwords to try, in order. Duplicates are removed.                                                                                                                                                                            |
-| `variant`    | No       | Card product id for folder layout (`{bank}/{variant}/`). When set, app-config `default` merges with that named override if present. When omitted, `default` alone applies. Any id works (e.g. `coral`); unknown ids inherit `default` matching rules. |
+| Field        | Required | Description                                                                                                                                                                                                                                              |
+| ------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bank`       | Yes      | Bank id matching a key in app config `banks` (e.g. `pnb`, `icici`, `hdfc`)                                                                                                                                                                               |
+| `identifier` | Yes      | Substring that must appear in each statement's sanitized text (e.g. last 4 digits, masked card number, or account number fragment). Used during cleanup to pick the correct PDF when multiple downloads share the same month; if none match, no PDF or TXT is kept for that month. |
+| `passwords`  | Yes      | Non-empty array of PDF passwords to try, in order. Duplicates are removed.                                                                                                                                                                               |
+| `variant`    | No       | Product id for folder layout (`{bank}/{variant}/`; card or bank account, e.g. `swiggy`, `savings`). When set, app-config `default` merges with that named override if present. When omitted, `default` alone applies. Any id works (e.g. `coral`); unknown ids inherit `default` matching rules.    |
 
 Optional per-account overrides (applied after app-config merge):
 
@@ -237,9 +239,9 @@ Optional per-account overrides (applied after app-config merge):
 | `end_marker`          | Override text-extraction end marker     |
 | `information_markers` | Override information markers            |
 
-**How merging works:** For each account, CCParser starts from `banks[bank].default`, overlays `banks[bank][variant]` when that key exists in app config, then applies any fields set on the user account entry. Omitted user `variant` uses `default` only. A user `variant` not in app config (e.g. `coral`) still sets the download folder name but inherits `default` matching rules unless you override fields on the account.
+**How merging works:** For each account, NetworthCSV starts from `banks[bank].default`, overlays `banks[bank][variant]` when that key exists in app config, then applies any fields set on the user account entry. Omitted user `variant` uses `default` only. A user `variant` not in app config (e.g. `coral`) still sets the download folder name but inherits `default` matching rules unless you override fields on the account.
 
-[`user.config.sample.json`](user.config.sample.json) lists one account per bank. Add more entries for additional cards from the same bank.
+[`user.config.sample.json`](user.config.sample.json) lists one account per bank. Add more entries for additional accounts from the same bank.
 
 **Secrets:** `user.config.json` holds PDF passwords and, when email alerts are used, the SMTP password. Do not commit it with real values.
 
@@ -262,11 +264,11 @@ Alerts notify you of pipeline validation failures (for example, a statement whos
 
 **Choosing a delivery method:** Set `alerts.type` to exactly one of `"console"` or `"email"`. You cannot enable both at once.
 
-| `alerts.type` | When alerts are sent | How                                                                         |
-| ------------- | -------------------- | --------------------------------------------------------------------------- |
+| `alerts.type` | When alerts are sent | How                                                                 |
+| ------------- | -------------------- | ------------------------------------------------------------------- |
 | omitted       | Never                | No structured alert delivery (warnings still logged during cleanup) |
-| `"console"`   | As each alert occurs | Logged to stderr with `ALERT [...]` prefix                                  |
-| `"email"`     | End of run           | One batched SMTP message listing all alerts                                 |
+| `"console"`   | As each alert occurs | Logged to stderr with `ALERT [...]` prefix                          |
+| `"email"`     | End of run           | One batched SMTP message listing all alerts                         |
 
 **Config fields:**
 
@@ -364,7 +366,7 @@ Replace host, port, and addresses for your provider.
 
 The `coral` account uses `default` subjects (no `coral` key in app config) plus the account-level `bodies` override. Statements land under `{download_path}/icici/coral/`.
 
-**Breaking changes:** Legacy single-password fields (`password`, `pdf_password`) and `card_id` are no longer supported. Slash-path bank keys (e.g. `hdfc/swiggy`) are replaced by `bank` + `variant`. Legacy alert keys (`alerts.console`, `alerts.email.enabled`, `password_env`) are replaced by `alerts.type` and nested `alerts.email`. Top-level `profile` is deprecated in favor of `source.type: thunderbird`; the `mbox` config key is removed.
+**Breaking changes:** The project was renamed from CCParser to NetworthCSV: use the `networthcsv` CLI and `NETWORTHCSV_CONFIG` env var instead of `ccparser` and `CCPARSER_CONFIG` (no backward-compat alias). Legacy single-password fields (`password`, `pdf_password`) and `card_id` are no longer supported. Slash-path bank keys (e.g. `hdfc/swiggy`) are replaced by `bank` + `variant`. Legacy alert keys (`alerts.console`, `alerts.email.enabled`, `password_env`) are replaced by `alerts.type` and nested `alerts.email`. Top-level `profile` is deprecated in favor of `source.type: thunderbird`; the `mbox` config key is removed.
 
 ## Usage
 
@@ -377,13 +379,13 @@ pip install -e .
 Full pipeline for all accounts (extract → cleanup → parse):
 
 ```bash
-ccparser
+networthcsv
 python -m src
-export CCPARSER_CONFIG=/path/to/app.config.json
+export NETWORTHCSV_CONFIG=/path/to/app.config.json
 python -m src
 ```
 
-All entry points use `CCPARSER_CONFIG` when set, otherwise repo-root `app.config.json`. Account scope, FY limits, and other options are set in the user config `run` block.
+All entry points use `NETWORTHCSV_CONFIG` when set, otherwise repo-root `app.config.json`. Account scope, FY limits, and other options are set in the user config `run` block.
 
 Extract only:
 

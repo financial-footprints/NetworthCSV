@@ -2,14 +2,53 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 from email.message import EmailMessage, Message
+from pathlib import Path
 
 from src.utils.email.email_message import (
     body_matches,
     from_matches,
+    is_pdf_attachment_part,
+    message_matches_account,
+    save_attachments,
     subject_matches,
 )
+from src.settings import ResolvedAccount
+
+
+def _account() -> ResolvedAccount:
+    return ResolvedAccount.model_validate(
+        {
+            "bank": "icici",
+            "variant": "amazon",
+            "identifier": "1234",
+            "subjects": ["ICICI Bank Credit Card Statement for the period"],
+            "bodies": [],
+            "from": ["icicibank.com"],
+            "passwords": ["secret"],
+        }
+    )
+
+
+def _statement_msg_with_attachments(
+    attachments: list[tuple[str, bytes, str]],
+) -> EmailMessage:
+    msg = EmailMessage()
+    msg["Subject"] = "ICICI Bank Credit Card Statement for the period"
+    msg["From"] = "alerts@icicibank.com"
+    msg["Date"] = "Mon, 15 Jan 2024 10:00:00 +0000"
+    msg.set_content("Statement attached.")
+    for filename, payload, maintype_subtype in attachments:
+        maintype, subtype = maintype_subtype.split("/", 1)
+        msg.add_attachment(
+            payload,
+            maintype=maintype,
+            subtype=subtype,
+            filename=filename,
+        )
+    return msg
 
 
 class SubjectMatchesTests(unittest.TestCase):
@@ -61,7 +100,7 @@ class BodyMatchesTests(unittest.TestCase):
         msg = self._msg_with_body("anything")
         self.assertTrue(body_matches(msg, []))
 
-    def test_multipart_prefers_plain(self) -> None:
+    def test_multipart_searches_all_text_parts(self) -> None:
         msg = EmailMessage()
         msg.set_content("Amazon Pay ICICI Bank Credit Card statement attached.")
         msg.add_alternative(
@@ -70,7 +109,16 @@ class BodyMatchesTests(unittest.TestCase):
         )
         self.assertTrue(body_matches(msg, ["Amazon Pay ICICI Bank Credit Card"]))
 
-    def test_html_fallback_when_no_plain(self) -> None:
+    def test_html_included_when_plain_lacks_match(self) -> None:
+        msg = EmailMessage()
+        msg.set_content("Plain part without the marker.")
+        msg.add_alternative(
+            "<html><body>Unique HTML marker text</body></html>",
+            subtype="html",
+        )
+        self.assertTrue(body_matches(msg, ["Unique HTML marker text"]))
+
+    def test_html_only_message(self) -> None:
         msg = EmailMessage()
         msg.add_alternative(
             "<html><body>Amazon Pay ICICI Bank Credit Card</body></html>",
@@ -78,12 +126,24 @@ class BodyMatchesTests(unittest.TestCase):
         )
         self.assertTrue(body_matches(msg, ["Amazon Pay ICICI Bank Credit Card"]))
 
-    def test_html_only_strips_tags(self) -> None:
+    def test_html_only_raw_match(self) -> None:
         msg = self._msg_with_body(
             "<html><body><p>Amazon Pay ICICI Bank Credit Card</p></body></html>",
             content_type="text/html",
         )
         self.assertTrue(body_matches(msg, ["Amazon Pay ICICI Bank Credit Card"]))
+
+    def test_all_bodies_must_match(self) -> None:
+        msg = self._msg_with_body("alpha beta gamma")
+        self.assertTrue(body_matches(msg, ["alpha", "gamma"]))
+        self.assertFalse(body_matches(msg, ["alpha", "missing"]))
+
+    def test_html_tag_substring_match(self) -> None:
+        msg = self._msg_with_body(
+            "<html><head><title>Signet</title></head><body></body></html>",
+            content_type="text/html",
+        )
+        self.assertTrue(body_matches(msg, ["<title>Signet</title>"]))
 
 
 class FromMatchesTests(unittest.TestCase):
@@ -125,6 +185,53 @@ class FromMatchesTests(unittest.TestCase):
         self.assertTrue(from_matches(msg, ["bank.com"]))
         self.assertTrue(from_matches(msg, ["bob@bank.com"]))
         self.assertFalse(from_matches(msg, ["other.com"]))
+
+
+class PdfAttachmentFilterTests(unittest.TestCase):
+    def test_message_matches_when_pdf_attached(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("statement.pdf", b"%PDF-1.4", "application/pdf")]
+        )
+        self.assertTrue(message_matches_account(msg, _account(), None))
+
+    def test_message_rejects_csv_only_attachment(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("transactions.csv", b"a,b,c", "text/csv")]
+        )
+        self.assertFalse(message_matches_account(msg, _account(), None))
+
+    def test_uppercase_pdf_extension_matches(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("statement.PDF", b"%PDF-1.4", "application/pdf")]
+        )
+        self.assertTrue(message_matches_account(msg, _account(), None))
+
+    def test_application_pdf_without_filename_matches(self) -> None:
+        msg = EmailMessage()
+        msg["Subject"] = "ICICI Bank Credit Card Statement for the period"
+        msg["From"] = "alerts@icicibank.com"
+        msg["Date"] = "Mon, 15 Jan 2024 10:00:00 +0000"
+        msg.set_content("Statement attached.")
+        msg.add_attachment(b"%PDF-1.4", maintype="application", subtype="pdf")
+        self.assertTrue(message_matches_account(msg, _account(), None))
+        parts = list(msg.walk())
+        pdf_parts = [part for part in parts if is_pdf_attachment_part(part)]
+        self.assertEqual(len(pdf_parts), 1)
+
+    def test_save_attachments_writes_pdf_only(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [
+                ("statement.pdf", b"%PDF-1.4", "application/pdf"),
+                ("transactions.csv", b"a,b,c", "text/csv"),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            saved = save_attachments(msg, download_dir, "INBOX")
+            self.assertEqual(saved, 1)
+            files = list(download_dir.glob("*.pdf"))
+            self.assertEqual(len(files), 1)
+            self.assertFalse(list(download_dir.glob("*.csv")))
 
 
 if __name__ == "__main__":

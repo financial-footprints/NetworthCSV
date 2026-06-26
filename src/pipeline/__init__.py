@@ -1,1 +1,1 @@
-"""CCParser pipeline stages."""
+"""NetworthCSV pipeline stages."""

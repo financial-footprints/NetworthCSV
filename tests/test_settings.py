@@ -101,6 +101,25 @@ class SettingsTests(unittest.TestCase):
     def _thunderbird_source(self, profile: Path = _DEFAULT_PROFILE) -> ThunderbirdSource:
         return ThunderbirdSource(thunderbird=ThunderbirdSourceSettings(profile=profile))
 
+    def _user_config_payload(
+        self,
+        *,
+        download_path: str | Path = "/statements",
+        profile: str | Path = "/profile",
+        accounts: list[dict[str, object]],
+        **extra: object,
+    ) -> dict[str, object]:
+        data: dict[str, object] = {
+            "source": {
+                "type": "thunderbird",
+                "thunderbird": {"profile": str(profile)},
+            },
+            "download_path": str(download_path),
+            "accounts": accounts,
+        }
+        data.update(extra)
+        return data
+
     def _write_user_config(
         self,
         directory: Path,
@@ -116,11 +135,12 @@ class SettingsTests(unittest.TestCase):
         data: dict[str, object] = {
             "download_path": download_path,
             "accounts": accounts,
+            "source": source
+            or {
+                "type": "thunderbird",
+                "thunderbird": {"profile": profile},
+            },
         }
-        if source is not None:
-            data["source"] = source
-        else:
-            data["profile"] = profile
         if start_date is not None:
             data["start_date"] = start_date
         if extra:
@@ -503,72 +523,60 @@ class SettingsTests(unittest.TestCase):
     def test_duplicate_account_rejected(self) -> None:
         with self.assertRaises(ValidationError):
             _ = UserConfig.model_validate(
-                {
-                    "profile": "/profile",
-                    "download_path": "/statements",
-                    "accounts": [
+                self._user_config_payload(
+                    accounts=[
                         self._account(bank="bob"),
                         self._account(bank="bob", passwords=["y"]),
                     ],
-                }
+                )
             )
 
     def test_duplicate_variant_account_rejected(self) -> None:
         with self.assertRaises(ValidationError):
             _ = UserConfig.model_validate(
-                {
-                    "profile": "/profile",
-                    "download_path": "/statements",
-                    "accounts": [
+                self._user_config_payload(
+                    accounts=[
                         self._account(bank="icici", variant="amazon"),
                         self._account(bank="icici", variant="amazon", passwords=["y"]),
                     ],
-                }
+                )
             )
 
     def test_catch_all_and_variant_accounts_allowed(self) -> None:
         user = UserConfig.model_validate(
-            {
-                "profile": "/profile",
-                "download_path": "/statements",
-                "accounts": [
+            self._user_config_payload(
+                accounts=[
                     self._account(bank="icici"),
                     self._account(bank="icici", variant="amazon", passwords=["y"]),
                 ],
-            }
+            )
         )
         self.assertEqual(len(user.accounts), 2)
 
     def test_log_level_defaults_to_info(self) -> None:
         user = UserConfig.model_validate(
-            {
-                "profile": "/profile",
-                "download_path": "/statements",
-                "accounts": [self._account(bank="bob")],
-            }
+            self._user_config_payload(
+                accounts=[self._account(bank="bob")],
+            )
         )
         self.assertEqual(user.log_level, "info")
 
     def test_log_level_accepts_debug(self) -> None:
         user = UserConfig.model_validate(
-            {
-                "profile": "/profile",
-                "download_path": "/statements",
-                "log_level": "debug",
-                "accounts": [self._account(bank="bob")],
-            }
+            self._user_config_payload(
+                accounts=[self._account(bank="bob")],
+                log_level="debug",
+            )
         )
         self.assertEqual(user.log_level, "debug")
 
     def test_log_level_rejects_invalid_value(self) -> None:
         with self.assertRaises(ValidationError):
             _ = UserConfig.model_validate(
-                {
-                    "profile": "/profile",
-                    "download_path": "/statements",
-                    "log_level": "trace",
-                    "accounts": [self._account(bank="bob")],
-                }
+                self._user_config_payload(
+                    accounts=[self._account(bank="bob")],
+                    log_level="trace",
+                )
             )
 
     def test_account_download_path_with_variant(self) -> None:
@@ -1075,23 +1083,23 @@ class SettingsTests(unittest.TestCase):
     def test_run_settings_rejects_variant_without_bank(self) -> None:
         with self.assertRaises(ValidationError):
             _ = UserConfig.model_validate(
-                {
-                    "profile": ".",
-                    "download_path": ".",
-                    "accounts": [self._account(bank="bob")],
-                    "run": {"variant": "easy"},
-                }
+                self._user_config_payload(
+                    download_path=".",
+                    profile=".",
+                    accounts=[self._account(bank="bob")],
+                    run={"variant": "easy"},
+                )
             )
 
     def test_run_settings_rejects_no_matching_account(self) -> None:
         with self.assertRaises(ValidationError):
             _ = UserConfig.model_validate(
-                {
-                    "profile": ".",
-                    "download_path": ".",
-                    "accounts": [self._account(bank="bob", variant="easy")],
-                    "run": {"bank": "pnb", "variant": "platinum"},
-                }
+                self._user_config_payload(
+                    download_path=".",
+                    profile=".",
+                    accounts=[self._account(bank="bob", variant="easy")],
+                    run={"bank": "pnb", "variant": "platinum"},
+                )
             )
 
     def test_run_settings_merged_into_settings(self) -> None:

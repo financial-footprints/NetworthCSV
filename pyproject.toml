@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ccparser"
+name = "networthcsv"
 version = "0.1.0"
-description = "Parse credit card statement PDFs from email (Thunderbird or IMAP) into CSV"
+description = "Parse credit card and bank statement PDFs from email (Thunderbird or IMAP) into CSV"
 requires-python = ">=3.11"
 dependencies = [
     "pypdf~=6.12",
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ccparser = "src.main:main"
+networthcsv = "src.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

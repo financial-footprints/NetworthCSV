@@ -26,7 +26,7 @@ class SmtpEmailAlertHandler:
             return
 
         body_lines = [
-            f"CCParser raised {len(alerts)} alert(s):",
+            f"NetworthCSV raised {len(alerts)} alert(s):",
             "",
         ]
         for index, alert in enumerate(alerts, start=1):
@@ -41,7 +41,7 @@ class SmtpEmailAlertHandler:
             )
 
         message = EmailMessage()
-        message["Subject"] = f"CCParser alert: {len(alerts)} issue(s)"
+        message["Subject"] = f"NetworthCSV alert: {len(alerts)} issue(s)"
         message["From"] = self._config.from_address
         message["To"] = ", ".join(self._config.to)
         message.set_content("\n".join(body_lines).rstrip())

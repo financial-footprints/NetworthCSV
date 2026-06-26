@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.utils.paths import statement_pdf_path, txt_path_for_pdf
-from src.pipeline.cleanup.cleanup import prepare_month
+from src.pipeline.cleanup.cleanup import collect_month_groups, prepare_month
 from src.settings import ResolvedAccount
 
 
@@ -72,7 +72,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(staging.exists())
 
     @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
-    def test_keeps_first_matching_identifier_for_same_month(
+    def test_keeps_last_matching_identifier_for_same_month(
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -95,10 +95,12 @@ class PrepareMonthTests(unittest.TestCase):
 
             pdf_out = statement_pdf_path(download_dir, "2023-04")
             txt_out = txt_path_for_pdf(download_dir, pdf_out)
+            unknown_first = download_dir / "unknown" / first.name
             self.assertEqual((prepared, rejected), (1, 0))
             self.assertTrue(pdf_out.is_file())
             self.assertTrue(txt_out.is_file())
             self.assertFalse(first.exists())
+            self.assertTrue(unknown_first.is_file())
             self.assertFalse(second.exists())
 
     @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
@@ -125,14 +127,17 @@ class PrepareMonthTests(unittest.TestCase):
 
             pdf_out = statement_pdf_path(download_dir, "2023-04")
             txt_out = txt_path_for_pdf(download_dir, pdf_out)
+            unknown_dir = download_dir / "unknown"
             self.assertEqual((prepared, rejected), (0, 1))
             self.assertFalse(pdf_out.is_file())
             self.assertFalse(txt_out.is_file())
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
+            self.assertTrue((unknown_dir / first.name).is_file())
+            self.assertTrue((unknown_dir / second.name).is_file())
 
     @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
-    def test_reject_purges_existing_month_outputs(
+    def test_reject_preserves_existing_month_outputs(
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -153,9 +158,10 @@ class PrepareMonthTests(unittest.TestCase):
             )
 
             self.assertEqual((prepared, rejected), (0, 1))
-            self.assertFalse(pdf_out.is_file())
-            self.assertFalse(txt_out.is_file())
+            self.assertTrue(pdf_out.is_file())
+            self.assertTrue(txt_out.is_file())
             self.assertFalse(staging.exists())
+            self.assertTrue((download_dir / "unknown" / staging.name).is_file())
 
     @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_identifier_must_appear_in_sanitized_text(
@@ -182,7 +188,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertIn("5678", txt_out.read_text(encoding="utf-8"))
 
     @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
-    def test_keeps_first_when_both_match_identifier(
+    def test_keeps_last_when_both_match_identifier(
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -203,8 +209,10 @@ class PrepareMonthTests(unittest.TestCase):
                 _account(),
             )
 
+            txt_out = txt_path_for_pdf(download_dir, statement_pdf_path(download_dir, "2023-04"))
             self.assertEqual((prepared, rejected), (1, 0))
             self.assertTrue(statement_pdf_path(download_dir, "2023-04").is_file())
+            self.assertIn("duplicate", txt_out.read_text(encoding="utf-8"))
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
 
@@ -247,7 +255,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(important.exists())
 
     @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
-    def test_reject_removes_all_staging_duplicates_for_month(
+    def test_reject_quarantines_all_staging_duplicates_for_month(
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -273,12 +281,82 @@ class PrepareMonthTests(unittest.TestCase):
 
             pdf_out = statement_pdf_path(download_dir, "2023-04")
             txt_out = txt_path_for_pdf(download_dir, pdf_out)
+            unknown_dir = download_dir / "unknown"
             self.assertEqual((prepared, rejected), (0, 1))
             self.assertFalse(pdf_out.is_file())
             self.assertFalse(txt_out.is_file())
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
             self.assertFalse(third.exists())
+            self.assertEqual(len(list(unknown_dir.glob("*.pdf"))), 1)
+
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_writes_paired_outputs_for_uppercase_pdf_extension(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            staging = self._write_pdf(download_dir, "All Mail__2024-01-21.PDF")
+            mock_extract.return_value = "bob card ending 5678"
+
+            prepared, rejected = prepare_month(
+                download_dir,
+                "2024-01",
+                [staging],
+                _account(),
+            )
+
+            pdf_out = statement_pdf_path(download_dir, "2024-01")
+            txt_out = txt_path_for_pdf(download_dir, pdf_out)
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(pdf_out.is_file())
+            self.assertTrue(txt_out.is_file())
+            self.assertFalse(staging.exists())
+
+
+    @patch("src.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_moves_wrong_identifier_sibling_to_unknown(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            wrong = self._write_pdf(download_dir, "All Mail__2023-04-18.pdf")
+            right = self._write_pdf(download_dir, "Starred_Email__2023-04-18.pdf")
+            mock_extract.side_effect = _extract_side_effect(
+                {
+                    wrong: "wrong card ending 1111",
+                    right: "bob card ending 5678",
+                }
+            )
+
+            prepared, rejected = prepare_month(
+                download_dir,
+                "2023-04",
+                [wrong, right],
+                _account(),
+            )
+
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue((download_dir / "unknown" / wrong.name).is_file())
+            self.assertFalse(wrong.exists())
+            self.assertFalse(right.exists())
+
+
+class CollectMonthGroupsTests(unittest.TestCase):
+    def test_groups_uppercase_staging_pdfs_by_month(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            first = download_dir / "All Mail__2024-01-21.PDF"
+            second = download_dir / "INBOX__2024-01-21.PDF"
+            _ = first.write_bytes(b"%PDF-1.4\nfirst")
+            _ = second.write_bytes(b"%PDF-1.4\nsecond")
+
+            groups = collect_month_groups(download_dir)
+
+            self.assertEqual(list(groups.keys()), ["2024-01"])
+            self.assertEqual(sorted(path.name for path in groups["2024-01"]), sorted(
+                [first.name, second.name]
+            ))
 
 
 if __name__ == "__main__":

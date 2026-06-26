@@ -69,30 +69,25 @@ def _decode_part_payload(part: Message) -> str:
 
 
 def extract_message_body(msg: Message) -> str:
-    plain_parts: list[str] = []
-    html_parts: list[str] = []
+    parts: list[str] = []
     for part in msg.walk():
         if part.get_content_maintype() == "multipart":
             continue
         if part.get_content_disposition() == "attachment":
             continue
-        content_type = part.get_content_type()
-        text = _decode_part_payload(part)
-        if not text:
+        if not part.get_content_type().startswith("text/"):
             continue
-        if content_type == "text/plain":
-            plain_parts.append(text)
-        elif content_type == "text/html":
-            html_parts.append(re.sub(r"<[^>]+>", " ", text))
-    parts = plain_parts if plain_parts else html_parts
-    return " ".join(parts)
+        text = _decode_part_payload(part)
+        if text:
+            parts.append(text)
+    return "\n".join(parts)
 
 
 def body_matches(msg: Message, bodies: list[str]) -> bool:
     if not bodies:
         return True
     lowered = extract_message_body(msg).lower()
-    return any(body.lower() in lowered for body in bodies)
+    return all(body.lower() in lowered for body in bodies)
 
 
 def parse_from_addresses(msg: Message) -> list[tuple[str, str]]:
@@ -163,6 +158,25 @@ def iter_attachment_parts(msg: Message):
             yield part
 
 
+def is_pdf_attachment_part(part: Message) -> bool:
+    if not is_attachment_part(part):
+        return False
+    filename = part.get_filename()
+    if filename and Path(sanitize_filename(filename)).suffix.lower() == ".pdf":
+        return True
+    content_type = part.get_content_type()
+    if "/" not in content_type:
+        return False
+    maintype, subtype = content_type.split("/", 1)
+    return maintype == "application" and subtype.lower() == "pdf"
+
+
+def iter_pdf_attachment_parts(msg: Message):
+    for part in iter_attachment_parts(msg):
+        if is_pdf_attachment_part(part):
+            yield part
+
+
 def sanitize_filename(name: str) -> str:
     name = decode_mime_header(name)
     name = Path(name).name.strip() or "attachment"
@@ -173,6 +187,8 @@ def sanitize_filename(name: str) -> str:
 def download_filename_for_attachment(msg: Message, attachment_filename: str) -> str:
     original = sanitize_filename(attachment_filename)
     suffix = Path(original).suffix
+    if suffix.lower() == ".pdf":
+        suffix = ".pdf"
     dt = message_received_datetime(msg)
     if dt is not None:
         stem = dt.strftime("%Y-%m-%d")
@@ -188,10 +204,8 @@ def save_attachments(
 ) -> int:
     saved = 0
     prefix = f"{folder_prefix}__" if folder_prefix else ""
-    for part in iter_attachment_parts(msg):
-        filename = part.get_filename()
-        if not filename:
-            continue
+    for part in iter_pdf_attachment_parts(msg):
+        filename = part.get_filename() or "attachment.pdf"
         payload = part.get_payload(decode=True)
         if not isinstance(payload, (bytes, bytearray)):
             continue
@@ -214,11 +228,11 @@ def message_matches_account(
         return False
     if not from_matches(msg, account.from_filters):
         return False
-    if not body_matches(msg, account.bodies):
-        return False
     if not message_on_or_after(msg, start_date):
         return False
-    if not list(iter_attachment_parts(msg)):
+    if not list(iter_pdf_attachment_parts(msg)):
+        return False
+    if not body_matches(msg, account.bodies):
         return False
     return True
 

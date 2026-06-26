@@ -8,6 +8,22 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+_PDF_SUFFIX = ".pdf"
+
+
+def is_pdf_path(path: Path) -> bool:
+    return path.suffix.lower() == _PDF_SUFFIX
+
+
+def iter_pdfs(directory: Path, *, recursive: bool = False) -> Iterator[Path]:
+    """Yield PDF paths regardless of .pdf/.PDF extension."""
+    if not directory.is_dir():
+        return
+    walker = directory.rglob("*") if recursive else directory.iterdir()
+    for path in sorted(walker, key=lambda item: item.as_posix()):
+        if path.is_file() and is_pdf_path(path):
+            yield path
+
 
 def unique_path(directory: Path, filename: str) -> Path:
     target = directory / filename
@@ -74,14 +90,14 @@ def iter_statement_pairs(
 ) -> Iterator[tuple[Path, Path]]:
     """Yield (pdf_path, txt_path) for each statement PDF in FY* folders."""
     for folder in discover_fy_folders(download_dir, fy_limit):
-        for pdf_path in sorted(folder.glob("*.pdf")):
+        for pdf_path in iter_pdfs(folder):
             yield pdf_path, txt_path_for_pdf(download_dir, pdf_path)
 
 
 def pdfs_in_fy(download_dir: Path, fy_dir_path: Path) -> list[Path]:
     if fy_dir_path.parent != download_dir:
         return []
-    return sorted(fy_dir_path.glob("*.pdf"))
+    return list(iter_pdfs(fy_dir_path))
 
 
 def resolve_fy_limit(download_dir: Path, fy_name: str | None) -> Path | None:

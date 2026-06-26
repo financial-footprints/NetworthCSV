@@ -18,7 +18,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "app.config.json"
 BASE_APP_CONFIG_FILENAME = "app.config.json"
 LOCAL_APP_CONFIG_FILENAME = "app.config.local.json"
-CONFIG_ENV_VAR = "CCPARSER_CONFIG"
+CONFIG_ENV_VAR = "NETWORTHCSV_CONFIG"
 
 _MATCHING_FIELD_NAMES = frozenset(
     {"subjects", "bodies", "from_filters", "start_marker", "end_marker", "information_markers"}
@@ -668,7 +668,7 @@ def account_download_path(settings: Settings, account: ResolvedAccount) -> Path:
 
 
 def resolve_config_path(override: str | Path | None = None) -> Path:
-    """Resolve app config path: explicit override, then CCPARSER_CONFIG, then default."""
+    """Resolve app config path: explicit override, then NETWORTHCSV_CONFIG, then default."""
     if override is not None:
         value = str(override).strip()
         if value:

@@ -1,6 +1,6 @@
 """Extract attachments from Thunderbird profile mbox folders by subject.
 
-Configure via app.config.json and user.config.json (see src/settings.py). Override app config with CCPARSER_CONFIG.
+Configure via app.config.json and user.config.json (see src/settings.py). Override app config with NETWORTHCSV_CONFIG.
 Close Thunderbird before running against a live profile path.
 """
 

@@ -1,8 +1,12 @@
 {
   "source": {
-    "type": "thunderbird",
-    "thunderbird": {
-      "profile": "/path/to/thunderbird/profile"
+    "type": "email",
+    "email": {
+      "host": "imap.gmail.com",
+      "port": 993,
+      "username": "your.email@gmail.com",
+      "password": "your-app-password",
+      "folder": "[Gmail]/All Mail"
     }
   },
   "download_path": "/path/to/statements",
@@ -15,7 +19,9 @@
     {
       "bank": "bob",
       "variant": "easy",
-      "identifier": "5678",
+      "account_number": "5678",
+      "file_marker": "5678",
+      "opening_date": "08-2021",
       "passwords": [
         "bob-password"
       ]
@@ -23,7 +29,9 @@
     {
       "bank": "csb",
       "variant": "edge",
-      "identifier": "7777",
+      "account_number": "7777",
+      "file_marker": "7777",
+      "opening_date": "11-2024",
       "passwords": [
         "your-csb-edge-password"
       ]
@@ -31,7 +39,9 @@
     {
       "bank": "federal",
       "variant": "signet",
-      "identifier": "1234",
+      "account_number": "1234",
+      "file_marker": "1234",
+      "opening_date": "02-2020",
       "passwords": [
         "federal-signet-password"
       ]
@@ -39,14 +49,18 @@
     {
       "bank": "hdfc",
       "variant": "swiggy",
-      "identifier": "2222",
+      "account_number": "2222",
+      "file_marker": "2222",
+      "opening_date": "06-2023",
       "passwords": [
         "your-hdfc-swiggy-password"
       ]
     },
     {
       "bank": "icici",
-      "identifier": "7890",
+      "account_number": "7890",
+      "file_marker": "7890",
+      "opening_date": "09-2019",
       "passwords": [
         "your-icici-password"
       ]
@@ -54,7 +68,9 @@
     {
       "bank": "idfc",
       "variant": "wow",
-      "identifier": "1234",
+      "account_number": "1234-idfc",
+      "file_marker": "1234",
+      "opening_date": "12-2022",
       "passwords": [
         "password-option-1",
         "password-option-2"
@@ -62,7 +78,9 @@
     },
     {
       "bank": "indusind",
-      "identifier": "4444",
+      "account_number": "4444",
+      "file_marker": "4444",
+      "opening_date": "03-2025",
       "passwords": [
         "your-indusind-password"
       ]
@@ -70,7 +88,9 @@
     {
       "bank": "pnb",
       "variant": "platinum",
-      "identifier": "543212XXXXXX1234",
+      "account_number": "543212XXXXXX1234",
+      "file_marker": "543212XXXXXX1234",
+      "opening_date": "07-2018",
       "passwords": [
         "pnb-password-1",
         "pnb-password-2"
@@ -79,7 +99,9 @@
     {
       "bank": "yes",
       "variant": "ace",
-      "identifier": "6666",
+      "account_number": "6666",
+      "file_marker": "",
+      "opening_date": "10-2020",
       "passwords": [
         "your-yes-ace-password"
       ]

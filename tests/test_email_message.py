@@ -7,7 +7,7 @@ import unittest
 from email.message import EmailMessage, Message
 from pathlib import Path
 
-from src.utils.email.email_message import (
+from networthcsv.utils.email.email_message import (
     body_matches,
     from_matches,
     is_pdf_attachment_part,
@@ -15,7 +15,7 @@ from src.utils.email.email_message import (
     save_attachments,
     subject_matches,
 )
-from src.settings import ResolvedAccount
+from networthcsv.settings import ResolvedAccount
 
 
 def _account() -> ResolvedAccount:
@@ -23,7 +23,8 @@ def _account() -> ResolvedAccount:
         {
             "bank": "icici",
             "variant": "amazon",
-            "identifier": "1234",
+            "account_number": "1234",
+            "file_marker": "1234",
             "subjects": ["ICICI Bank Credit Card Statement for the period"],
             "bodies": [],
             "from": ["icicibank.com"],
@@ -79,7 +80,9 @@ class SubjectMatchesTests(unittest.TestCase):
 
 
 class BodyMatchesTests(unittest.TestCase):
-    def _msg_with_body(self, body: str, *, content_type: str = "text/plain") -> EmailMessage:
+    def _msg_with_body(
+        self, body: str, *, content_type: str = "text/plain"
+    ) -> EmailMessage:
         msg = EmailMessage()
         msg.set_content(body, subtype=content_type.split("/")[1])
         return msg

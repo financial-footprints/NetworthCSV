@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest import mock
 
-from src.utils.email.readonly_imap import ReadOnlyImapClient
+from networthcsv.utils.email.readonly_imap import ReadOnlyImapClient
 
 
 class ReadOnlyImapClientTests(unittest.TestCase):

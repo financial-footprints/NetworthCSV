@@ -3,16 +3,59 @@
   "banks": {
     "bob": {
       "default": {
+        "type": "credit_card",
         "subjects": [
-          "E-statement for your BOB"
-        ]
+          "E-statement for your BOB",
+          "E-statement for your BOBCARD"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date :"
+          },
+          {
+            "mode": "label_range",
+            "label": "Statement Period :",
+            "joiner": " to ",
+            "take": "end"
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_column",
+              "context": "Account Summary",
+              "column": "Opening Balance"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "summary_table_column",
+              "context": "Account Summary",
+              "column": "Closing Balance"
+            }
+          ]
+        }
       },
       "easy": {
+        "type": "credit_card",
         "subjects": [
           "E-statement for your BOB EASY credit card ending in",
           "E-statement for your BOBCARD RUPAY EASY credit card ending"
         ],
         "end_marker": "Reward Summary at Card Level",
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date :"
+          },
+          {
+            "mode": "label_range",
+            "label": "Statement Period :",
+            "joiner": " to ",
+            "take": "end"
+          }
+        ],
         "information_markers": [
           "Please register your Mobile No. & E-Mail ID",
           "Loan Summary",
@@ -28,24 +71,94 @@
     },
     "csb": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "Credit Card Statement"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "top_range",
+            "joiner": " - ",
+            "take": "end",
+            "search_chars": 2000
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "edge_summary",
+              "field": "opening"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "edge_summary",
+              "field": "closing"
+            }
+          ]
+        }
       },
       "edge": {
+        "type": "credit_card",
         "subjects": [
           "Edge CSB Bank RuPay Credit Card Statement"
         ],
-        "end_marker": "------------------------------------------------ End of Transactions ------------------------------------------------"
+        "end_marker": "------------------------------------------------ End of Transactions ------------------------------------------------",
+        "statement_date_markers": [
+          {
+            "mode": "top_range",
+            "joiner": " - ",
+            "take": "end",
+            "search_chars": 2000
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "edge_summary",
+              "field": "opening"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "edge_summary",
+              "field": "closing"
+            }
+          ]
+        }
       }
     },
     "federal": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "Federal Bank Credit Card Statement"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "top_range",
+            "joiner": " - ",
+            "take": "end",
+            "search_chars": 2000
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "edge_summary",
+              "field": "opening"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "edge_summary",
+              "field": "closing"
+            }
+          ]
+        }
       },
       "edge": {
+        "type": "credit_card",
         "subjects": [
           "Edge Federal Bank Credit Card Statement"
         ],
@@ -53,22 +166,91 @@
         "information_markers": [
           "IMPORTANT INFORMATION",
           "Issued by"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "top_range",
+            "joiner": " - ",
+            "take": "end",
+            "search_chars": 2000
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "edge_summary",
+              "field": "opening"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "edge_summary",
+              "field": "closing"
+            }
+          ]
+        }
       },
       "signet": {
+        "type": "credit_card",
         "subjects": [
           "Credit Card Statement"
         ],
         "bodies": [
           "<title>Signet</title>"
-        ]
+        ],
+        "end_marker": "GSTN of Federal Bank",
+        "information_markers": [
+          "The following illustration will indicate",
+          "Organic Credit Cards",
+          "Transaction dispute needs to be reported"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "label_range",
+            "label": "Statement Period",
+            "joiner": " to ",
+            "take": "end"
+          },
+          {
+            "mode": "top_range",
+            "joiner": " - ",
+            "take": "end",
+            "search_chars": 2000
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_row",
+              "after": "Payment Due Date",
+              "column": "opening"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_next_line",
+              "label": "Total Amount Due (in Rs.)"
+            },
+            {
+              "mode": "summary_table_row",
+              "after": "Payment Due Date",
+              "column": "closing"
+            }
+          ]
+        }
       }
     },
     "hdfc": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "HDFC Bank Credit Card Statement"
         ],
+        "end_marker": "Reward Points Summary",
         "information_markers": [
           "Benefits on your card",
           "IMPORTANT INFORMATION",
@@ -78,34 +260,127 @@
           "Important Information",
           "Useful Links",
           "To update your personal details, please write a letter to"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "context_range",
+            "context": "Billing Period",
+            "joiner": " - ",
+            "take": "end"
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_column",
+              "context": "Account Summary",
+              "column": "Opening Balance"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "summary_table_column",
+              "context": "Account Summary",
+              "column": "Total Dues"
+            }
+          ]
+        }
       },
       "diners": {
+        "type": "credit_card",
         "subjects": [
           "Your HDFC Bank - Diners Club International Credit Card Statement"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "context_range",
+            "context": "Billing Period",
+            "joiner": " - ",
+            "take": "end"
+          }
         ]
       },
       "regalia": {
+        "type": "credit_card",
         "subjects": [
           "Your HDFC Bank - Regalia MasterCard Credit Card Statement"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "context_range",
+            "context": "Billing Period",
+            "joiner": " - ",
+            "take": "end"
+          }
         ]
       },
       "regalia-gold": {
+        "type": "credit_card",
         "subjects": [
           "Your HDFC Bank - HDFC Bank Regalia Gold Credit Card Statement"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "context_range",
+            "context": "Billing Period",
+            "joiner": " - ",
+            "take": "end"
+          }
         ]
       },
       "swiggy": {
+        "type": "credit_card",
         "subjects": [
           "HDFC Bank - Swiggy HDFC Bank Credit Card Statement"
         ],
-        "end_marker": "Cash Back Summary"
+        "end_marker": "Cashback Summary",
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "context_range",
+            "context": "Billing Period",
+            "joiner": " - ",
+            "take": "end"
+          }
+        ]
       },
       "tata-neu-infinity": {
+        "type": "credit_card",
         "subjects": [
           "Your HDFC Bank - Tata Neu Infinity HDFC Bank Credit Card Statement"
         ],
         "end_marker": "Bonus NeuCoins Summary",
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "context_range",
+            "context": "Billing Period",
+            "joiner": " - ",
+            "take": "end"
+          }
+        ],
         "information_markers": [
           "Benefits on your card",
           "IMPORTANT INFORMATION",
@@ -118,11 +393,26 @@
           "NeuCoins with Bank Opening NeuCoins",
           "Eligible for EMI",
           "CONVERT TO EMI"
-        ]
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "equation_first_after",
+              "anchor": "PREVIOUS STATEMENT DUES"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "single_amount_after",
+              "anchor": "TOTAL AMOUNT DUE"
+            }
+          ]
+        }
       }
     },
     "icici": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "ICICI Bank Credit Card Statement for the period"
         ],
@@ -136,9 +426,38 @@
           "GREAT    OFFERS    ON   YOUR   CARD",
           "IMPORTANT     INFORMATION      ON  YOUR   CREDIT   CARD",
           "ICICl Bank Rewards"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_next_line",
+            "label": "STATEMENT DATE"
+          },
+          {
+            "mode": "label_range",
+            "label": "Statement period :",
+            "joiner": " to ",
+            "take": "end"
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_column",
+              "context": "Previous Balance",
+              "column": "Previous Balance",
+              "search_chars": 300
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_next_line",
+              "label": "Total Amount due"
+            }
+          ]
+        }
       },
       "amazon": {
+        "type": "credit_card",
         "subjects": [
           "Amazon Pay ICICI Bank Credit Card Statement for the period"
         ],
@@ -151,23 +470,89 @@
           "GREAT    OFFERS    ON   YOUR   CARD",
           "IMPORTANT     INFORMATION      ON  YOUR   CREDIT   CARD",
           "EARNINGS"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_next_line",
+            "label": "STATEMENT DATE"
+          },
+          {
+            "mode": "label_range",
+            "label": "Statement period :",
+            "joiner": " to ",
+            "take": "end"
+          }
         ]
       }
     },
     "idfc": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "Credit Card Statement"
-        ]
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_column",
+              "context": "STATEMENT SUMMARY",
+              "column": "Opening Balance"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_single",
+              "label": "Total Amount Due"
+            }
+          ]
+        }
       },
       "wow": {
+        "type": "credit_card",
         "subjects": [
           "FIRST WOW! Credit Card Statement"
-        ]
+        ],
+        "end_marker": "IMPORTANT INFORMATION",
+        "information_markers": [
+          "Payment Modes",
+          "SPECIAL BENEFITS ON YOUR CARD",
+          "OFFER OF THE MONTH",
+          "YOU MADE A GREAT CHOICE",
+          "Enjoy the Convenience",
+          "Your Card Information"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date"
+          },
+          {
+            "mode": "top_range",
+            "joiner": " - ",
+            "take": "end",
+            "search_chars": 500
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_column",
+              "context": "STATEMENT SUMMARY",
+              "column": "Opening Balance"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_single",
+              "label": "Total Amount Due"
+            }
+          ]
+        }
       }
     },
     "indusind": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "IndusInd Bank Credit Card"
         ],
@@ -181,11 +566,38 @@
           "Secure your IndusInd Bank Credit Card on-the-go",
           "HOW TO MAKE PAYMENTS",
           "FEES & CHARGES"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "context_range",
+            "context": "Statement Period",
+            "joiner": " To ",
+            "take": "end"
+          },
+          {
+            "mode": "label_next_line",
+            "label": "Statement Date"
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "label_next_line",
+              "label": "Previous Balance"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_next_line",
+              "label": "Total Amount Due"
+            }
+          ]
+        }
       }
     },
     "pnb": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "Your PNB Credit Card Statement for the month"
         ],
@@ -200,11 +612,43 @@
           "Why pay in Rupees",
           "CAUTION :",
           "Please make all Cheque"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_next_line",
+            "label": "Invoice Date :"
+          },
+          {
+            "mode": "context_range",
+            "context": "From",
+            "joiner": " to ",
+            "take": "end"
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "summary_table_column",
+              "context": "Account Summary",
+              "column": "Previous Balance"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_single",
+              "label": "Total Amount Due for Month"
+            },
+            {
+              "mode": "label_single",
+              "label": "Total Amount Due :"
+            }
+          ]
+        }
       }
     },
     "yes": {
       "default": {
+        "type": "credit_card",
         "subjects": [
           "Your YES_BANK"
         ],
@@ -217,11 +661,50 @@
           "SMS  Help  space",
           "Important Safety Instructions",
           "Dear Cardmember,"
-        ]
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date :"
+          },
+          {
+            "mode": "context_range",
+            "context": "Statement Period",
+            "joiner": " To ",
+            "take": "end"
+          }
+        ],
+        "balance_markers": {
+          "opening": [
+            {
+              "mode": "label_next_line",
+              "label": "Previous Balance :"
+            }
+          ],
+          "closing": [
+            {
+              "mode": "label_next_line",
+              "label": "Total Amount Due:"
+            }
+          ]
+        }
       },
       "ace": {
+        "type": "credit_card",
         "subjects": [
           "Your YES_BANK_ACE Rupay Credit Card E-Statement"
+        ],
+        "statement_date_markers": [
+          {
+            "mode": "label_single",
+            "label": "Statement Date :"
+          },
+          {
+            "mode": "context_range",
+            "context": "Statement Period",
+            "joiner": " To ",
+            "take": "end"
+          }
         ]
       }
     }

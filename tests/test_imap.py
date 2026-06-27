@@ -5,7 +5,10 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from src.pipeline.get_statements.imap import build_gmail_raw_query, build_imap_search_criteria
+from networthcsv.pipeline.get_statements.imap import (
+    build_gmail_raw_query,
+    build_imap_search_criteria,
+)
 
 
 class BuildImapSearchTests(unittest.TestCase):
@@ -15,7 +18,9 @@ class BuildImapSearchTests(unittest.TestCase):
             date(2020, 1, 15),
         )
         self.assertIn("has:attachment", query)
-        self.assertIn('subject:"ICICI Bank Credit Card Statement for the period"', query)
+        self.assertIn(
+            'subject:"ICICI Bank Credit Card Statement for the period"', query
+        )
         self.assertIn("after:2020/01/15", query)
 
     def test_gmail_host_uses_x_gm_raw(self) -> None:
@@ -35,7 +40,9 @@ class BuildImapSearchTests(unittest.TestCase):
             host="imap.example.com",
         )
         self.assertEqual(charset, "UTF-8")
-        self.assertEqual(criteria, ("SINCE", "10-Mar-2019", "SUBJECT", "Credit Card Statement"))
+        self.assertEqual(
+            criteria, ("SINCE", "10-Mar-2019", "SUBJECT", "Credit Card Statement")
+        )
 
     def test_generic_imap_multiple_subjects_or(self) -> None:
         _charset, criteria = build_imap_search_criteria(

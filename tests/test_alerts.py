@@ -7,12 +7,16 @@ from collections.abc import Sequence
 from typing import ClassVar, cast
 from unittest.mock import MagicMock, patch
 
-from src.utils.alerts.handlers.console import ConsoleAlertHandler
-from src.utils.alerts.handlers.email import SmtpEmailAlertHandler
-from src.utils.alerts.models import Alert, AlertKind, DeliverMode
-from src.utils.alerts.service import AlertService, build_alert_service
-from src.pipeline.cleanup.text_extract import check_identifier
-from src.settings import ConsoleAlertSettings, EmailAlertSettings, EmailAlertsSettings
+from networthcsv.utils.alerts.handlers.console import ConsoleAlertHandler
+from networthcsv.utils.alerts.handlers.email import SmtpEmailAlertHandler
+from networthcsv.utils.alerts.models import Alert, AlertKind, DeliverMode
+from networthcsv.utils.alerts.service import AlertService, build_alert_service
+from networthcsv.pipeline.cleanup.statement_text import check_file_marker
+from networthcsv.settings import (
+    ConsoleAlertSettings,
+    EmailAlertSettings,
+    EmailAlertsSettings,
+)
 
 
 class _RecordingHandler:
@@ -34,11 +38,11 @@ class AlertServiceTests(unittest.TestCase):
         handler = _RecordingHandler()
         service = AlertService(handler=handler)
         alert = Alert(
-            kind=AlertKind.IDENTIFIER_MISSING,
+            kind=AlertKind.FILE_MARKER_MISSING,
             message="missing",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            identifier="1234",
+            file_marker="1234",
         )
 
         service.emit(alert)
@@ -51,11 +55,11 @@ class AlertServiceTests(unittest.TestCase):
         handler = _BatchHandler()
         service = AlertService(handler=handler)
         alert = Alert(
-            kind=AlertKind.IDENTIFIER_MISSING,
+            kind=AlertKind.FILE_MARKER_MISSING,
             message="missing",
             account="bob/easy",
             source_file="2024-02.pdf",
-            identifier="5678",
+            file_marker="5678",
         )
 
         service.emit(alert)
@@ -67,11 +71,11 @@ class AlertServiceTests(unittest.TestCase):
         handler = _RecordingHandler()
         service = AlertService(handler=handler)
         alert = Alert(
-            kind=AlertKind.IDENTIFIER_MISSING,
+            kind=AlertKind.FILE_MARKER_MISSING,
             message="missing",
             account="bob/easy",
             source_file="2024-02.pdf",
-            identifier="5678",
+            file_marker="5678",
         )
 
         service.emit(alert)
@@ -83,34 +87,36 @@ class AlertServiceTests(unittest.TestCase):
         service = build_alert_service(alerts=None)
         self.assertFalse(service.has_alerts)
 
-    @patch("src.utils.alerts.service.ConsoleAlertHandler")
+    @patch("networthcsv.utils.alerts.service.ConsoleAlertHandler")
     def test_build_alert_service_console(self, mock_console_cls: MagicMock) -> None:
         mock_console_cls.return_value = _RecordingHandler()
         alerts = ConsoleAlertSettings()
         service = build_alert_service(alerts=alerts)
         service.emit(
             Alert(
-                kind=AlertKind.IDENTIFIER_MISSING,
+                kind=AlertKind.FILE_MARKER_MISSING,
                 message="missing",
                 account="pnb/platinum",
                 source_file="2024-01.pdf",
-                identifier="1234",
+                file_marker="1234",
             )
         )
         mock_console_cls.assert_called_once()
 
     def test_build_alert_service_email_when_configured(self) -> None:
         alerts = EmailAlertsSettings(email=_complete_email_settings())
-        with patch("src.utils.alerts.service.SmtpEmailAlertHandler") as mock_handler_cls:
+        with patch(
+            "networthcsv.utils.alerts.service.SmtpEmailAlertHandler"
+        ) as mock_handler_cls:
             mock_handler_cls.return_value = _BatchHandler()
             service = build_alert_service(alerts=alerts)
             service.emit(
                 Alert(
-                    kind=AlertKind.IDENTIFIER_MISSING,
+                    kind=AlertKind.FILE_MARKER_MISSING,
                     message="missing",
                     account="pnb/platinum",
                     source_file="2024-01.pdf",
-                    identifier="1234",
+                    file_marker="1234",
                 )
             )
             service.flush()
@@ -118,15 +124,15 @@ class AlertServiceTests(unittest.TestCase):
 
 
 class ConsoleAlertHandlerTests(unittest.TestCase):
-    @patch("src.utils.alerts.handlers.console.logger.debug")
+    @patch("networthcsv.utils.alerts.handlers.console.logger.debug")
     def test_logs_alert(self, mock_debug: MagicMock) -> None:
         handler = ConsoleAlertHandler()
         alert = Alert(
-            kind=AlertKind.IDENTIFIER_MISSING,
-            message="identifier '1234' not found in 2024-01.pdf",
+            kind=AlertKind.FILE_MARKER_MISSING,
+            message="file marker '1234' not found in 2024-01.pdf",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            identifier="1234",
+            file_marker="1234",
         )
 
         handler.send([alert])
@@ -136,7 +142,7 @@ class ConsoleAlertHandlerTests(unittest.TestCase):
 
 
 class SmtpEmailAlertHandlerTests(unittest.TestCase):
-    @patch("src.utils.alerts.handlers.email.smtplib.SMTP")
+    @patch("networthcsv.utils.alerts.handlers.email.smtplib.SMTP")
     def test_sends_email(self, mock_smtp_cls: MagicMock) -> None:
         mock_smtp = MagicMock()
         mock_client = MagicMock()
@@ -144,11 +150,11 @@ class SmtpEmailAlertHandlerTests(unittest.TestCase):
         cast(MagicMock, mock_client.__enter__).return_value = mock_smtp
         handler = SmtpEmailAlertHandler(_complete_email_settings())
         alert = Alert(
-            kind=AlertKind.IDENTIFIER_MISSING,
-            message="identifier '1234' not found in 2024-01.pdf",
+            kind=AlertKind.FILE_MARKER_MISSING,
+            message="file marker '1234' not found in 2024-01.pdf",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            identifier="1234",
+            file_marker="1234",
         )
 
         handler.send([alert])
@@ -160,14 +166,14 @@ class SmtpEmailAlertHandlerTests(unittest.TestCase):
         cast(MagicMock, mock_smtp.send_message).assert_called_once()
 
 
-class CheckIdentifierAlertIntegrationTests(unittest.TestCase):
+class CheckFileMarkerAlertIntegrationTests(unittest.TestCase):
     def test_emits_alert_when_service_configured(self) -> None:
         handler = _RecordingHandler()
         service = AlertService(handler=handler)
 
-        result = check_identifier(
+        result = check_file_marker(
             "no card digits here",
-            identifier="1234",
+            file_marker="1234",
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
             alerts=service,
@@ -175,7 +181,7 @@ class CheckIdentifierAlertIntegrationTests(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertEqual(len(handler.sent), 1)
-        self.assertEqual(handler.sent[0].kind, AlertKind.IDENTIFIER_MISSING)
+        self.assertEqual(handler.sent[0].kind, AlertKind.FILE_MARKER_MISSING)
 
 
 def _complete_email_settings() -> EmailAlertSettings:

@@ -1,0 +1,12 @@
+{
+  // Python-only repo — no JS/TS; avoid Biome LSP "couldn't create connection" noise.
+  "biome.enabled": false,
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.languageServer": "None",
+
+  // Cursor
+  "cursorpyright.analysis.diagnosticMode": "workspace",
+  "cursorpyright.analysis.autoSearchPaths": true,
+  "cursorpyright.analysis.extraPaths": ["src"]
+}

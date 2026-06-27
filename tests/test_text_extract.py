@@ -5,9 +5,9 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.pipeline.cleanup.text_extract import (
-    check_identifier,
-    identifier_present,
+from networthcsv.pipeline.cleanup.statement_text import (
+    check_file_marker,
+    file_marker_present,
     purge_information_markers,
     sanitize_statement_text,
     trim_by_markers,
@@ -145,33 +145,33 @@ class SanitizeStatementTextTests(unittest.TestCase):
         self.assertEqual(result, "a   b")
 
 
-class IdentifierValidationTests(unittest.TestCase):
-    def test_identifier_present(self) -> None:
-        self.assertTrue(identifier_present("Card ending in 1234", "1234"))
-        self.assertFalse(identifier_present("Card ending in 5678", "1234"))
+class FileMarkerValidationTests(unittest.TestCase):
+    def test_file_marker_present(self) -> None:
+        self.assertTrue(file_marker_present("Card ending in 1234", "1234"))
+        self.assertFalse(file_marker_present("Card ending in 5678", "1234"))
 
-    @patch("src.pipeline.cleanup.statement_text.logger.debug")
-    def test_identifier_found(self, mock_debug: MagicMock) -> None:
-        result = check_identifier(
+    @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
+    def test_file_marker_found(self, mock_debug: MagicMock) -> None:
+        result = check_file_marker(
             "Card ending in 1234",
-            identifier="1234",
+            file_marker="1234",
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
         )
         self.assertTrue(result)
         mock_debug.assert_not_called()
 
-    @patch("src.pipeline.cleanup.statement_text.logger.debug")
-    def test_identifier_missing(self, mock_debug: MagicMock) -> None:
-        result = check_identifier(
+    @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
+    def test_file_marker_missing(self, mock_debug: MagicMock) -> None:
+        result = check_file_marker(
             "Card ending in 5678",
-            identifier="1234",
+            file_marker="1234",
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
         )
         self.assertFalse(result)
         mock_debug.assert_called_once_with(
-            "ignored %s for %s: identifier %r not found",
+            "ignored %s for %s: file marker %r not found",
             "2024-01.pdf",
             "pnb/platinum",
             "1234",

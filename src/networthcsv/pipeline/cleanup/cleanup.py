@@ -29,9 +29,9 @@ from networthcsv.pipeline.upload import (
     manual_upload_pdf_path,
 )
 from networthcsv.pipeline.cleanup.statement_text import (
-    check_file_marker,
-    file_marker_present,
-    purge_information_markers,
+    check_text_contains,
+    text_contains_present,
+    purge_drop_sections,
     sanitize_statement_text,
     trim_by_markers,
 )
@@ -43,9 +43,6 @@ from networthcsv.settings import (
 )
 
 logger = logging.getLogger(__name__)
-
-_LEGACY_PDF_ROOT = "PDF"
-_LEGACY_TXT_ROOT = "TXT"
 
 
 @dataclass(frozen=True)
@@ -181,13 +178,13 @@ def _write_txt_atomically(txt_path: Path, content: str) -> None:
 def _sanitized_text(raw: str, account: ResolvedAccount) -> str:
     trimmed = trim_by_markers(
         raw,
-        start_markers=list(account.start_markers),
-        end_markers=list(account.end_markers),
+        trim_start=list(account.statement.trim_start),
+        trim_end=list(account.statement.trim_end),
     )
     sanitized = sanitize_statement_text(trimmed)
-    return purge_information_markers(
+    return purge_drop_sections(
         sanitized,
-        information_markers=account.information_markers,
+        drop_sections=account.statement.drop_sections,
     )
 
 
@@ -242,6 +239,7 @@ def prepare_month(
     label = account_label(account)
     pdf_out = statement_pdf_path(download_path, account, month)
     canonical = pdf_out if pdf_out.is_file() else None
+    text_contains = account.statement.text_contains
 
     keeper = None
     manual_candidates = [
@@ -249,9 +247,9 @@ def prepare_month(
     ]
     if manual_candidates:
         keeper = manual_candidates[-1]
-    elif account.file_markers:
+    elif text_contains:
         for path in unique:
-            if file_marker_present(sanitized_by_path[path], account.file_markers):
+            if text_contains_present(sanitized_by_path[path], text_contains):
                 keeper = path
     elif unique:
         keeper = unique[-1]
@@ -260,10 +258,10 @@ def prepare_month(
         for path in unique:
             if canonical is not None and path.resolve() == canonical.resolve():
                 continue
-            if account.file_markers:
-                _ = check_file_marker(
+            if text_contains:
+                _ = check_text_contains(
                     sanitized_by_path[path],
-                    file_markers=account.file_markers,
+                    text_contains=text_contains,
                     source_file=path.name,
                     account_label=label,
                     alerts=alerts,
@@ -273,23 +271,23 @@ def prepare_month(
     raw = raw_by_path[keeper]
     keeper_is_manual = keeper in manual_candidates
     preserve: frozenset[Path] = frozenset()
-    if account.file_markers and not keeper_is_manual:
+    if text_contains and not keeper_is_manual:
         preserve = frozenset(
             path
             for path in unique
             if path != keeper
-            and not file_marker_present(sanitized_by_path[path], account.file_markers)
+            and not text_contains_present(sanitized_by_path[path], text_contains)
         )
     for path in unique:
         if path == keeper:
             continue
-        if keeper_is_manual or not file_marker_present(
-            sanitized_by_path[path], account.file_markers
+        if keeper_is_manual or not text_contains_present(
+            sanitized_by_path[path], text_contains
         ):
-            if account.file_markers and not keeper_is_manual:
-                _ = check_file_marker(
+            if text_contains and not keeper_is_manual:
+                _ = check_text_contains(
                     sanitized_by_path[path],
-                    file_markers=account.file_markers,
+                    text_contains=text_contains,
                     source_file=path.name,
                     account_label=label,
                     alerts=alerts,
@@ -330,17 +328,6 @@ def sweep_orphans(settings: Settings, account: ResolvedAccount) -> int:
     return removed
 
 
-def sweep_legacy_layout(download_dir: Path) -> int:
-    removed = 0
-    for name in (_LEGACY_PDF_ROOT, _LEGACY_TXT_ROOT):
-        legacy = download_dir / name
-        if legacy.is_dir():
-            shutil.rmtree(legacy)
-            logger.debug("removed (legacy layout): %s", legacy)
-            removed += 1
-    return removed
-
-
 def run(
     staging_dir: Path,
     account: ResolvedAccount,
@@ -358,7 +345,6 @@ def run(
             prepared=0,
             rejected=0,
             orphans_removed=0,
-            legacy_folders_removed=0,
             skipped=True,
         )
 
@@ -407,8 +393,8 @@ def run(
                 and txt_is_current(pdf_out, txt_out)
             ):
                 txt_content = txt_out.read_text(encoding="utf-8")
-                if not account.file_markers or file_marker_present(
-                    txt_content, account.file_markers
+                if not account.statement.text_contains or text_contains_present(
+                    txt_content, account.statement.text_contains
                 ):
                     continue
 
@@ -426,7 +412,6 @@ def run(
         rejected += month_rejected
 
     orphans = sweep_orphans(ctx.settings, account)
-    legacy = sweep_legacy_layout(staging_dir)
 
     result = CleanupAccountResult(
         bank=account.bank,
@@ -436,7 +421,6 @@ def run(
         prepared=prepared,
         rejected=rejected,
         orphans_removed=orphans,
-        legacy_folders_removed=legacy,
     )
     ctx.reporter.cleanup_done(result)
     return result

@@ -22,12 +22,14 @@ def _account(*, account_number: str = "5678") -> ResolvedAccount:
             "bank": "bob",
             "variant": "easy",
             "account_number": account_number,
-            "file_markers": account_number,
-            "subjects": ["BOB"],
             "passwords": ["secret"],
-            "statement_date_markers": [
-                {"mode": "label_single", "label": "Statement Date :"},
-            ],
+            "mail": {"subjects": ["BOB"]},
+            "statement": {"text_contains": [account_number]},
+            "metadata": {
+                "statement_date": [
+                    {"mode": "label_single", "label": "Statement Date :"},
+                ],
+            },
         }
     )
 

@@ -41,9 +41,9 @@ def _account(
                 "bank": bank,
                 "variant": variant,
                 "account_number": "1234",
-                "subjects": ["test"],
                 "passwords": ["x"],
-                "statement_date_markers": statement_date_markers,
+                "mail": {"subjects": ["test"]},
+                "metadata": {"statement_date": statement_date_markers},
             }
         )
     bank_variants = _APP_CONFIG.banks[bank]

@@ -20,7 +20,11 @@
       "bank": "bob",
       "variant": "easy",
       "account_number": "5678",
-      "file_markers": ["5678"],
+      "statement": {
+        "text_contains": [
+          "5678"
+        ]
+      },
       "opening_date": "08-2021",
       "closing_date": null,
       "passwords": [
@@ -31,7 +35,11 @@
       "bank": "csb",
       "variant": "edge",
       "account_number": "7777",
-      "file_markers": ["7777"],
+      "statement": {
+        "text_contains": [
+          "7777"
+        ]
+      },
       "opening_date": "11-2024",
       "closing_date": null,
       "passwords": [
@@ -42,7 +50,11 @@
       "bank": "federal",
       "variant": "signet",
       "account_number": "1234",
-      "file_markers": ["1234"],
+      "statement": {
+        "text_contains": [
+          "1234"
+        ]
+      },
       "opening_date": "02-2020",
       "closing_date": "05-2023",
       "passwords": [
@@ -53,7 +65,11 @@
       "bank": "hdfc",
       "variant": "swiggy",
       "account_number": "2222",
-      "file_markers": ["2222"],
+      "statement": {
+        "text_contains": [
+          "2222"
+        ]
+      },
       "opening_date": "06-2023",
       "closing_date": null,
       "passwords": [
@@ -63,7 +79,11 @@
     {
       "bank": "icici",
       "account_number": "7890",
-      "file_markers": ["7890"],
+      "statement": {
+        "text_contains": [
+          "7890"
+        ]
+      },
       "opening_date": "09-2019",
       "closing_date": "10-2022",
       "passwords": [
@@ -74,7 +94,12 @@
       "bank": "idfc",
       "variant": "wow",
       "account_number": "1234-idfc",
-      "file_markers": ["1234"],
+      "statement": {
+        "text_contains": [
+          "1234",
+          "WOW"
+        ]
+      },
       "opening_date": "12-2022",
       "closing_date": null,
       "passwords": [
@@ -85,7 +110,12 @@
     {
       "bank": "indusind",
       "account_number": "4444",
-      "file_markers": ["4444"],
+      "statement": {
+        "text_contains": [
+          "4444",
+          "VaLUE"
+        ]
+      },
       "opening_date": "03-2025",
       "passwords": [
         "your-indusind-password"
@@ -95,7 +125,11 @@
       "bank": "pnb",
       "variant": "platinum",
       "account_number": "543212XXXXXX1234",
-      "file_markers": ["543212XXXXXX1234"],
+      "statement": {
+        "text_contains": [
+          "543212XXXXXX1234"
+        ]
+      },
       "opening_date": "07-2018",
       "closing_date": "02-2024",
       "passwords": [
@@ -107,7 +141,9 @@
       "bank": "yes",
       "variant": "ace",
       "account_number": "6666",
-      "file_markers": [],
+      "statement": {
+        "text_contains": []
+      },
       "opening_date": "10-2020",
       "closing_date": null,
       "passwords": [

@@ -11,7 +11,7 @@ from networthcsv.utils.alerts.handlers.console import ConsoleAlertHandler
 from networthcsv.utils.alerts.handlers.email import SmtpEmailAlertHandler
 from networthcsv.utils.alerts.models import Alert, AlertKind, DeliverMode
 from networthcsv.utils.alerts.service import AlertService, build_alert_service
-from networthcsv.pipeline.cleanup.statement_text import check_file_marker
+from networthcsv.pipeline.cleanup.statement_text import check_text_contains
 from networthcsv.settings import (
     ConsoleAlertSettings,
     EmailAlertSettings,
@@ -38,11 +38,11 @@ class AlertServiceTests(unittest.TestCase):
         handler = _RecordingHandler()
         service = AlertService(handler=handler)
         alert = Alert(
-            kind=AlertKind.FILE_MARKER_MISSING,
+            kind=AlertKind.TEXT_CONTAINS_MISSING,
             message="missing",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            file_markers=["1234"],
+            text_contains=["1234"],
         )
 
         service.emit(alert)
@@ -55,11 +55,11 @@ class AlertServiceTests(unittest.TestCase):
         handler = _BatchHandler()
         service = AlertService(handler=handler)
         alert = Alert(
-            kind=AlertKind.FILE_MARKER_MISSING,
+            kind=AlertKind.TEXT_CONTAINS_MISSING,
             message="missing",
             account="bob/easy",
             source_file="2024-02.pdf",
-            file_markers=["5678"],
+            text_contains=["5678"],
         )
 
         service.emit(alert)
@@ -71,11 +71,11 @@ class AlertServiceTests(unittest.TestCase):
         handler = _RecordingHandler()
         service = AlertService(handler=handler)
         alert = Alert(
-            kind=AlertKind.FILE_MARKER_MISSING,
+            kind=AlertKind.TEXT_CONTAINS_MISSING,
             message="missing",
             account="bob/easy",
             source_file="2024-02.pdf",
-            file_markers=["5678"],
+            text_contains=["5678"],
         )
 
         service.emit(alert)
@@ -94,11 +94,11 @@ class AlertServiceTests(unittest.TestCase):
         service = build_alert_service(alerts=alerts)
         service.emit(
             Alert(
-                kind=AlertKind.FILE_MARKER_MISSING,
+                kind=AlertKind.TEXT_CONTAINS_MISSING,
                 message="missing",
                 account="pnb/platinum",
                 source_file="2024-01.pdf",
-                file_markers=["1234"],
+                text_contains=["1234"],
             )
         )
         mock_console_cls.assert_called_once()
@@ -112,11 +112,11 @@ class AlertServiceTests(unittest.TestCase):
             service = build_alert_service(alerts=alerts)
             service.emit(
                 Alert(
-                    kind=AlertKind.FILE_MARKER_MISSING,
+                    kind=AlertKind.TEXT_CONTAINS_MISSING,
                     message="missing",
                     account="pnb/platinum",
                     source_file="2024-01.pdf",
-                    file_markers=["1234"],
+                    text_contains=["1234"],
                 )
             )
             service.flush()
@@ -128,11 +128,11 @@ class ConsoleAlertHandlerTests(unittest.TestCase):
     def test_logs_alert(self, mock_debug: MagicMock) -> None:
         handler = ConsoleAlertHandler()
         alert = Alert(
-            kind=AlertKind.FILE_MARKER_MISSING,
-            message="file marker '1234' not found in 2024-01.pdf",
+            kind=AlertKind.TEXT_CONTAINS_MISSING,
+            message="text_contains ['1234'] not found in 2024-01.pdf",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            file_markers=["1234"],
+            text_contains=["1234"],
         )
 
         handler.send([alert])
@@ -150,11 +150,11 @@ class SmtpEmailAlertHandlerTests(unittest.TestCase):
         cast(MagicMock, mock_client.__enter__).return_value = mock_smtp
         handler = SmtpEmailAlertHandler(_complete_email_settings())
         alert = Alert(
-            kind=AlertKind.FILE_MARKER_MISSING,
-            message="file marker '1234' not found in 2024-01.pdf",
+            kind=AlertKind.TEXT_CONTAINS_MISSING,
+            message="text_contains ['1234'] not found in 2024-01.pdf",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            file_markers=["1234"],
+            text_contains=["1234"],
         )
 
         handler.send([alert])
@@ -166,14 +166,14 @@ class SmtpEmailAlertHandlerTests(unittest.TestCase):
         cast(MagicMock, mock_smtp.send_message).assert_called_once()
 
 
-class CheckFileMarkerAlertIntegrationTests(unittest.TestCase):
+class CheckTextContainsAlertIntegrationTests(unittest.TestCase):
     def test_emits_alert_when_service_configured(self) -> None:
         handler = _RecordingHandler()
         service = AlertService(handler=handler)
 
-        result = check_file_marker(
+        result = check_text_contains(
             "no card digits here",
-            file_markers=["1234"],
+            text_contains=["1234"],
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
             alerts=service,
@@ -181,7 +181,7 @@ class CheckFileMarkerAlertIntegrationTests(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertEqual(len(handler.sent), 1)
-        self.assertEqual(handler.sent[0].kind, AlertKind.FILE_MARKER_MISSING)
+        self.assertEqual(handler.sent[0].kind, AlertKind.TEXT_CONTAINS_MISSING)
 
 
 def _complete_email_settings() -> EmailAlertSettings:

@@ -32,7 +32,7 @@ class RunReporter:
         bank: str | None,
         subjects: list[str],
         from_filters: list[str],
-        bodies: list[str],
+        body_contains: list[str],
         download_dir: Path,
         start_date: date | None,
         end_date: date | None = None,
@@ -110,7 +110,7 @@ class ConsoleRunReporter(RunReporter):
         bank: str | None,
         subjects: list[str],
         from_filters: list[str],
-        bodies: list[str],
+        body_contains: list[str],
         download_dir: Path,
         start_date: date | None,
         end_date: date | None = None,
@@ -120,7 +120,7 @@ class ConsoleRunReporter(RunReporter):
             bank=bank,
             subjects=subjects,
             from_filters=from_filters,
-            bodies=bodies,
+            body_contains=body_contains,
             download_dir=download_dir,
             start_date=start_date,
             end_date=end_date,
@@ -161,8 +161,7 @@ class ConsoleRunReporter(RunReporter):
             f"done: {result.non_pdf_removed} non-pdf removed, "
             f"{result.decrypted} decrypted, {result.prepared} prepared, "
             f"{result.rejected} rejected (file marker missing), "
-            f"{result.orphans_removed} orphan(s) removed, "
-            f"{result.legacy_folders_removed} legacy folder(s) removed"
+            f"{result.orphans_removed} orphan(s) removed"
         )
 
     def metadata_started(self, bank: str, download_dir: Path) -> None:

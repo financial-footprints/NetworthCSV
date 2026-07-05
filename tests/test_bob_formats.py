@@ -1,4 +1,4 @@
-"""Tests for BoB old and new statement layout support using synthetic fixtures."""
+"""Tests for BoB format1 and format2 statement layout support using synthetic fixtures."""
 
 from __future__ import annotations
 
@@ -43,67 +43,65 @@ def _account(*, bank: str = "bob", variant: str | None = "easy") -> ResolvedAcco
 class BobFormatFixtureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.new_format_raw = (_FIXTURES / "new_format_raw.txt").read_text(
-            encoding="utf-8"
-        )
-        cls.old_format = (_FIXTURES / "old_format.txt").read_text(encoding="utf-8")
+        cls.format2 = (_FIXTURES / "format2.txt").read_text(encoding="utf-8")
+        cls.format1 = (_FIXTURES / "format1.txt").read_text(encoding="utf-8")
         cls.account = _account()
-        end_markers = list(cls.account.end_markers)
-        cls.trimmed_new = trim_by_markers(cls.new_format_raw, end_markers=end_markers)
-        cls.trimmed_old = trim_by_markers(cls.old_format, end_markers=end_markers)
+        end_markers = list(cls.account.statement.trim_end)
+        cls.trimmed_format2 = trim_by_markers(cls.format2, trim_end=end_markers)
+        cls.trimmed_format1 = trim_by_markers(cls.format1, trim_end=end_markers)
 
-    def test_new_format_month_from_content_not_filename(self) -> None:
+    def test_format2_month_from_content_not_filename(self) -> None:
         self.assertEqual(
             resolve_month_stem(
-                self.new_format_raw,
+                self.format2,
                 "attachment__2025-08-20.pdf",
                 account=self.account,
             ),
             "2025-03",
         )
 
-    def test_old_format_month_from_labels(self) -> None:
+    def test_format1_month_from_labels(self) -> None:
         self.assertEqual(
             resolve_month_stem(
-                self.old_format,
+                self.format1,
                 "attachment__2025-01-01.pdf",
                 account=self.account,
             ),
             "2024-10",
         )
 
-    def test_new_format_trim_keeps_page_one_only(self) -> None:
-        trimmed = self.trimmed_new
+    def test_format2_trim_keeps_page_one_only(self) -> None:
+        trimmed = self.trimmed_format2
         self.assertIn("Page 1 of 5", trimmed)
         self.assertNotIn("Page 2 of 5", trimmed)
         self.assertNotIn("SCHEDULE OF CHARGES", trimmed)
 
-    def test_old_format_trim_keeps_through_reward_summary(self) -> None:
-        trimmed = self.trimmed_old
+    def test_format1_trim_keeps_through_reward_summary(self) -> None:
+        trimmed = self.trimmed_format1
         self.assertIn("Reward Summary at Card Level", trimmed)
         self.assertIn("R35670 SAMPLE SHOP", trimmed)
         self.assertNotIn("Page 3 of 4", trimmed)
 
-    def test_new_format_balances_from_second_summary_row(self) -> None:
+    def test_format2_balances_from_second_summary_row(self) -> None:
         opening = extract_opening_balance(
-            self.trimmed_new,
-            tuple(self.account.balance_markers.opening),
+            self.trimmed_format2,
+            tuple(self.account.metadata.balances.opening),
         )
         closing = extract_closing_balance(
-            self.trimmed_new,
-            tuple(self.account.balance_markers.closing),
+            self.trimmed_format2,
+            tuple(self.account.metadata.balances.closing),
         )
         self.assertEqual(opening, "-10.00")
         self.assertEqual(closing, "1250.00")
 
-    def test_old_format_balances_from_account_summary(self) -> None:
+    def test_format1_balances_from_account_summary(self) -> None:
         opening = extract_opening_balance(
-            self.old_format,
-            tuple(self.account.balance_markers.opening),
+            self.format1,
+            tuple(self.account.metadata.balances.opening),
         )
         closing = extract_closing_balance(
-            self.old_format,
-            tuple(self.account.balance_markers.closing),
+            self.format1,
+            tuple(self.account.metadata.balances.closing),
         )
         self.assertEqual(opening, "42.00")
         self.assertEqual(closing, "192.00")

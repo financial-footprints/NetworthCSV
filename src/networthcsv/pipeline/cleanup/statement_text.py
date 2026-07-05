@@ -26,12 +26,12 @@ def sanitize_statement_text(raw: str) -> str:
 def trim_by_markers(
     raw: str,
     *,
-    start_markers: list[str] | None = None,
-    end_markers: list[str] | None = None,
+    trim_start: list[str] | None = None,
+    trim_end: list[str] | None = None,
 ) -> str:
-    """Keep lines from start_markers through end_markers, inclusive of marker lines."""
-    start = list(start_markers) if start_markers else []
-    end = list(end_markers) if end_markers else []
+    """Keep lines from trim_start through trim_end, inclusive of marker lines."""
+    start = list(trim_start) if trim_start else []
+    end = list(trim_end) if trim_end else []
 
     lines = raw.split("\n")
     start_idx = 0
@@ -43,7 +43,7 @@ def trim_by_markers(
             if any(marker in line for marker in start)
         ]
         if not found_indices:
-            logger.debug("start_markers not found: %r", start)
+            logger.debug("trim_start not found: %r", start)
         else:
             start_idx = min(found_indices)
 
@@ -57,7 +57,7 @@ def trim_by_markers(
         if not found_indices:
             if any(marker in line for line in lines for marker in end):
                 return ""
-            logger.debug("end_markers not found: %r", end)
+            logger.debug("trim_end not found: %r", end)
         else:
             end_idx = max(found_indices) + 1
 
@@ -122,53 +122,51 @@ def _purge_marker_line_block(text: str, marker: str) -> str:
     return _drop_blank_lines("\n".join(lines[:start_idx] + lines[end_idx + 1 :]))
 
 
-def purge_information_markers(
-    text: str, *, information_markers: list[str] | None = None
-) -> str:
-    """Remove text matching any information marker from sanitized statement text."""
-    if not information_markers:
+def purge_drop_sections(text: str, *, drop_sections: list[str] | None = None) -> str:
+    """Remove text matching any drop section marker from sanitized statement text."""
+    if not drop_sections:
         return text
 
     result = text
-    for marker in information_markers:
+    for marker in drop_sections:
         updated = _purge_marker_regex(result, marker)
         if updated == result:
             updated = _purge_marker_line_block(result, marker)
         if updated == result:
-            logger.debug("information marker not matched: %r", marker[:80])
+            logger.debug("drop section marker not matched: %r", marker[:80])
         result = updated
 
     return _drop_blank_lines(result)
 
 
-def file_marker_present(text: str, file_markers: list[str]) -> bool:
-    return any(marker in text for marker in file_markers if marker)
+def text_contains_present(text: str, text_contains: list[str]) -> bool:
+    return any(marker in text for marker in text_contains if marker)
 
 
-def check_file_marker(
+def check_text_contains(
     text: str,
     *,
-    file_markers: list[str],
+    text_contains: list[str],
     source_file: str,
     account_label: str,
     alerts: AlertService | None = None,
 ) -> bool:
-    if file_marker_present(text, file_markers):
+    if text_contains_present(text, text_contains):
         return True
     logger.debug(
-        "ignored %s for %s: file markers %r not found",
+        "ignored %s for %s: text_contains %r not found",
         source_file,
         account_label,
-        file_markers,
+        text_contains,
     )
     if alerts is not None:
         alerts.emit(
             Alert(
-                kind=AlertKind.FILE_MARKER_MISSING,
-                message=f"file markers {file_markers!r} not found in {source_file}",
+                kind=AlertKind.TEXT_CONTAINS_MISSING,
+                message=f"text_contains {text_contains!r} not found in {source_file}",
                 account=account_label,
                 source_file=source_file,
-                file_markers=file_markers,
+                text_contains=text_contains,
             )
         )
     return False

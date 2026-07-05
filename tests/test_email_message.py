@@ -26,11 +26,13 @@ def _account() -> ResolvedAccount:
             "bank": "icici",
             "variant": "amazon",
             "account_number": "1234",
-            "file_markers": "1234",
-            "subjects": ["ICICI Bank Credit Card Statement for the period"],
-            "bodies": [],
-            "from": ["icicibank.com"],
             "passwords": ["secret"],
+            "mail": {
+                "subjects": ["ICICI Bank Credit Card Statement for the period"],
+                "body_contains": [],
+                "from": ["icicibank.com"],
+            },
+            "statement": {"text_contains": ["1234"]},
         }
     )
 
@@ -101,7 +103,7 @@ class BodyMatchesTests(unittest.TestCase):
         msg = self._msg_with_body("amazon pay icici bank credit card statement")
         self.assertTrue(body_matches(msg, ["Amazon Pay ICICI Bank Credit Card"]))
 
-    def test_empty_bodies_passes(self) -> None:
+    def test_empty_body_contains_passes(self) -> None:
         msg = self._msg_with_body("anything")
         self.assertTrue(body_matches(msg, []))
 
@@ -138,7 +140,7 @@ class BodyMatchesTests(unittest.TestCase):
         )
         self.assertTrue(body_matches(msg, ["Amazon Pay ICICI Bank Credit Card"]))
 
-    def test_all_bodies_must_match(self) -> None:
+    def test_all_body_contains_must_match(self) -> None:
         msg = self._msg_with_body("alpha beta gamma")
         self.assertTrue(body_matches(msg, ["alpha", "gamma"]))
         self.assertFalse(body_matches(msg, ["alpha", "missing"]))

@@ -194,8 +194,8 @@ def _extract_statement_balances(
     if not txt_path.is_file():
         return None, None
     text = txt_path.read_text(encoding="utf-8")
-    opening_markers = tuple(account.balance_markers.opening)
-    closing_markers = tuple(account.balance_markers.closing)
+    opening_markers = tuple(account.metadata.balances.opening)
+    closing_markers = tuple(account.metadata.balances.closing)
     opening = (
         extract_opening_balance(text, opening_markers) if opening_markers else None
     )

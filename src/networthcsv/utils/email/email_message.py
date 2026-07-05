@@ -83,11 +83,11 @@ def extract_message_body(msg: Message) -> str:
     return "\n".join(parts)
 
 
-def body_matches(msg: Message, bodies: list[str]) -> bool:
-    if not bodies:
+def body_matches(msg: Message, body_contains: list[str]) -> bool:
+    if not body_contains:
         return True
     lowered = extract_message_body(msg).lower()
-    return all(body.lower() in lowered for body in bodies)
+    return all(body.lower() in lowered for body in body_contains)
 
 
 def parse_from_addresses(msg: Message) -> list[tuple[str, str]]:
@@ -242,15 +242,15 @@ def message_matches_account(
     start_date: date | None,
     end_date: date | None = None,
 ) -> bool:
-    if not subject_matches(msg, account.subjects):
+    if not subject_matches(msg, account.mail.subjects):
         return False
-    if not from_matches(msg, account.from_filters):
+    if not from_matches(msg, account.mail.from_addresses):
         return False
     if not message_in_date_range(msg, start_date, end_date):
         return False
     if not list(iter_pdf_attachment_parts(msg)):
         return False
-    if not body_matches(msg, account.bodies):
+    if not body_matches(msg, account.mail.body_contains):
         return False
     return True
 

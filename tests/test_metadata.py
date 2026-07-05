@@ -44,21 +44,24 @@ def _account(
     opening_date: date | None = None,
     closing_date: date | None = None,
 ) -> ResolvedAccount:
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "bob",
-            "variant": "easy",
-            "account_number": account_number,
-            "file_markers": account_number,
-            "subjects": ["BOB"],
-            "passwords": ["secret"],
-            "opening_date": opening_date,
-            "closing_date": closing_date,
-            "statement_date_markers": [
+    payload: dict[str, object] = {
+        "bank": "bob",
+        "variant": "easy",
+        "account_number": account_number,
+        "passwords": ["secret"],
+        "mail": {"subjects": ["BOB"]},
+        "statement": {"text_contains": [account_number]},
+        "metadata": {
+            "statement_date": [
                 {"mode": "label_single", "label": "Statement Date :"},
             ],
-        }
-    )
+        },
+    }
+    if opening_date is not None:
+        payload["opening_date"] = opening_date
+    if closing_date is not None:
+        payload["closing_date"] = closing_date
+    return ResolvedAccount.model_validate(payload)
 
 
 def _run_context(download_path: Path) -> RunContext:
@@ -350,27 +353,29 @@ class BuildAccountMetadataTests(unittest.TestCase):
                     "bank": "bob",
                     "variant": "easy",
                     "account_number": "5678",
-                    "file_markers": "5678",
-                    "subjects": ["BOB"],
                     "passwords": ["secret"],
-                    "statement_date_markers": [
-                        {"mode": "label_single", "label": "Statement Date :"},
-                    ],
-                    "balance_markers": {
-                        "opening": [
-                            {
-                                "mode": "summary_table_column",
-                                "context": "Account Summary",
-                                "column": "Opening Balance",
-                            }
+                    "mail": {"subjects": ["BOB"]},
+                    "statement": {"text_contains": ["5678"]},
+                    "metadata": {
+                        "statement_date": [
+                            {"mode": "label_single", "label": "Statement Date :"},
                         ],
-                        "closing": [
-                            {
-                                "mode": "summary_table_column",
-                                "context": "Account Summary",
-                                "column": "Closing Balance",
-                            }
-                        ],
+                        "balances": {
+                            "opening": [
+                                {
+                                    "mode": "summary_table_column",
+                                    "context": "Account Summary",
+                                    "column": "Opening Balance",
+                                }
+                            ],
+                            "closing": [
+                                {
+                                    "mode": "summary_table_column",
+                                    "context": "Account Summary",
+                                    "column": "Closing Balance",
+                                }
+                            ],
+                        },
                     },
                 }
             )

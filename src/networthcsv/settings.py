@@ -33,20 +33,6 @@ BASE_APP_CONFIG_FILENAME = "app.config.json"
 LOCAL_APP_CONFIG_FILENAME = "app.config.local.json"
 CONFIG_ENV_VAR = "NETWORTHCSV_CONFIG"
 
-_MATCHING_FIELD_NAMES = frozenset(
-    {
-        "subjects",
-        "bodies",
-        "from_filters",
-        "start_markers",
-        "end_markers",
-        "information_markers",
-        "statement_date_markers",
-        "balance_markers",
-        "account_type",
-    }
-)
-
 StatementDateTake = Literal["start", "end"]
 
 
@@ -272,67 +258,48 @@ def normalize_marker(value: object) -> str | None:
     return marker or None
 
 
-def normalize_start_markers(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="start_markers")
+def normalize_trim_start(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="trim_start")
 
 
-def normalize_end_markers(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="end_markers")
+def normalize_trim_end(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="trim_end")
 
 
-def _coerce_legacy_marker_fields(data: object) -> object:
-    """Map deprecated start_marker/end_marker to list fields when loading config JSON."""
-    if not isinstance(data, dict):
-        return data
-    raw = cast(dict[str, object], data)
-    if "start_marker" not in raw and "end_marker" not in raw:
-        return data
-    coerced = dict(raw)
-    if "start_marker" in coerced:
-        legacy = normalize_marker(coerced.pop("start_marker"))
-        if legacy is not None and not coerced.get("start_markers"):
-            coerced["start_markers"] = [legacy]
-    if "end_marker" in coerced:
-        legacy = normalize_marker(coerced.pop("end_marker"))
-        if legacy is not None and not coerced.get("end_markers"):
-            coerced["end_markers"] = [legacy]
-    return coerced
+def normalize_drop_sections(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="drop_sections")
 
 
-def normalize_information_markers(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="information_markers")
-
-
-def normalize_statement_date_markers(value: object) -> list[StatementDateMarker]:
+def normalize_statement_date(value: object) -> list[StatementDateMarker]:
     if value is None or value == "":
         return []
     if not isinstance(value, list):
-        raise ValueError("statement_date_markers must be a list")
+        raise ValueError("metadata.statement_date must be a list")
     markers: list[StatementDateMarker] = []
     for index, item in enumerate(cast(list[object], value)):
         try:
             markers.append(_statement_date_marker_adapter.validate_python(item))
         except ValidationError as exc:
             raise ValueError(
-                f"statement_date_markers[{index}]: {_format_exception(exc)}"
+                f"metadata.statement_date[{index}]: {_format_exception(exc)}"
             ) from exc
     return markers
 
 
-def normalize_balance_markers(value: object) -> BalanceMarkersConfig:
+def normalize_balances(value: object) -> BalanceMarkersConfig:
     if value is None or value == "":
         return BalanceMarkersConfig()
     if isinstance(value, BalanceMarkersConfig):
         return value
     if not isinstance(value, dict):
-        raise ValueError("balance_markers must be an object")
+        raise ValueError("metadata.balances must be an object")
     raw = cast(dict[str, object], value)
     opening_raw = raw.get("opening", [])
     closing_raw = raw.get("closing", [])
     if not isinstance(opening_raw, list):
-        raise ValueError("balance_markers.opening must be a list")
+        raise ValueError("metadata.balances.opening must be a list")
     if not isinstance(closing_raw, list):
-        raise ValueError("balance_markers.closing must be a list")
+        raise ValueError("metadata.balances.closing must be a list")
     opening: list[BalanceMarker] = []
     closing: list[BalanceMarker] = []
     for index, item in enumerate(cast(list[object], opening_raw)):
@@ -340,22 +307,22 @@ def normalize_balance_markers(value: object) -> BalanceMarkersConfig:
             opening.append(_balance_marker_adapter.validate_python(item))
         except ValidationError as exc:
             raise ValueError(
-                f"balance_markers.opening[{index}]: {_format_exception(exc)}"
+                f"metadata.balances.opening[{index}]: {_format_exception(exc)}"
             ) from exc
     for index, item in enumerate(cast(list[object], closing_raw)):
         try:
             closing.append(_balance_marker_adapter.validate_python(item))
         except ValidationError as exc:
             raise ValueError(
-                f"balance_markers.closing[{index}]: {_format_exception(exc)}"
+                f"metadata.balances.closing[{index}]: {_format_exception(exc)}"
             ) from exc
     return BalanceMarkersConfig(opening=opening, closing=closing)
 
 
-def normalize_bodies(value: object) -> list[str]:
+def normalize_body_contains(value: object) -> list[str]:
     return normalize_string_list(
         value,
-        field_name="bodies",
+        field_name="body_contains",
         case_insensitive_dedupe=True,
     )
 
@@ -376,8 +343,8 @@ def normalize_account_number(value: object) -> str:
     return account_number
 
 
-def normalize_file_markers(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="file_markers")
+def normalize_text_contains(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="text_contains")
 
 
 def normalize_passwords(value: object) -> list[str]:
@@ -433,42 +400,38 @@ Subjects = Annotated[list[str], BeforeValidator(normalize_subjects)]
 OptionalSubjects = Annotated[
     list[str] | None, BeforeValidator(_optional(normalize_subjects))
 ]
-Bodies = Annotated[list[str], BeforeValidator(normalize_bodies)]
-OptionalBodies = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_bodies))
+BodyContains = Annotated[list[str], BeforeValidator(normalize_body_contains)]
+OptionalBodyContains = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_body_contains))
 ]
-FromFilters = Annotated[list[str], BeforeValidator(normalize_from)]
-OptionalFromFilters = Annotated[
+FromAddresses = Annotated[list[str], BeforeValidator(normalize_from)]
+OptionalFromAddresses = Annotated[
     list[str] | None, BeforeValidator(_optional(normalize_from))
 ]
 Marker = Annotated[str | None, BeforeValidator(normalize_marker)]
-StartMarkers = Annotated[list[str], BeforeValidator(normalize_start_markers)]
-OptionalStartMarkers = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_start_markers))
+TrimStart = Annotated[list[str], BeforeValidator(normalize_trim_start)]
+OptionalTrimStart = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_trim_start))
 ]
-EndMarkers = Annotated[list[str], BeforeValidator(normalize_end_markers)]
-OptionalEndMarkers = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_end_markers))
+TrimEnd = Annotated[list[str], BeforeValidator(normalize_trim_end)]
+OptionalTrimEnd = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_trim_end))
 ]
-InformationMarkers = Annotated[
-    list[str], BeforeValidator(normalize_information_markers)
+DropSections = Annotated[list[str], BeforeValidator(normalize_drop_sections)]
+OptionalDropSections = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_drop_sections))
 ]
-OptionalInformationMarkers = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_information_markers))
+StatementDateRules = Annotated[
+    list[StatementDateMarker], BeforeValidator(normalize_statement_date)
 ]
-StatementDateMarkers = Annotated[
-    list[StatementDateMarker], BeforeValidator(normalize_statement_date_markers)
-]
-OptionalStatementDateMarkers = Annotated[
+OptionalStatementDateRules = Annotated[
     list[StatementDateMarker] | None,
-    BeforeValidator(_optional(normalize_statement_date_markers)),
+    BeforeValidator(_optional(normalize_statement_date)),
 ]
-BalanceMarkers = Annotated[
-    BalanceMarkersConfig, BeforeValidator(normalize_balance_markers)
-]
-OptionalBalanceMarkers = Annotated[
+BalancesConfig = Annotated[BalanceMarkersConfig, BeforeValidator(normalize_balances)]
+OptionalBalancesConfig = Annotated[
     BalanceMarkersConfig | None,
-    BeforeValidator(_optional(normalize_balance_markers)),
+    BeforeValidator(_optional(normalize_balances)),
 ]
 BankName = Annotated[str, BeforeValidator(normalize_bank)]
 AccountTypeName = Annotated[str, BeforeValidator(normalize_account_type)]
@@ -479,7 +442,10 @@ AccountNumber = Annotated[str, BeforeValidator(normalize_account_number)]
 OptionalIdentifier = Annotated[
     str | None, BeforeValidator(_optional(normalize_account_number))
 ]
-FileMarkers = Annotated[list[str], BeforeValidator(normalize_file_markers)]
+TextContains = Annotated[list[str], BeforeValidator(normalize_text_contains)]
+OptionalTextContains = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_text_contains))
+]
 Passwords = Annotated[list[str], BeforeValidator(normalize_passwords)]
 
 
@@ -519,44 +485,66 @@ class MatchingFieldsCore(BaseModel):
     )
 
 
-class MatchingFields(MatchingFieldsCore):
-    start_markers: StartMarkers = []
-    end_markers: EndMarkers = []
+class MailMatchConfig(MatchingFieldsCore):
     subjects: Subjects
+    body_contains: BodyContains = []
+    from_addresses: FromAddresses = Field(default_factory=list, alias="from")
+
+
+class MailMatchOverride(MatchingFieldsCore):
+    subjects: OptionalSubjects = None
+    body_contains: OptionalBodyContains = None
+    from_addresses: OptionalFromAddresses = Field(default=None, alias="from")
+
+
+class StatementCleanupConfig(MatchingFieldsCore):
+    trim_start: TrimStart = []
+    trim_end: TrimEnd = []
+    drop_sections: DropSections = []
+    text_contains: TextContains = []
+
+
+class StatementCleanupOverride(MatchingFieldsCore):
+    trim_start: OptionalTrimStart = None
+    trim_end: OptionalTrimEnd = None
+    drop_sections: OptionalDropSections = None
+    text_contains: OptionalTextContains = None
+
+
+class MetadataExtractConfig(MatchingFieldsCore):
+    statement_date: StatementDateRules = []
+    balances: BalancesConfig = Field(default_factory=BalanceMarkersConfig)
+
+
+class MetadataExtractOverride(MatchingFieldsCore):
+    statement_date: OptionalStatementDateRules = None
+    balances: OptionalBalancesConfig = None
+
+
+class MatchingFields(MatchingFieldsCore):
     account_type: AccountTypeName = Field(default="credit_card", alias="type")
-    bodies: Bodies = []
-    from_filters: FromFilters = Field(default_factory=list, alias="from")
-    information_markers: InformationMarkers = []
-    statement_date_markers: StatementDateMarkers = []
-    balance_markers: BalanceMarkers = Field(default_factory=BalanceMarkersConfig)
+    mail: MailMatchConfig
+    statement: StatementCleanupConfig = Field(default_factory=StatementCleanupConfig)
+    metadata: MetadataExtractConfig = Field(default_factory=MetadataExtractConfig)
 
 
 class VariantOverride(MatchingFieldsCore):
-    subjects: OptionalSubjects = None
     account_type: OptionalAccountTypeName = Field(default=None, alias="type")
-    bodies: OptionalBodies = None
-    from_filters: OptionalFromFilters = Field(default=None, alias="from")
-    start_markers: OptionalStartMarkers = None
-    end_markers: OptionalEndMarkers = None
-    information_markers: OptionalInformationMarkers = None
-    statement_date_markers: OptionalStatementDateMarkers = None
-    balance_markers: OptionalBalanceMarkers = None
+    mail: MailMatchOverride | None = None
+    statement: StatementCleanupOverride | None = None
+    metadata: MetadataExtractOverride | None = None
 
     @model_validator(mode="after")
     def require_at_least_one_field(self) -> VariantOverride:
-        if (
-            self.subjects is None
-            and self.account_type is None
-            and self.bodies is None
-            and self.from_filters is None
-            and self.start_markers is None
-            and self.end_markers is None
-            and self.information_markers is None
-            and self.statement_date_markers is None
-            and self.balance_markers is None
-        ):
-            raise ValueError("variant override must set at least one field")
-        return self
+        if self.account_type is not None:
+            return self
+        if self.mail is not None and self.mail.model_dump(exclude_none=True):
+            return self
+        if self.statement is not None and self.statement.model_dump(exclude_none=True):
+            return self
+        if self.metadata is not None and self.metadata.model_dump(exclude_none=True):
+            return self
+        raise ValueError("variant override must set at least one field")
 
 
 BankVariantEntry = MatchingFields | VariantOverride
@@ -585,7 +573,6 @@ def _normalize_bank_variants(
                 )
             variant_context = f"{context} banks.{bank_name}.{variant_name}"
             try:
-                variant_value = _coerce_legacy_marker_fields(variant_value)
                 if variant_name == "default":
                     variants[variant_name] = MatchingFields.model_validate(
                         variant_value
@@ -691,18 +678,12 @@ class UserAccountConfig(MatchingFieldsCore):
     bank: BankName
     variant: VariantName = None
     account_number: AccountNumber
-    file_markers: FileMarkers = []
     passwords: Passwords
     opening_date: date | None = None
     closing_date: date | None = None
-    subjects: OptionalSubjects = None
-    bodies: OptionalBodies = None
-    from_filters: OptionalFromFilters = Field(default=None, alias="from")
-    start_markers: OptionalStartMarkers = None
-    end_markers: OptionalEndMarkers = None
-    information_markers: OptionalInformationMarkers = None
-    statement_date_markers: OptionalStatementDateMarkers = None
-    balance_markers: OptionalBalanceMarkers = None
+    mail: MailMatchOverride | None = None
+    statement: StatementCleanupOverride | None = None
+    metadata: MetadataExtractOverride | None = None
 
     @field_validator("opening_date", mode="before")
     @classmethod
@@ -827,9 +808,7 @@ def _prepare_user_config_data(data: dict[str, object], base: Path) -> dict[str, 
         prepared["download_path"] = _resolve_path(download_raw, base)
     accounts_raw = data.get("accounts")
     if isinstance(accounts_raw, list):
-        prepared["accounts"] = [
-            _coerce_legacy_marker_fields(item) for item in accounts_raw
-        ]
+        prepared["accounts"] = list(accounts_raw)
     return prepared
 
 
@@ -912,7 +891,6 @@ class ResolvedAccount(MatchingFields):
     bank: str
     variant: str | None = None
     account_number: str
-    file_markers: FileMarkers = []
     passwords: list[str] = Field(min_length=1)
     opening_date: date | None = None
     closing_date: date | None = None
@@ -960,16 +938,94 @@ class Settings:
     start_date: date | None = None
 
 
-def _matching_overlay(model: BaseModel) -> dict[str, object]:
-    dumped = cast(dict[str, object], model.model_dump(exclude_none=True))
-    return {key: value for key, value in dumped.items() if key in _MATCHING_FIELD_NAMES}
+def _merge_model_fields(
+    base: BaseModel, overlay: BaseModel | None
+) -> dict[str, object]:
+    merged = cast(dict[str, object], base.model_dump(by_alias=True))
+    if overlay is None:
+        return merged
+    overlay_dump = cast(
+        dict[str, object], overlay.model_dump(exclude_none=True, by_alias=True)
+    )
+    merged.update(overlay_dump)
+    return merged
+
+
+def _merge_mail(
+    base: MailMatchConfig, overlay: MailMatchOverride | None
+) -> MailMatchConfig:
+    if overlay is None:
+        return base
+    return MailMatchConfig.model_validate(_merge_model_fields(base, overlay))
+
+
+def _merge_statement(
+    base: StatementCleanupConfig, overlay: StatementCleanupOverride | None
+) -> StatementCleanupConfig:
+    if overlay is None:
+        return base
+    return StatementCleanupConfig.model_validate(_merge_model_fields(base, overlay))
+
+
+def _merge_metadata(
+    base: MetadataExtractConfig, overlay: MetadataExtractOverride | None
+) -> MetadataExtractConfig:
+    if overlay is None:
+        return base
+    merged = cast(dict[str, object], base.model_dump(by_alias=True))
+    overlay_dump = cast(
+        dict[str, object], overlay.model_dump(exclude_none=True, by_alias=True)
+    )
+    balances_overlay = overlay_dump.pop("balances", None)
+    if balances_overlay is not None:
+        balances_base = cast(dict[str, object], merged.get("balances", {}))
+        merged["balances"] = _deep_merge_dict(
+            balances_base,
+            cast(dict[str, object], balances_overlay),
+        )
+    merged.update(overlay_dump)
+    return MetadataExtractConfig.model_validate(merged)
+
+
+class _MatchingOverlay(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    account_type: OptionalAccountTypeName = Field(default=None, alias="type")
+    mail: MailMatchOverride | None = None
+    statement: StatementCleanupOverride | None = None
+    metadata: MetadataExtractOverride | None = None
+
+
+def _matching_overlay_from(model: BaseModel) -> _MatchingOverlay:
+    dumped = cast(dict[str, object], model.model_dump(exclude_none=True, by_alias=True))
+    overlay_data = {
+        key: dumped[key]
+        for key in ("type", "mail", "statement", "metadata")
+        if key in dumped
+    }
+    return _MatchingOverlay.model_validate(overlay_data)
 
 
 def merge_matching(base: MatchingFields, *overlays: BaseModel) -> MatchingFields:
-    merged = base.model_dump()
+    mail = base.mail
+    statement = base.statement
+    metadata = base.metadata
+    account_type = base.account_type
     for overlay in overlays:
-        merged.update(_matching_overlay(overlay))
-    return MatchingFields.model_validate(merged)
+        parsed = _matching_overlay_from(overlay)
+        if parsed.account_type is not None:
+            account_type = parsed.account_type
+        mail = _merge_mail(mail, parsed.mail)
+        statement = _merge_statement(statement, parsed.statement)
+        metadata = _merge_metadata(metadata, parsed.metadata)
+    return MatchingFields.model_validate(
+        {
+            "type": account_type,
+            "mail": mail.model_dump(by_alias=True),
+            "statement": statement.model_dump(by_alias=True),
+            "metadata": metadata.model_dump(by_alias=True),
+        }
+    )
 
 
 def _resolve_variant_defaults(
@@ -997,7 +1053,6 @@ def _resolved_account(
             "bank": bank_key,
             "variant": user_account.variant,
             "account_number": user_account.account_number,
-            "file_markers": user_account.file_markers,
             "passwords": user_account.passwords,
             "opening_date": user_account.opening_date,
             "closing_date": user_account.closing_date,

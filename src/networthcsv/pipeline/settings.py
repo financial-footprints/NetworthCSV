@@ -11,7 +11,7 @@ def format_run_settings_lines(
     bank: str | None,
     subjects: list[str],
     from_filters: list[str],
-    bodies: list[str],
+    body_contains: list[str],
     download_dir: Path,
     start_date: date | None,
     end_date: date | None = None,
@@ -25,8 +25,8 @@ def format_run_settings_lines(
     lines.append(f"  subjects:      {subjects!r}")
     if from_filters:
         lines.append(f"  from:          {from_filters!r}")
-    if bodies:
-        lines.append(f"  bodies:        {bodies!r}")
+    if body_contains:
+        lines.append(f"  body_contains: {body_contains!r}")
     lines.append(f"  download_path: {download_dir}")
     if start_date is None:
         lines.append("  start_date:    (all emails)")

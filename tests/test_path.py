@@ -51,9 +51,9 @@ def _account(*, account_number: str = "5678") -> ResolvedAccount:
             "bank": "bob",
             "variant": "easy",
             "account_number": account_number,
-            "file_markers": account_number,
-            "subjects": ["BOB"],
             "passwords": ["secret"],
+            "mail": {"subjects": ["BOB"]},
+            "statement": {"text_contains": [account_number]},
         }
     )
 

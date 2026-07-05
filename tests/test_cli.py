@@ -38,7 +38,7 @@ class CliTests(unittest.TestCase):
                         "bank": "bob",
                         "variant": "easy",
                         "account_number": "1",
-                        "file_markers": "1",
+                        "statement": {"text_contains": "1"},
                         "passwords": ["x"],
                     }
                 ],
@@ -51,8 +51,8 @@ class CliTests(unittest.TestCase):
                 "user_config": user_config_path.name,
                 "banks": {
                     "bob": {
-                        "default": {"subjects": ["stmt"]},
-                        "easy": {"subjects": ["stmt"]},
+                        "default": {"mail": {"subjects": ["stmt"]}},
+                        "easy": {"mail": {"subjects": ["stmt"]}},
                     }
                 },
             },

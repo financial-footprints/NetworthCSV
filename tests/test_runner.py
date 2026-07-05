@@ -46,7 +46,7 @@ def _write_minimal_configs(root: Path) -> Path:
                         "bank": "bob",
                         "variant": "easy",
                         "account_number": "1",
-                        "file_markers": "1",
+                        "statement": {"text_contains": "1"},
                         "passwords": ["x"],
                     }
                 ],
@@ -61,8 +61,8 @@ def _write_minimal_configs(root: Path) -> Path:
                 "user_config": user_config_path.name,
                 "banks": {
                     "bob": {
-                        "default": {"subjects": ["stmt"]},
-                        "easy": {"subjects": ["stmt"]},
+                        "default": {"mail": {"subjects": ["stmt"]}},
+                        "easy": {"mail": {"subjects": ["stmt"]}},
                     }
                 },
             }
@@ -84,14 +84,14 @@ def _write_two_account_configs(root: Path) -> Path:
                         "bank": "bob",
                         "variant": "easy",
                         "account_number": "1",
-                        "file_markers": "1",
+                        "statement": {"text_contains": "1"},
                         "passwords": ["x"],
                     },
                     {
                         "bank": "bob",
                         "variant": "other",
                         "account_number": "2",
-                        "file_markers": "2",
+                        "statement": {"text_contains": "2"},
                         "passwords": ["x"],
                     },
                 ],
@@ -106,9 +106,9 @@ def _write_two_account_configs(root: Path) -> Path:
                 "user_config": user_config_path.name,
                 "banks": {
                     "bob": {
-                        "default": {"subjects": ["stmt"]},
-                        "easy": {"subjects": ["stmt"]},
-                        "other": {"subjects": ["stmt"]},
+                        "default": {"mail": {"subjects": ["stmt"]}},
+                        "easy": {"mail": {"subjects": ["stmt"]}},
+                        "other": {"mail": {"subjects": ["stmt"]}},
                     }
                 },
             }
@@ -144,7 +144,6 @@ class RunnerTests(unittest.TestCase):
             prepared=0,
             rejected=0,
             orphans_removed=0,
-            legacy_folders_removed=0,
         )
         with tempfile.TemporaryDirectory() as tmp:
             results = run_cleanup(_context(Path(tmp)))
@@ -206,7 +205,6 @@ class RunnerTests(unittest.TestCase):
             prepared=0,
             rejected=0,
             orphans_removed=0,
-            legacy_folders_removed=0,
         )
         mock_metadata.return_value = MetadataAccountResult(
             bank="bob",
@@ -271,9 +269,9 @@ class RuntimeApiTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_markers": "1",
-                "subjects": ["stmt"],
                 "passwords": ["x"],
+                "mail": {"subjects": ["stmt"]},
+                "statement": {"text_contains": ["1"]},
             }
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -299,9 +297,9 @@ class StageErrorTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_markers": "1",
-                "subjects": ["stmt"],
                 "passwords": ["x"],
+                "mail": {"subjects": ["stmt"]},
+                "statement": {"text_contains": ["1"]},
             }
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -319,9 +317,9 @@ class StageErrorTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_markers": "1",
-                "subjects": ["stmt"],
                 "passwords": ["x"],
+                "mail": {"subjects": ["stmt"]},
+                "statement": {"text_contains": ["1"]},
             }
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -361,9 +359,9 @@ class StageErrorTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_markers": "1",
-                "subjects": ["stmt"],
                 "passwords": ["x"],
+                "mail": {"subjects": ["stmt"]},
+                "statement": {"text_contains": ["1"]},
             }
         )
         with tempfile.TemporaryDirectory() as tmp:

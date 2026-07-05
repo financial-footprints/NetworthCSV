@@ -217,7 +217,7 @@ def _apply_marker(text: str, marker: StatementDateMarker) -> date | None:
 
 
 def extract_statement_date(text: str, *, account: ResolvedAccount) -> date | None:
-    for marker in account.statement_date_markers:
+    for marker in account.metadata.statement_date:
         parsed = _apply_marker(text, marker)
         if parsed is not None:
             return parsed

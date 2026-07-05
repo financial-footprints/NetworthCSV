@@ -14,11 +14,9 @@ def _account() -> ResolvedAccount:
             "bank": "bob",
             "variant": "easy",
             "account_number": "5678",
-            "file_markers": "5678",
-            "subjects": ["BOB"],
-            "bodies": [],
-            "from": [],
             "passwords": ["secret"],
+            "mail": {"subjects": ["BOB"], "body_contains": [], "from": []},
+            "statement": {"text_contains": ["5678"]},
         }
     )
 

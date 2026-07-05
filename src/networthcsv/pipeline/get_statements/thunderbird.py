@@ -113,9 +113,9 @@ def extract_account(
 
     ctx.reporter.extract_settings(
         bank=account.bank,
-        subjects=account.subjects,
-        from_filters=account.from_filters,
-        bodies=account.bodies,
+        subjects=account.mail.subjects,
+        from_filters=account.mail.from_addresses,
+        body_contains=account.mail.body_contains,
         download_dir=download_dir,
         start_date=effective_start,
         end_date=effective_end,

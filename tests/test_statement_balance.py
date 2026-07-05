@@ -75,11 +75,11 @@ class ExtractBalanceSnippetTests(unittest.TestCase):
         account = _account(bank="bob", variant="easy")
         opening = extract_opening_balance(
             text,
-            tuple(account.balance_markers.opening),
+            tuple(account.metadata.balances.opening),
         )
         closing = extract_closing_balance(
             text,
-            tuple(account.balance_markers.closing),
+            tuple(account.metadata.balances.closing),
         )
         self.assertEqual(opening, "0.00")
         self.assertEqual(closing, "-991.00")
@@ -89,11 +89,11 @@ class ExtractBalanceSnippetTests(unittest.TestCase):
         account = _account(bank="indusind", variant="default")
         opening = extract_opening_balance(
             text,
-            tuple(account.balance_markers.opening),
+            tuple(account.metadata.balances.opening),
         )
         closing = extract_closing_balance(
             text,
-            tuple(account.balance_markers.closing),
+            tuple(account.metadata.balances.closing),
         )
         self.assertEqual(opening, "0.00")
         self.assertEqual(closing, "-990.00")
@@ -108,7 +108,7 @@ class ExtractBalanceSnippetTests(unittest.TestCase):
         account = _account(bank="csb", variant="edge")
         opening = extract_opening_balance(
             text,
-            tuple(account.balance_markers.opening),
+            tuple(account.metadata.balances.opening),
         )
         self.assertEqual(opening, "0.00")
 
@@ -123,11 +123,11 @@ class ExtractBalanceSnippetTests(unittest.TestCase):
         account = _account(bank="hdfc", variant="regalia")
         opening = extract_opening_balance(
             text,
-            tuple(account.balance_markers.opening),
+            tuple(account.metadata.balances.opening),
         )
         closing = extract_closing_balance(
             text,
-            tuple(account.balance_markers.closing),
+            tuple(account.metadata.balances.closing),
         )
         self.assertEqual(opening, "0.00")
         self.assertEqual(closing, "46742.00")
@@ -141,7 +141,7 @@ class ExtractBalanceSnippetTests(unittest.TestCase):
         account = _account(bank="pnb", variant="default")
         opening = extract_opening_balance(
             text,
-            tuple(account.balance_markers.opening),
+            tuple(account.metadata.balances.opening),
         )
         self.assertEqual(opening, "-1019")
 

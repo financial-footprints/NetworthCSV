@@ -28,7 +28,6 @@ class CleanupAccountResult:
     prepared: int
     rejected: int
     orphans_removed: int
-    legacy_folders_removed: int
     skipped: bool = False
 
 

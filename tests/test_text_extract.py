@@ -6,9 +6,9 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from networthcsv.pipeline.cleanup.statement_text import (
-    check_file_marker,
-    file_marker_present,
-    purge_information_markers,
+    check_text_contains,
+    text_contains_present,
+    purge_drop_sections,
     sanitize_statement_text,
     trim_by_markers,
 )
@@ -17,7 +17,7 @@ from networthcsv.pipeline.cleanup.statement_text import (
 class TrimByMarkersTests(unittest.TestCase):
     def test_end_marker_only(self) -> None:
         raw = "header\nrow1\n********** End of Statement **********\nfooter"
-        result = trim_by_markers(raw, end_markers=["End of Statement"])
+        result = trim_by_markers(raw, trim_end=["End of Statement"])
         self.assertEqual(
             result,
             "header\nrow1\n********** End of Statement **********",
@@ -25,29 +25,27 @@ class TrimByMarkersTests(unittest.TestCase):
 
     def test_start_marker_only(self) -> None:
         raw = "junk\nTransaction Date\nrow1\nrow2"
-        result = trim_by_markers(raw, start_markers=["Transaction Date"])
+        result = trim_by_markers(raw, trim_start=["Transaction Date"])
         self.assertEqual(result, "Transaction Date\nrow1\nrow2")
 
     def test_both_markers(self) -> None:
         raw = "junk\nstart here\nkeep\nend here\nmore junk"
-        result = trim_by_markers(
-            raw, start_markers=["start here"], end_markers=["end here"]
-        )
+        result = trim_by_markers(raw, trim_start=["start here"], trim_end=["end here"])
         self.assertEqual(result, "start here\nkeep\nend here")
 
     def test_start_marker_not_found(self) -> None:
         raw = "only content"
-        result = trim_by_markers(raw, start_markers=["missing"])
+        result = trim_by_markers(raw, trim_start=["missing"])
         self.assertEqual(result, "only content")
 
     def test_end_marker_not_found(self) -> None:
         raw = "only content"
-        result = trim_by_markers(raw, end_markers=["missing"])
+        result = trim_by_markers(raw, trim_end=["missing"])
         self.assertEqual(result, "only content")
 
     def test_start_after_end_returns_empty(self) -> None:
         raw = "end\nstart"
-        result = trim_by_markers(raw, start_markers=["start"], end_markers=["end"])
+        result = trim_by_markers(raw, trim_start=["start"], trim_end=["end"])
         self.assertEqual(result, "")
 
     def test_end_markers_use_latest_match(self) -> None:
@@ -62,7 +60,7 @@ class TrimByMarkersTests(unittest.TestCase):
         )
         result = trim_by_markers(
             raw,
-            end_markers=["Reward Summary at Card Level", "Page 1 of"],
+            trim_end=["Reward Summary at Card Level", "Page 1 of"],
         )
         self.assertIn("more txn", result)
         self.assertIn("Reward Summary at Card Level", result)
@@ -72,7 +70,7 @@ class TrimByMarkersTests(unittest.TestCase):
         raw = "header\ntxn line\nPage 1 of 5\nPage 2 of 5\nlegal"
         result = trim_by_markers(
             raw,
-            end_markers=["Reward Summary at Card Level", "Page 1 of"],
+            trim_end=["Reward Summary at Card Level", "Page 1 of"],
         )
         self.assertIn("Page 1 of 5", result)
         self.assertNotIn("Page 2 of 5", result)
@@ -86,14 +84,14 @@ class PurgeInformationMarkersTests(unittest.TestCase):
             "cash advances and amount of BT/EMI due for the month if any."
         )
         raw = f"keep\n {marker}\nalso keep"
-        result = purge_information_markers(raw, information_markers=[marker])
+        result = purge_drop_sections(raw, drop_sections=[marker])
         self.assertEqual(result, "keep\nalso keep")
 
     def test_drops_line_matching_any_marker(self) -> None:
         raw = "row1\nnote about fees\nrow2\nother note"
-        result = purge_information_markers(
+        result = purge_drop_sections(
             raw,
-            information_markers=["note about fees", "missing"],
+            drop_sections=["note about fees", "missing"],
         )
         self.assertEqual(result, "row1\nrow2\nother note")
 
@@ -124,7 +122,7 @@ class PurgeInformationMarkersTests(unittest.TestCase):
   New Delhi, Delhi, 110066 State Code : 07
 ********** End of Statement **********"""
         sanitized = sanitize_statement_text(raw)
-        result = purge_information_markers(sanitized, information_markers=[marker])
+        result = purge_drop_sections(sanitized, drop_sections=[marker])
         self.assertEqual(
             result,
             "Total Purchase 1,234.56\n********** End of Statement **********",
@@ -150,7 +148,7 @@ class PurgeInformationMarkersTests(unittest.TestCase):
   New Delhi, Delhi, 110066 State Code : 07
 ********** End of Statement **********"""
         sanitized = sanitize_statement_text(raw)
-        result = purge_information_markers(sanitized, information_markers=[marker])
+        result = purge_drop_sections(sanitized, drop_sections=[marker])
         self.assertEqual(
             result,
             "Total Purchase 1,234.56\n********** End of Statement **********",
@@ -158,7 +156,7 @@ class PurgeInformationMarkersTests(unittest.TestCase):
 
     def test_empty_markers_keeps_text(self) -> None:
         raw = "unchanged"
-        self.assertEqual(purge_information_markers(raw, information_markers=[]), raw)
+        self.assertEqual(purge_drop_sections(raw, drop_sections=[]), raw)
 
 
 class SanitizeStatementTextTests(unittest.TestCase):
@@ -175,22 +173,22 @@ class SanitizeStatementTextTests(unittest.TestCase):
         self.assertEqual(result, "a   b")
 
 
-class FileMarkerValidationTests(unittest.TestCase):
-    def test_file_marker_present(self) -> None:
-        self.assertTrue(file_marker_present("Card ending in 1234", ["1234"]))
-        self.assertFalse(file_marker_present("Card ending in 5678", ["1234"]))
+class TextContainsValidationTests(unittest.TestCase):
+    def test_text_contains_present(self) -> None:
+        self.assertTrue(text_contains_present("Card ending in 1234", ["1234"]))
+        self.assertFalse(text_contains_present("Card ending in 5678", ["1234"]))
         self.assertTrue(
-            file_marker_present("Card ending in XXXX5678", ["1234", "XXXX5678"])
+            text_contains_present("Card ending in XXXX5678", ["1234", "XXXX5678"])
         )
         self.assertFalse(
-            file_marker_present("Card ending in 9999", ["1234", "XXXX5678"])
+            text_contains_present("Card ending in 9999", ["1234", "XXXX5678"])
         )
 
     @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
-    def test_file_marker_found(self, mock_debug: MagicMock) -> None:
-        result = check_file_marker(
+    def test_text_contains_found(self, mock_debug: MagicMock) -> None:
+        result = check_text_contains(
             "Card ending in 1234",
-            file_markers=["1234"],
+            text_contains=["1234"],
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
         )
@@ -198,16 +196,16 @@ class FileMarkerValidationTests(unittest.TestCase):
         mock_debug.assert_not_called()
 
     @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
-    def test_file_marker_missing(self, mock_debug: MagicMock) -> None:
-        result = check_file_marker(
+    def test_text_contains_missing(self, mock_debug: MagicMock) -> None:
+        result = check_text_contains(
             "Card ending in 5678",
-            file_markers=["1234"],
+            text_contains=["1234"],
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
         )
         self.assertFalse(result)
         mock_debug.assert_called_once_with(
-            "ignored %s for %s: file markers %r not found",
+            "ignored %s for %s: text_contains %r not found",
             "2024-01.pdf",
             "pnb/platinum",
             ["1234"],

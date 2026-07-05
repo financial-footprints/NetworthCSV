@@ -10,7 +10,7 @@ DeliverMode = Literal["immediate", "batch"]
 
 
 class AlertKind(StrEnum):
-    FILE_MARKER_MISSING = "file_marker_missing"
+    TEXT_CONTAINS_MISSING = "text_contains_missing"
 
 
 @dataclass(frozen=True)
@@ -19,4 +19,4 @@ class Alert:
     message: str
     account: str
     source_file: str
-    file_markers: list[str]
+    text_contains: list[str]

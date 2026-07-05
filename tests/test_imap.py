@@ -94,7 +94,7 @@ class BuildImapSearchTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1234",
                 "passwords": ["x"],
-                "subjects": ["stmt"],
+                "mail": {"subjects": ["stmt"]},
                 "closing_date": date(2024, 2, 1),
             }
         )
@@ -104,7 +104,7 @@ class BuildImapSearchTests(unittest.TestCase):
         self.assertEqual(effective_end, date(2024, 3, 1))
         search_end = exclusive_search_end_date(effective_end)
         _charset, criteria = build_imap_search_criteria(
-            account.subjects,
+            account.mail.subjects,
             date(2024, 1, 1),
             host="imap.example.com",
             end_date=search_end,

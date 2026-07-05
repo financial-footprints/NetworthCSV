@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from typing import cast
 from unittest import mock
 
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ from networthcsv.settings import (
     EmailAlertSettings,
     EmailAlertsSettings,
     EmailSource,
+    MatchingFields,
     ResolvedAccount,
     RunSettings,
     Settings,
@@ -25,6 +27,7 @@ from networthcsv.settings import (
     ThunderbirdSourceSettings,
     UserAccountConfig,
     UserConfig,
+    VariantOverride,
     account_download_path,
     account_label,
     accounts_to_run,
@@ -39,16 +42,25 @@ from networthcsv.settings import (
     load_user_config,
     merge_settings,
     normalize_bank,
-    normalize_bodies,
+    normalize_body_contains,
     normalize_from,
     normalize_account_number,
-    normalize_file_markers,
+    normalize_text_contains,
     normalize_variant,
     resolve_config_path,
 )
 
+
 _DEFAULT_PROFILE = Path("/profile")
 _DEFAULT_DOWNLOAD_PATH = Path("/statements")
+
+
+def _variant_subjects(entry: MatchingFields | VariantOverride) -> list[str]:
+    if isinstance(entry, MatchingFields):
+        return entry.mail.subjects
+    if entry.mail is None or entry.mail.subjects is None:
+        raise AssertionError("variant mail subjects required")
+    return entry.mail.subjects
 
 
 def _complete_email_alert_settings() -> EmailAlertSettings:
@@ -68,24 +80,31 @@ class SettingsTests(unittest.TestCase):
 
     def _bob_bank_config(self) -> dict[str, object]:
         return {
-            "default": {"subjects": ["BOB"]},
-            "easy": {"subjects": ["BOB CREDIT CARD"]},
+            "default": {"mail": {"subjects": ["BOB"]}},
+            "easy": {"mail": {"subjects": ["BOB CREDIT CARD"]}},
         }
 
     def _icici_bank_config(self) -> dict[str, object]:
         return {
             "default": {
-                "subjects": ["ICICI Bank Credit Card Statement for the period"],
+                "mail": {
+                    "subjects": ["ICICI Bank Credit Card Statement for the period"]
+                }
             },
             "amazon": {
-                "subjects": [
-                    "Amazon Pay ICICI Bank Credit Card Statement for the period"
-                ],
+                "mail": {
+                    "subjects": [
+                        "Amazon Pay ICICI Bank Credit Card Statement for the period"
+                    ]
+                }
             },
         }
 
     def _write_app_config(
-        self, directory: Path, user_config: str, banks: dict[str, object]
+        self,
+        directory: Path,
+        user_config: str,
+        banks: dict[str, object],
     ) -> Path:
         config_path = directory / "app.config.json"
         self._write_json(
@@ -161,7 +180,7 @@ class SettingsTests(unittest.TestCase):
     def _account(self, **kwargs: object) -> dict[str, object]:
         data: dict[str, object] = {
             "account_number": "1234",
-            "file_markers": "1234",
+            "statement": {"text_contains": "1234"},
             "passwords": ["x"],
         }
         data.update(kwargs)
@@ -192,30 +211,37 @@ class SettingsTests(unittest.TestCase):
         bank: str = "bob",
         variant: str | None = None,
         account_number: str = "1234",
-        file_markers: list[str] | str = "1234",
+        text_contains: list[str] | str = "1234",
         subjects: list[str] | None = None,
-        bodies: list[str] | None = None,
-        from_filters: list[str] | None = None,
+        body_contains: list[str] | None = None,
+        from_addresses: list[str] | None = None,
         passwords: list[str] | None = None,
-        start_markers: list[str] | None = None,
-        end_markers: list[str] | None = None,
-        information_markers: list[str] | None = None,
+        trim_start: list[str] | None = None,
+        trim_end: list[str] | None = None,
+        drop_sections: list[str] | None = None,
         account_type: str = "credit_card",
     ) -> ResolvedAccount:
+        statement_text_contains = (
+            text_contains if isinstance(text_contains, list) else [text_contains]
+        )
         return ResolvedAccount.model_validate(
             {
                 "bank": bank,
                 "variant": variant,
                 "account_number": account_number,
-                "file_markers": file_markers,
-                "subjects": subjects or ["BOB"],
                 "type": account_type,
-                "bodies": bodies or [],
-                "from": from_filters or [],
                 "passwords": passwords or ["x"],
-                "start_markers": start_markers or [],
-                "end_markers": end_markers or [],
-                "information_markers": information_markers or [],
+                "mail": {
+                    "subjects": subjects or ["BOB"],
+                    "body_contains": body_contains or [],
+                    "from": from_addresses or [],
+                },
+                "statement": {
+                    "trim_start": trim_start or [],
+                    "trim_end": trim_end or [],
+                    "drop_sections": drop_sections or [],
+                    "text_contains": statement_text_contains,
+                },
             }
         )
 
@@ -247,12 +273,12 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings.download_path, statements.resolve())
             self.assertEqual(settings.accounts[0].bank, "bob")
             self.assertIsNone(settings.accounts[0].variant)
-            self.assertEqual(settings.accounts[0].subjects, ["BOB"])
+            self.assertEqual(settings.accounts[0].mail.subjects, ["BOB"])
             self.assertEqual(settings.accounts[0].passwords, ["secret", "other"])
             self.assertEqual(settings.accounts[0].account_number, "1234")
-            self.assertEqual(settings.accounts[0].file_markers, ["1234"])
-            self.assertEqual(settings.accounts[0].bodies, [])
-            self.assertEqual(settings.accounts[0].from_filters, [])
+            self.assertEqual(settings.accounts[0].statement.text_contains, ["1234"])
+            self.assertEqual(settings.accounts[0].mail.body_contains, [])
+            self.assertEqual(settings.accounts[0].mail.from_addresses, [])
             self.assertEqual(settings.accounts[0].account_type, "credit_card")
 
     def test_bodies_and_from_from_variant_defaults(self) -> None:
@@ -269,19 +295,23 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "icici": {
-                        "default": {"subjects": ["ICICI default"]},
+                        "default": {"mail": {"subjects": ["ICICI default"]}},
                         "amazon": {
-                            "subjects": ["Amazon Pay ICICI"],
-                            "bodies": ["Amazon Pay ICICI Bank Credit Card"],
-                            "from": ["icicibank.com"],
+                            "mail": {
+                                "subjects": ["Amazon Pay ICICI"],
+                                "body_contains": ["Amazon Pay ICICI Bank Credit Card"],
+                                "from": ["icicibank.com"],
+                            },
                         },
                     }
                 },
             )
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.bodies, ["Amazon Pay ICICI Bank Credit Card"])
-            self.assertEqual(account.from_filters, ["icicibank.com"])
+            self.assertEqual(
+                account.mail.body_contains, ["Amazon Pay ICICI Bank Credit Card"]
+            )
+            self.assertEqual(account.mail.from_addresses, ["icicibank.com"])
 
     def test_user_override_bodies_and_from(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -291,14 +321,14 @@ class SettingsTests(unittest.TestCase):
             _ = self._write_user_config(
                 root,
                 accounts=[
-                    {
-                        **self._account(
-                            bank="icici",
-                            variant="amazon",
-                            bodies=["custom body"],
-                        ),
-                        "from": ["custom@bank.com"],
-                    }
+                    self._account(
+                        bank="icici",
+                        variant="amazon",
+                        mail={
+                            "body_contains": ["custom body"],
+                            "from": ["custom@bank.com"],
+                        },
+                    )
                 ],
             )
             app_config_path = self._write_app_config(
@@ -306,19 +336,21 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "icici": {
-                        "default": {"subjects": ["ICICI default"]},
+                        "default": {"mail": {"subjects": ["ICICI default"]}},
                         "amazon": {
-                            "subjects": ["Amazon Pay ICICI"],
-                            "bodies": ["app body"],
-                            "from": ["icicibank.com"],
+                            "mail": {
+                                "subjects": ["Amazon Pay ICICI"],
+                                "body_contains": ["app body"],
+                                "from": ["icicibank.com"],
+                            },
                         },
                     }
                 },
             )
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.bodies, ["custom body"])
-            self.assertEqual(account.from_filters, ["custom@bank.com"])
+            self.assertEqual(account.mail.body_contains, ["custom body"])
+            self.assertEqual(account.mail.from_addresses, ["custom@bank.com"])
 
     def test_catch_all_uses_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -335,23 +367,27 @@ class SettingsTests(unittest.TestCase):
                 {
                     "icici": {
                         "default": {
-                            "subjects": ["ICICI generic"],
-                            "bodies": ["Default body"],
-                            "from": ["default.bank.com"],
+                            "mail": {
+                                "subjects": ["ICICI generic"],
+                                "body_contains": ["Default body"],
+                                "from": ["default.bank.com"],
+                            },
                         },
                         "amazon": {
-                            "subjects": ["Amazon Pay ICICI"],
-                            "bodies": ["Amazon body"],
-                            "from": ["amazon.bank.com"],
+                            "mail": {
+                                "subjects": ["Amazon Pay ICICI"],
+                                "body_contains": ["Amazon body"],
+                                "from": ["amazon.bank.com"],
+                            },
                         },
                     }
                 },
             )
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.subjects, ["ICICI generic"])
-            self.assertEqual(account.bodies, ["Default body"])
-            self.assertEqual(account.from_filters, ["default.bank.com"])
+            self.assertEqual(account.mail.subjects, ["ICICI generic"])
+            self.assertEqual(account.mail.body_contains, ["Default body"])
+            self.assertEqual(account.mail.from_addresses, ["default.bank.com"])
 
     def test_normalize_helpers(self) -> None:
         self.assertEqual(normalize_bank("bob"), "bob")
@@ -375,16 +411,16 @@ class SettingsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _ = normalize_account_number("   ")
 
-        self.assertEqual(normalize_file_markers("1234"), ["1234"])
-        self.assertEqual(normalize_file_markers("  XXXX 5678  "), ["XXXX 5678"])
-        self.assertEqual(normalize_file_markers(["1234", "5678"]), ["1234", "5678"])
-        self.assertEqual(normalize_file_markers(""), [])
-        self.assertEqual(normalize_file_markers(None), [])
-        self.assertEqual(normalize_file_markers([]), [])
+        self.assertEqual(normalize_text_contains("1234"), ["1234"])
+        self.assertEqual(normalize_text_contains("  XXXX 5678  "), ["XXXX 5678"])
+        self.assertEqual(normalize_text_contains(["1234", "5678"]), ["1234", "5678"])
+        self.assertEqual(normalize_text_contains(""), [])
+        self.assertEqual(normalize_text_contains(None), [])
+        self.assertEqual(normalize_text_contains([]), [])
 
-        self.assertEqual(normalize_bodies(["A", "a", " B "]), ["A", "B"])
-        self.assertEqual(normalize_bodies(None), [])
-        self.assertEqual(normalize_bodies(""), [])
+        self.assertEqual(normalize_body_contains(["A", "a", " B "]), ["A", "B"])
+        self.assertEqual(normalize_body_contains(None), [])
+        self.assertEqual(normalize_body_contains(""), [])
 
         with self.assertRaises(ValueError):
             _ = normalize_from(["not-an-email@"])
@@ -496,7 +532,7 @@ class SettingsTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1234",
                 "passwords": ["x"],
-                "subjects": ["stmt"],
+                "mail": {"subjects": ["stmt"]},
                 "opening_date": date(2023, 4, 1),
                 "closing_date": date(2024, 8, 1),
             }
@@ -515,7 +551,7 @@ class SettingsTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1234",
                 "passwords": ["x"],
-                "subjects": ["stmt"],
+                "mail": {"subjects": ["stmt"]},
                 "closing_date": date(2024, 2, 1),
             }
         )
@@ -564,21 +600,23 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "pnb": {
-                        "default": {"subjects": ["PNB default"]},
+                        "default": {"mail": {"subjects": ["PNB default"]}},
                         "platinum": {
-                            "subjects": ["PNB statement"],
-                            "start_markers": ["Transaction Date"],
-                            "end_markers": ["End of Statement"],
+                            "mail": {"subjects": ["PNB statement"]},
+                            "statement": {
+                                "trim_start": ["Transaction Date"],
+                                "trim_end": ["End of Statement"],
+                            },
                         },
                     }
                 },
             )
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.start_markers, ["Transaction Date"])
-            self.assertEqual(account.end_markers, ["End of Statement"])
+            self.assertEqual(account.statement.trim_start, ["Transaction Date"])
+            self.assertEqual(account.statement.trim_end, ["End of Statement"])
 
-    def test_legacy_marker_fields_coerced_to_lists(self) -> None:
+    def test_drop_sections_from_variant_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "profile").mkdir()
@@ -592,51 +630,25 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "pnb": {
-                        "default": {"subjects": ["PNB default"]},
+                        "default": {"mail": {"subjects": ["PNB default"]}},
                         "platinum": {
-                            "subjects": ["PNB statement"],
-                            "start_marker": "Transaction Date",
-                            "end_marker": "End of Statement",
-                        },
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            account = settings.accounts[0]
-            self.assertEqual(account.start_markers, ["Transaction Date"])
-            self.assertEqual(account.end_markers, ["End of Statement"])
-
-    def test_information_markers_from_variant_defaults(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="pnb", variant="platinum")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "pnb": {
-                        "default": {"subjects": ["PNB default"]},
-                        "platinum": {
-                            "subjects": ["PNB statement"],
-                            "information_markers": [
-                                "TAD for the month consists of current month purchases"
-                            ],
+                            "mail": {"subjects": ["PNB statement"]},
+                            "statement": {
+                                "drop_sections": [
+                                    "TAD for the month consists of current month purchases"
+                                ],
+                            },
                         },
                     }
                 },
             )
             settings = load_settings(app_config_path)
             self.assertEqual(
-                settings.accounts[0].information_markers,
+                settings.accounts[0].statement.drop_sections,
                 ["TAD for the month consists of current month purchases"],
             )
 
-    def test_statement_date_markers_from_variant_defaults(self) -> None:
+    def test_statement_date_from_variant_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "profile").mkdir()
@@ -650,29 +662,31 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "idfc": {
-                        "default": {"subjects": ["Credit Card Statement"]},
+                        "default": {"mail": {"subjects": ["Credit Card Statement"]}},
                         "wow": {
-                            "subjects": ["FIRST WOW! Credit Card Statement"],
-                            "statement_date_markers": [
-                                {"mode": "label_single", "label": "Statement Date"},
-                                {
-                                    "mode": "top_range",
-                                    "joiner": " - ",
-                                    "take": "end",
-                                    "search_chars": 500,
-                                },
-                            ],
+                            "mail": {"subjects": ["FIRST WOW! Credit Card Statement"]},
+                            "metadata": {
+                                "statement_date": [
+                                    {"mode": "label_single", "label": "Statement Date"},
+                                    {
+                                        "mode": "top_range",
+                                        "joiner": " - ",
+                                        "take": "end",
+                                        "search_chars": 500,
+                                    },
+                                ],
+                            },
                         },
                     }
                 },
             )
             settings = load_settings(app_config_path)
-            markers = settings.accounts[0].statement_date_markers
+            markers = settings.accounts[0].metadata.statement_date
             self.assertEqual(len(markers), 2)
             self.assertEqual(markers[0].mode, "label_single")
             self.assertEqual(markers[1].mode, "top_range")
 
-    def test_balance_markers_from_variant_defaults(self) -> None:
+    def test_balances_from_variant_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "profile").mkdir()
@@ -687,30 +701,32 @@ class SettingsTests(unittest.TestCase):
                 {
                     "bob": {
                         "default": {
-                            "subjects": ["BOB"],
-                            "balance_markers": {
-                                "opening": [
-                                    {
-                                        "mode": "summary_table_column",
-                                        "context": "Account Summary",
-                                        "column": "Opening Balance",
-                                    }
-                                ],
-                                "closing": [
-                                    {
-                                        "mode": "summary_table_column",
-                                        "context": "Account Summary",
-                                        "column": "Closing Balance",
-                                    }
-                                ],
+                            "mail": {"subjects": ["BOB"]},
+                            "metadata": {
+                                "balances": {
+                                    "opening": [
+                                        {
+                                            "mode": "summary_table_column",
+                                            "context": "Account Summary",
+                                            "column": "Opening Balance",
+                                        }
+                                    ],
+                                    "closing": [
+                                        {
+                                            "mode": "summary_table_column",
+                                            "context": "Account Summary",
+                                            "column": "Closing Balance",
+                                        }
+                                    ],
+                                },
                             },
                         },
-                        "easy": {"subjects": ["BOB EASY"]},
+                        "easy": {"mail": {"subjects": ["BOB EASY"]}},
                     }
                 },
             )
             settings = load_settings(app_config_path)
-            markers = settings.accounts[0].balance_markers
+            markers = settings.accounts[0].metadata.balances
             self.assertEqual(len(markers.opening), 1)
             self.assertEqual(markers.opening[0].mode, "summary_table_column")
             self.assertEqual(len(markers.closing), 1)
@@ -730,10 +746,12 @@ class SettingsTests(unittest.TestCase):
                 {
                     "bob": {
                         "default": {
-                            "subjects": ["BOB"],
-                            "statement_date_markers": [
-                                {"mode": "unknown_mode", "label": "x"}
-                            ],
+                            "mail": {"subjects": ["BOB"]},
+                            "metadata": {
+                                "statement_date": [
+                                    {"mode": "unknown_mode", "label": "x"}
+                                ],
+                            },
                         }
                     }
                 },
@@ -751,18 +769,22 @@ class SettingsTests(unittest.TestCase):
                 accounts=[
                     self._account(
                         bank="bob",
-                        subjects=["Custom BOB subject for testing"],
+                        mail={"subjects": ["Custom BOB subject for testing"]},
                     )
                 ],
             )
             app_config_path = self._write_app_config(
                 root,
                 "user.config.json",
-                {"bob": {"default": {"subjects": ["E-statement for your BOB"]}}},
+                {
+                    "bob": {
+                        "default": {"mail": {"subjects": ["E-statement for your BOB"]}}
+                    }
+                },
             )
             settings = load_settings(app_config_path)
             self.assertEqual(
-                settings.accounts[0].subjects,
+                settings.accounts[0].mail.subjects,
                 ["Custom BOB subject for testing"],
             )
 
@@ -948,16 +970,16 @@ class SettingsTests(unittest.TestCase):
             platinum = settings.accounts[1]
             catch_all = settings.accounts[2]
             self.assertEqual(
-                amazon.subjects,
+                amazon.mail.subjects,
                 ["Amazon Pay ICICI Bank Credit Card Statement for the period"],
             )
             self.assertEqual(
-                platinum.subjects,
+                platinum.mail.subjects,
                 ["ICICI Bank Credit Card Statement for the period"],
             )
             self.assertEqual(platinum.variant, "platinum")
             self.assertEqual(
-                catch_all.subjects,
+                catch_all.mail.subjects,
                 ["ICICI Bank Credit Card Statement for the period"],
             )
 
@@ -979,7 +1001,7 @@ class SettingsTests(unittest.TestCase):
             account = settings.accounts[0]
             self.assertEqual(account.variant, "coral")
             self.assertEqual(
-                account.subjects,
+                account.mail.subjects,
                 ["ICICI Bank Credit Card Statement for the period"],
             )
 
@@ -995,7 +1017,7 @@ class SettingsTests(unittest.TestCase):
                         bank="icici",
                         variant="coral",
                         account_number="test2",
-                        bodies=["XX1001"],
+                        mail={"body_contains": ["XX1001"]},
                         passwords=["test"],
                     )
                 ],
@@ -1009,10 +1031,10 @@ class SettingsTests(unittest.TestCase):
             account = settings.accounts[0]
             self.assertEqual(account.variant, "coral")
             self.assertEqual(
-                account.subjects,
+                account.mail.subjects,
                 ["ICICI Bank Credit Card Statement for the period"],
             )
-            self.assertEqual(account.bodies, ["XX1001"])
+            self.assertEqual(account.mail.body_contains, ["XX1001"])
 
     def test_named_variant_partial_overlay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1029,19 +1051,21 @@ class SettingsTests(unittest.TestCase):
                 {
                     "icici": {
                         "default": {
-                            "subjects": ["ICICI default"],
-                            "bodies": ["default body"],
-                            "from": ["default.bank.com"],
+                            "mail": {
+                                "subjects": ["ICICI default"],
+                                "body_contains": ["default body"],
+                                "from": ["default.bank.com"],
+                            },
                         },
-                        "amazon": {"subjects": ["Amazon Pay ICICI"]},
+                        "amazon": {"mail": {"subjects": ["Amazon Pay ICICI"]}},
                     }
                 },
             )
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.subjects, ["Amazon Pay ICICI"])
-            self.assertEqual(account.bodies, ["default body"])
-            self.assertEqual(account.from_filters, ["default.bank.com"])
+            self.assertEqual(account.mail.subjects, ["Amazon Pay ICICI"])
+            self.assertEqual(account.mail.body_contains, ["default body"])
+            self.assertEqual(account.mail.from_addresses, ["default.bank.com"])
 
     def test_bank_without_default_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1057,7 +1081,7 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "icici": {
-                        "amazon": {"subjects": ["Amazon Pay ICICI"]},
+                        "amazon": {"mail": {"subjects": ["Amazon Pay ICICI"]}},
                     }
                 },
             )
@@ -1080,7 +1104,7 @@ class SettingsTests(unittest.TestCase):
             )
             settings = load_settings(app_config_path)
             self.assertEqual(
-                settings.accounts[0].subjects,
+                settings.accounts[0].mail.subjects,
                 ["ICICI Bank Credit Card Statement for the period"],
             )
             self.assertEqual(settings.accounts[0].variant, "missing")
@@ -1216,7 +1240,7 @@ class SettingsTests(unittest.TestCase):
             app_config = load_app_config(app_config_path)
             user_config = load_user_config(user_config_path)
             settings = merge_settings(app_config, user_config)
-            self.assertEqual(settings.accounts[0].subjects, ["BOB"])
+            self.assertEqual(settings.accounts[0].mail.subjects, ["BOB"])
             self.assertEqual(settings.accounts[0].passwords, ["secret"])
 
     def test_alerts_config_optional(self) -> None:
@@ -1341,7 +1365,7 @@ class SettingsTests(unittest.TestCase):
             self.assertIn("bob", app_config.banks)
             self.assertIn("icici", app_config.banks)
             self.assertEqual(
-                app_config.banks["bob"]["easy"].subjects,
+                _variant_subjects(app_config.banks["bob"]["easy"]),
                 ["BOB CREDIT CARD"],
             )
 
@@ -1359,7 +1383,9 @@ class SettingsTests(unittest.TestCase):
                     "banks": {
                         "bob": {
                             "easy": {
-                                "subjects": ["BOB EASY override"],
+                                "mail": {
+                                    "subjects": ["BOB EASY override"],
+                                }
                             }
                         }
                     }
@@ -1369,11 +1395,11 @@ class SettingsTests(unittest.TestCase):
             app_config = load_app_config(overlay_path)
 
             self.assertEqual(
-                app_config.banks["bob"]["default"].subjects,
+                _variant_subjects(app_config.banks["bob"]["default"]),
                 ["BOB"],
             )
             self.assertEqual(
-                app_config.banks["bob"]["easy"].subjects,
+                _variant_subjects(app_config.banks["bob"]["easy"]),
                 ["BOB EASY override"],
             )
 
@@ -1455,8 +1481,8 @@ class SettingsTests(unittest.TestCase):
                 {
                     "bob": self._bob_bank_config(),
                     "pnb": {
-                        "default": {"subjects": ["PNB default"]},
-                        "platinum": {"subjects": ["PNB"]},
+                        "default": {"mail": {"subjects": ["PNB default"]}},
+                        "platinum": {"mail": {"subjects": ["PNB"]}},
                     },
                 },
             )
@@ -1514,9 +1540,9 @@ class SettingsTests(unittest.TestCase):
                     "bob": {
                         "default": {
                             "type": "bank_account",
-                            "subjects": ["BOB default"],
+                            "mail": {"subjects": ["BOB default"]},
                         },
-                        "easy": {"subjects": ["BOB EASY"]},
+                        "easy": {"mail": {"subjects": ["BOB EASY"]}},
                     }
                 },
             )
@@ -1537,10 +1563,10 @@ class SettingsTests(unittest.TestCase):
                 "user.config.json",
                 {
                     "bob": {
-                        "default": {"subjects": ["BOB default"]},
+                        "default": {"mail": {"subjects": ["BOB default"]}},
                         "savings": {
                             "type": "bank_account",
-                            "subjects": ["BOB savings"],
+                            "mail": {"subjects": ["BOB savings"]},
                         },
                     }
                 },

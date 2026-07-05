@@ -64,6 +64,16 @@ Full pipeline (extract → cleanup → metadata → parse) for all configured ac
 networthcsv
 ```
 
+Full pipeline for one account with a local app config:
+
+```bash
+uv run networthcsv \
+  --identifier '5298' \
+  --config /path/to/app.config.json
+```
+
+Use the account's exact `account_number` from `user.config.json` as the identifier. Quote the value if it contains special characters.
+
 Or run stages individually:
 
 ```bash
@@ -76,7 +86,7 @@ python -m networthcsv.pipeline.parse            # write transactions.csv
 Delete cleanup, metadata, and parse outputs for a single account:
 
 ```bash
-networthcsv --account-number 5678
+python -m networthcsv.pipeline.delete_statements --identifier 5678
 ```
 
 Output layout:

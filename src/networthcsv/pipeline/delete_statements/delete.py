@@ -98,9 +98,10 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     _ = parser.add_argument(
-        "--account-number",
-        dest="account_number",
-        metavar="NUMBER",
+        "--identifier",
+        "-i",
+        dest="identifier",
+        metavar="ID",
         required=True,
         help="Delete pipeline outputs for the account with this account_number",
     )
@@ -123,14 +124,14 @@ def main() -> None:
 
         ctx = load_context(
             config_path=Path(args.config_path) if args.config_path else None,
-            run_overrides=RunSettings(identifier=args.account_number),
+            run_overrides=RunSettings(identifier=args.identifier),
             reporter=ConsoleRunReporter(),
         )
 
         selected = accounts_to_run(ctx.settings)
         if len(selected) != 1:
             raise SystemExit(
-                f"error: expected exactly one account for account_number {args.account_number!r}"
+                f"error: expected exactly one account for identifier {args.identifier!r}"
             )
 
         account = selected[0]

@@ -10,7 +10,6 @@ from pathlib import Path
 
 from networthcsv.cli import (
     apply_run_overrides,
-    argv_requests_delete,
     load_context,
     parse_run_args,
 )
@@ -99,14 +98,6 @@ class CliTests(unittest.TestCase):
     def test_parse_run_args_reads_config_path(self) -> None:
         options = parse_run_args(["--config", "/tmp/app.config.json"])
         self.assertEqual(options.config_path, Path("/tmp/app.config.json"))
-
-    def test_argv_requests_delete(self) -> None:
-        self.assertTrue(
-            argv_requests_delete(["--account-number", "5678", "--config", "app.json"])
-        )
-        self.assertTrue(argv_requests_delete(["--account-number=5678"]))
-        self.assertFalse(argv_requests_delete(["--identifier", "5678"]))
-        self.assertFalse(argv_requests_delete([]))
 
     def test_apply_run_overrides_raises_when_no_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

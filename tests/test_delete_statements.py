@@ -124,7 +124,7 @@ class DeleteAccountStatementsTests(unittest.TestCase):
 
 
 class DeleteStatementsCliTests(unittest.TestCase):
-    def test_parser_requires_account_number(self) -> None:
+    def test_parser_requires_identifier(self) -> None:
         parser = _build_parser()
         with self.assertRaises(SystemExit):
             _ = parser.parse_args([])

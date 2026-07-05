@@ -1,9 +1,15 @@
-from networthcsv.cli import cli_main, load_context, parse_run_args
+from networthcsv.cli import argv_requests_delete, cli_main, load_context, parse_run_args
 from networthcsv.pipeline.reporter import ConsoleRunReporter
 from networthcsv.runtime import process
 
 
 def main() -> None:
+    if argv_requests_delete():
+        from networthcsv.pipeline.delete_statements.delete import main as delete_main
+
+        delete_main()
+        return
+
     def _run() -> None:
         cli_options = parse_run_args()
         ctx = load_context(

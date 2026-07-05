@@ -67,6 +67,14 @@ python -m networthcsv.pipeline.metadata         # write metadata.json
 python -m networthcsv.pipeline.parse            # write transactions.csv
 ```
 
+Delete cleanup, metadata, and parse outputs for a single account:
+
+```bash
+uv run networthcsv --account-number 5678
+```
+
+Also available as `python -m networthcsv.pipeline.delete_statements --account-number 5678`.
+
 Output layout:
 
 ```bash
@@ -90,4 +98,4 @@ The repo includes a `Makefile` that wraps common tasks. Run `make help` for a sh
 | `make test`    | Run unit tests (`uv run python -m unittest discover -s tests`).                              |
 | `make lint`    | Type-check with [basedpyright](https://docs.basedpyright.com/) (config in `pyproject.toml`). |
 | `make format`  | Format `src/` and `tests/` with [ruff](https://docs.astral.sh/ruff/).                        |
-| `make clean` | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`.       |
+| `make clean`   | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`.       |

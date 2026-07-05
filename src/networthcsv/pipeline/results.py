@@ -41,6 +41,15 @@ class MetadataAccountResult:
 
 
 @dataclass(frozen=True)
+class DeleteAccountResult:
+    bank: str
+    download_dir: Path
+    files_removed: int
+    dirs_removed: int
+    metadata_path: Path
+
+
+@dataclass(frozen=True)
 class ParseStatementResult:
     txt_name: str
     transaction_count: int

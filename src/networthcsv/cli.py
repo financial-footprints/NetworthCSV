@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,7 @@ from networthcsv.settings import (
 __all__ = [
     "CliRunOptions",
     "apply_run_overrides",
+    "argv_requests_delete",
     "cli_main",
     "load_context",
     "parse_run_args",
@@ -72,6 +74,14 @@ def parse_run_args(argv: list[str] | None = None) -> CliRunOptions:
 
     config_path = Path(args.config_path) if args.config_path else None
     return CliRunOptions(config_path=config_path, run_overrides=run_overrides)
+
+
+def argv_requests_delete(argv: list[str] | None = None) -> bool:
+    """Return True when argv asks to delete pipeline outputs for one account."""
+    args = sys.argv[1:] if argv is None else argv
+    return any(
+        arg == "--account-number" or arg.startswith("--account-number=") for arg in args
+    )
 
 
 def apply_run_overrides(

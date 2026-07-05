@@ -23,6 +23,7 @@ from networthcsv.settings import (
     ResolvedAccount,
     ThunderbirdSource,
     account_download_path,
+    resolve_account_search_dates,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ def process_mbox(
     download_dir: Path,
     folder_prefix: str,
     start_date: date | None,
+    end_date: date | None = None,
 ) -> tuple[int, int]:
     messages_matched = 0
     attachments_saved = 0
@@ -80,7 +82,7 @@ def process_mbox(
         return 0, 0
 
     for msg in mbox:
-        if not message_matches_account(msg, account, start_date):
+        if not message_matches_account(msg, account, start_date, end_date):
             continue
         messages_matched += 1
         attachments_saved += save_attachments(msg, download_dir, folder_prefix)
@@ -92,13 +94,18 @@ def extract_account(
     profile: Path,
     account: ResolvedAccount,
     download_dir: Path,
-    start_date: date | None,
+    global_start_date: date | None,
     ctx: RunContext,
 ) -> ExtractAccountResult:
     if not profile.is_dir():
         raise StageError(f"profile directory not found: {profile}")
 
     _ = download_dir.mkdir(parents=True, exist_ok=True)
+
+    effective_start, effective_end = resolve_account_search_dates(
+        account,
+        global_start_date,
+    )
 
     mbox_files = discover_mbox_files(profile)
     if not mbox_files:
@@ -110,7 +117,8 @@ def extract_account(
         from_filters=account.from_filters,
         bodies=account.bodies,
         download_dir=download_dir,
-        start_date=start_date,
+        start_date=effective_start,
+        end_date=effective_end,
         extras=(
             ("profile", str(profile)),
             ("mbox stores", str(len(mbox_files))),
@@ -129,7 +137,8 @@ def extract_account(
             account,
             download_dir,
             folder_label,
-            start_date,
+            effective_start,
+            effective_end,
         )
         ctx.reporter.extract_mbox_progress(matched, saved)
         total_messages += matched

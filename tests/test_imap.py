@@ -23,6 +23,14 @@ class BuildImapSearchTests(unittest.TestCase):
         )
         self.assertIn("after:2020/01/15", query)
 
+    def test_gmail_raw_query_with_end_date(self) -> None:
+        query = build_gmail_raw_query(
+            ["Statement"],
+            date(2020, 1, 15),
+            date(2024, 4, 1),
+        )
+        self.assertIn("before:2024/04/01", query)
+
     def test_gmail_host_uses_x_gm_raw(self) -> None:
         charset, criteria = build_imap_search_criteria(
             ["Statement"],
@@ -42,6 +50,26 @@ class BuildImapSearchTests(unittest.TestCase):
         self.assertEqual(charset, "UTF-8")
         self.assertEqual(
             criteria, ("SINCE", "10-Mar-2019", "SUBJECT", "Credit Card Statement")
+        )
+
+    def test_generic_imap_before_and_since(self) -> None:
+        charset, criteria = build_imap_search_criteria(
+            ["Credit Card Statement"],
+            date(2019, 3, 10),
+            host="imap.example.com",
+            end_date=date(2024, 4, 1),
+        )
+        self.assertEqual(charset, "UTF-8")
+        self.assertEqual(
+            criteria,
+            (
+                "SINCE",
+                "10-Mar-2019",
+                "BEFORE",
+                "01-Apr-2024",
+                "SUBJECT",
+                "Credit Card Statement",
+            ),
         )
 
     def test_generic_imap_multiple_subjects_or(self) -> None:

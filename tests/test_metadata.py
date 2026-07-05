@@ -42,6 +42,7 @@ def _account(
     *,
     account_number: str = "5678",
     opening_date: date | None = None,
+    closing_date: date | None = None,
 ) -> ResolvedAccount:
     return ResolvedAccount.model_validate(
         {
@@ -52,6 +53,7 @@ def _account(
             "subjects": ["BOB"],
             "passwords": ["secret"],
             "opening_date": opening_date,
+            "closing_date": closing_date,
             "statement_date_markers": [
                 {"mode": "label_single", "label": "Statement Date :"},
             ],
@@ -382,6 +384,25 @@ class BuildAccountMetadataTests(unittest.TestCase):
                 metadata.period_covered.months,
                 ("2023-03", "2023-04", "2023-05", "2023-06"),
             )
+
+    def test_closing_date_exported_without_filtering_period_covered(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = _account(
+                opening_date=date(2023, 4, 1),
+                closing_date=date(2024, 8, 1),
+            )
+            fy_dir = account_fy_dir(download_path, account, "FY23-2024")
+            _ = fy_dir.mkdir(parents=True, exist_ok=True)
+            for month in ("2023-04", "2023-05"):
+                _ = (fy_dir / f"{month}.pdf").write_bytes(b"%PDF")
+                _ = (fy_dir / f"{month}.txt").write_text("x", encoding="utf-8")
+
+            metadata = build_account_metadata(download_path, account)
+
+            self.assertEqual(metadata.opening_date, "04-2023")
+            self.assertEqual(metadata.closing_date, "08-2024")
+            self.assertEqual(metadata.period_covered.months, ("2023-03", "2023-04"))
 
     def test_csv_detected_in_fy_folder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

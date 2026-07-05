@@ -603,33 +603,49 @@ class AppConfig(BaseModel):
         )
 
 
-_OPENING_DATE_PATTERN = re.compile(r"^(\d{2})-(\d{4})$")
+_ACCOUNT_MONTH_DATE_PATTERN = re.compile(r"^(\d{2})-(\d{4})$")
 
 
-def parse_opening_date(value: object) -> date | None:
+def parse_account_month_date(value: object, field_name: str) -> date | None:
     if value is None or value == "":
         return None
     if isinstance(value, date):
         return value
     if not isinstance(value, str):
-        raise ValueError("opening_date must be an MM-YYYY string or null")
+        raise ValueError(f"{field_name} must be an MM-YYYY string or null")
     stripped = value.strip()
     if not stripped:
         return None
-    match = _OPENING_DATE_PATTERN.fullmatch(stripped)
+    match = _ACCOUNT_MONTH_DATE_PATTERN.fullmatch(stripped)
     if match is None:
-        raise ValueError("opening_date must be in MM-YYYY format")
+        raise ValueError(f"{field_name} must be in MM-YYYY format")
     month = int(match.group(1))
     year = int(match.group(2))
     if month < 1 or month > 12:
-        raise ValueError("opening_date month must be between 01 and 12")
+        raise ValueError(f"{field_name} month must be between 01 and 12")
     return date(year, month, 1)
 
 
-def format_opening_date(value: date | None) -> str | None:
+def parse_opening_date(value: object) -> date | None:
+    return parse_account_month_date(value, "opening_date")
+
+
+def parse_closing_date(value: object) -> date | None:
+    return parse_account_month_date(value, "closing_date")
+
+
+def format_account_month_date(value: date | None) -> str | None:
     if value is None:
         return None
     return value.strftime("%m-%Y")
+
+
+def format_opening_date(value: date | None) -> str | None:
+    return format_account_month_date(value)
+
+
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
 
 
 class UserAccountConfig(MatchingFieldsCore):
@@ -639,6 +655,7 @@ class UserAccountConfig(MatchingFieldsCore):
     file_marker: FileMarker = ""
     passwords: Passwords
     opening_date: date | None = None
+    closing_date: date | None = None
     subjects: OptionalSubjects = None
     bodies: OptionalBodies = None
     from_filters: OptionalFromFilters = Field(default=None, alias="from")
@@ -650,6 +667,19 @@ class UserAccountConfig(MatchingFieldsCore):
     @classmethod
     def validate_opening_date(cls, value: object) -> date | None:
         return parse_opening_date(value)
+
+    @field_validator("closing_date", mode="before")
+    @classmethod
+    def validate_closing_date(cls, value: object) -> date | None:
+        return parse_closing_date(value)
+
+    @model_validator(mode="after")
+    def validate_account_date_range(self) -> UserAccountConfig:
+        if self.opening_date is None or self.closing_date is None:
+            return self
+        if self.closing_date < self.opening_date:
+            raise ValueError("closing_date must be on or after opening_date")
+        return self
 
 
 class EmailAlertSettings(BaseModel):
@@ -849,6 +879,30 @@ class ResolvedAccount(MatchingFields):
     file_marker: str = ""
     passwords: list[str] = Field(min_length=1)
     opening_date: date | None = None
+    closing_date: date | None = None
+
+
+def resolve_account_search_dates(
+    account: ResolvedAccount,
+    global_start_date: date | None,
+) -> tuple[date | None, date | None]:
+    start_candidates: list[date] = []
+    if global_start_date is not None:
+        start_candidates.append(_month_start(global_start_date))
+    if account.opening_date is not None:
+        start_candidates.append(_month_start(account.opening_date))
+    effective_start = max(start_candidates) if start_candidates else None
+    effective_end = (
+        _month_start(account.closing_date) if account.closing_date is not None else None
+    )
+    return effective_start, effective_end
+
+
+def exclusive_search_end_date(end_date: date) -> date:
+    """Return the exclusive IMAP/Gmail upper bound for an inclusive closing month."""
+    if end_date.month == 12:
+        return date(end_date.year + 1, 1, 1)
+    return date(end_date.year, end_date.month + 1, 1)
 
 
 @dataclass(frozen=True)
@@ -902,6 +956,7 @@ def _resolved_account(
             "file_marker": user_account.file_marker,
             "passwords": user_account.passwords,
             "opening_date": user_account.opening_date,
+            "closing_date": user_account.closing_date,
             **matching.model_dump(),
         }
     )

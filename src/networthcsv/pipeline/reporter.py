@@ -35,6 +35,7 @@ class RunReporter:
         bodies: list[str],
         download_dir: Path,
         start_date: date | None,
+        end_date: date | None = None,
         extras: tuple[tuple[str, str], ...] = (),
     ) -> None:
         pass
@@ -112,6 +113,7 @@ class ConsoleRunReporter(RunReporter):
         bodies: list[str],
         download_dir: Path,
         start_date: date | None,
+        end_date: date | None = None,
         extras: tuple[tuple[str, str], ...] = (),
     ) -> None:
         for line in format_run_settings_lines(
@@ -121,6 +123,7 @@ class ConsoleRunReporter(RunReporter):
             bodies=bodies,
             download_dir=download_dir,
             start_date=start_date,
+            end_date=end_date,
             extras=extras,
         ):
             print(line)

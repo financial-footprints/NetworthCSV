@@ -24,6 +24,8 @@ from networthcsv.settings import (
     ResolvedAccount,
     account_download_path,
     accounts_to_run,
+    exclusive_search_end_date,
+    resolve_account_search_dates,
 )
 
 
@@ -37,12 +39,23 @@ def _gmail_after_clause(start_date: date | None) -> str:
     return f" after:{start_date.year:04d}/{start_date.month:02d}/{start_date.day:02d}"
 
 
-def build_gmail_raw_query(subjects: list[str], start_date: date | None) -> str:
+def _gmail_before_clause(end_date: date | None) -> str:
+    if end_date is None:
+        return ""
+    return f" before:{end_date.year:04d}/{end_date.month:02d}/{end_date.day:02d}"
+
+
+def build_gmail_raw_query(
+    subjects: list[str],
+    start_date: date | None,
+    end_date: date | None = None,
+) -> str:
     subject_terms = " OR ".join(
         f'subject:"{_escape_gmail_term(subject)}"' for subject in subjects
     )
     after_clause = _gmail_after_clause(start_date)
-    return f"has:attachment ({subject_terms}){after_clause}"
+    before_clause = _gmail_before_clause(end_date)
+    return f"has:attachment ({subject_terms}){after_clause}{before_clause}"
 
 
 def _imap_since_clause(start_date: date | None) -> str:
@@ -51,20 +64,29 @@ def _imap_since_clause(start_date: date | None) -> str:
     return start_date.strftime("%d-%b-%Y")
 
 
+def _imap_before_clause(end_date: date | None) -> str:
+    if end_date is None:
+        return ""
+    return end_date.strftime("%d-%b-%Y")
+
+
 def build_imap_search_criteria(
     subjects: list[str],
     start_date: date | None,
     *,
     host: str,
+    end_date: date | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Return (charset, criteria parts) for IMAP SEARCH or UID SEARCH."""
     if host.rstrip(".").endswith("gmail.com"):
-        query = build_gmail_raw_query(subjects, start_date)
+        query = build_gmail_raw_query(subjects, start_date, end_date)
         return None, ("X-GM-RAW", query)
 
     criteria: list[str] = []
     if start_date is not None:
         criteria.extend(["SINCE", _imap_since_clause(start_date)])
+    if end_date is not None:
+        criteria.extend(["BEFORE", _imap_before_clause(end_date)])
 
     if len(subjects) == 1:
         criteria.extend(["SUBJECT", subjects[0]])
@@ -111,13 +133,22 @@ def extract_account(
     download_dir = account_download_path(ctx.settings, account)
     _ = download_dir.mkdir(parents=True, exist_ok=True)
 
+    effective_start, effective_end = resolve_account_search_dates(
+        account,
+        ctx.settings.start_date,
+    )
+    search_end = (
+        exclusive_search_end_date(effective_end) if effective_end is not None else None
+    )
+
     ctx.reporter.extract_settings(
         bank=account.bank,
         subjects=account.subjects,
         from_filters=account.from_filters,
         bodies=account.bodies,
         download_dir=download_dir,
-        start_date=ctx.settings.start_date,
+        start_date=effective_start,
+        end_date=effective_end,
         extras=(
             ("host", email_settings.host),
             ("folder", email_settings.folder),
@@ -128,8 +159,9 @@ def extract_account(
 
     charset, criteria = build_imap_search_criteria(
         account.subjects,
-        ctx.settings.start_date,
+        effective_start,
         host=email_settings.host,
+        end_date=search_end,
     )
     typ, data = client.search(charset, *criteria)
     if typ != "OK":
@@ -145,7 +177,7 @@ def extract_account(
         msg = fetch_message(client, uid)
         if msg is None:
             continue
-        if not message_matches_account(msg, account, ctx.settings.start_date):
+        if not message_matches_account(msg, account, effective_start, effective_end):
             continue
         messages_matched += 1
         attachments_saved += save_attachments(msg, download_dir, folder_label)

@@ -1,4 +1,4 @@
-.PHONY: help install dev upgrade test lint format clean
+.PHONY: help install dev upgrade test lint format ci clean
 
 UV := uv
 PYTHON := $(UV) run python
@@ -12,6 +12,7 @@ help:
 	@echo "  test      Run unit tests"
 	@echo "  lint      Type-check with basedpyright"
 	@echo "  format    Format Python sources with ruff"
+	@echo "  ci        Run format, lint, then test"
 
 install:
 	$(UV) venv --allow-existing
@@ -32,6 +33,8 @@ lint:
 
 format:
 	$(UV) run ruff format src tests
+
+ci: format lint test
 
 clean:
 	/usr/bin/rm -rf build dist .ruff_cache

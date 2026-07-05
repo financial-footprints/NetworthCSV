@@ -14,6 +14,7 @@ from networthcsv.pipeline.results import MetadataAccountResult
 from networthcsv.settings import (
     ResolvedAccount,
     account_download_path,
+    format_account_month_date,
     format_opening_date,
 )
 from networthcsv.pipeline.metadata.statement_balance import (
@@ -65,6 +66,7 @@ class AccountMetadata:
     variant: str | None
     account_type: str
     opening_date: str | None
+    closing_date: str | None
     formats: tuple[str, ...]
     statements: tuple[StatementMetadata, ...]
     statement_dates: tuple[str, ...]
@@ -258,6 +260,7 @@ def build_account_metadata(
         variant=account.variant,
         account_type=account.account_type,
         opening_date=format_opening_date(account.opening_date),
+        closing_date=format_account_month_date(account.closing_date),
         formats=tuple(sorted(account_formats)),
         statements=tuple(statements),
         statement_dates=statement_dates,
@@ -334,6 +337,7 @@ def _metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
         variant=cast_optional_str(payload.get("variant")),
         account_type=str(payload["account_type"]),
         opening_date=cast_optional_str(payload.get("opening_date")),
+        closing_date=cast_optional_str(payload.get("closing_date")),
         formats=formats,
         statements=statements,
         statement_dates=statement_dates,

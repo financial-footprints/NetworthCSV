@@ -29,6 +29,8 @@ from networthcsv.settings import (
     account_label,
     accounts_to_run,
     parse_opening_date,
+    parse_closing_date,
+    resolve_account_search_dates,
     validate_run_filter,
     CONFIG_ENV_VAR,
     DEFAULT_CONFIG_PATH,
@@ -424,6 +426,87 @@ class SettingsTests(unittest.TestCase):
             settings = load_settings(app_config_path)
             self.assertEqual(settings.accounts[0].opening_date, date(2023, 4, 1))
 
+    def test_load_with_closing_date(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = (root / "statements").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[
+                    self._account(
+                        bank="bob",
+                        opening_date="04-2023",
+                        closing_date="08-2024",
+                    ),
+                ],
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {"bob": self._bob_bank_config()},
+            )
+            settings = load_settings(app_config_path)
+            self.assertEqual(settings.accounts[0].closing_date, date(2024, 8, 1))
+
+    def test_omitted_closing_date_means_account_open(self) -> None:
+        account = UserAccountConfig.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "opening_date": "04-2023",
+            }
+        )
+        self.assertIsNone(account.closing_date)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = (root / "statements").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="bob", opening_date="04-2023")],
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {"bob": self._bob_bank_config()},
+            )
+            settings = load_settings(app_config_path)
+            self.assertIsNone(settings.accounts[0].closing_date)
+
+    def test_closing_date_before_opening_date_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _ = UserAccountConfig.model_validate(
+                {
+                    "bank": "bob",
+                    "account_number": "1234",
+                    "passwords": ["x"],
+                    "opening_date": "08-2024",
+                    "closing_date": "04-2023",
+                }
+            )
+
+    def test_resolve_account_search_dates_uses_later_start(self) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "subjects": ["stmt"],
+                "opening_date": date(2023, 4, 1),
+                "closing_date": date(2024, 8, 1),
+            }
+        )
+        start, end = resolve_account_search_dates(account, date(2022, 1, 1))
+        self.assertEqual(start, date(2023, 4, 1))
+        self.assertEqual(end, date(2024, 8, 1))
+
+        start, end = resolve_account_search_dates(account, date(2024, 1, 1))
+        self.assertEqual(start, date(2024, 1, 1))
+        self.assertEqual(end, date(2024, 8, 1))
+
     def test_invalid_opening_date_format(self) -> None:
         with self.assertRaises(ValueError):
             _ = parse_opening_date("2023-04")
@@ -436,6 +519,19 @@ class SettingsTests(unittest.TestCase):
                     "account_number": "1234",
                     "passwords": ["x"],
                     "opening_date": "2023-04",
+                }
+            )
+
+    def test_invalid_closing_date_format(self) -> None:
+        with self.assertRaises(ValueError):
+            _ = parse_closing_date("2024-08")
+        with self.assertRaises(ValidationError):
+            _ = UserAccountConfig.model_validate(
+                {
+                    "bank": "bob",
+                    "account_number": "1234",
+                    "passwords": ["x"],
+                    "closing_date": "2024-08",
                 }
             )
 

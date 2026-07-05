@@ -129,13 +129,30 @@ def message_received_datetime(msg: Message) -> datetime | None:
         return None
 
 
-def message_on_or_after(msg: Message, start_date: date | None) -> bool:
-    if start_date is None:
-        return True
+def _message_month_start(msg: Message) -> date | None:
     dt = message_received_datetime(msg)
     if dt is None:
+        return None
+    return date(dt.year, dt.month, 1)
+
+
+def message_in_date_range(
+    msg: Message,
+    start_date: date | None,
+    end_date: date | None,
+) -> bool:
+    msg_month = _message_month_start(msg)
+    if msg_month is None:
         return False
-    return dt.date() >= start_date
+    if start_date is not None:
+        range_start = date(start_date.year, start_date.month, 1)
+        if msg_month < range_start:
+            return False
+    if end_date is not None:
+        range_end = date(end_date.year, end_date.month, 1)
+        if msg_month > range_end:
+            return False
+    return True
 
 
 def is_attachment_part(part: Message) -> bool:
@@ -223,12 +240,13 @@ def message_matches_account(
     msg: Message,
     account: ResolvedAccount,
     start_date: date | None,
+    end_date: date | None = None,
 ) -> bool:
     if not subject_matches(msg, account.subjects):
         return False
     if not from_matches(msg, account.from_filters):
         return False
-    if not message_on_or_after(msg, start_date):
+    if not message_in_date_range(msg, start_date, end_date):
         return False
     if not list(iter_pdf_attachment_parts(msg)):
         return False
@@ -243,7 +261,8 @@ def process_message(
     folder_prefix: str,
     account: ResolvedAccount,
     start_date: date | None,
+    end_date: date | None = None,
 ) -> int:
-    if not message_matches_account(msg, account, start_date):
+    if not message_matches_account(msg, account, start_date, end_date):
         return 0
     return save_attachments(msg, download_dir, folder_prefix)

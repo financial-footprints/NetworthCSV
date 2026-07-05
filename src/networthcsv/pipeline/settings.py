@@ -14,6 +14,7 @@ def format_run_settings_lines(
     bodies: list[str],
     download_dir: Path,
     start_date: date | None,
+    end_date: date | None = None,
     extras: tuple[tuple[str, str], ...] = (),
 ) -> list[str]:
     lines = ["settings:"]
@@ -31,4 +32,8 @@ def format_run_settings_lines(
         lines.append("  start_date:    (all emails)")
     else:
         lines.append(f"  start_date:    {start_date.isoformat()}")
+    if end_date is None:
+        lines.append("  end_date:      (no limit)")
+    else:
+        lines.append(f"  end_date:      {end_date.isoformat()}")
     return lines

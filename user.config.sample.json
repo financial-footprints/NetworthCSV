@@ -22,6 +22,7 @@
       "account_number": "5678",
       "file_marker": "5678",
       "opening_date": "08-2021",
+      "closing_date": null,
       "passwords": [
         "bob-password"
       ]
@@ -32,6 +33,7 @@
       "account_number": "7777",
       "file_marker": "7777",
       "opening_date": "11-2024",
+      "closing_date": null,
       "passwords": [
         "your-csb-edge-password"
       ]
@@ -42,6 +44,7 @@
       "account_number": "1234",
       "file_marker": "1234",
       "opening_date": "02-2020",
+      "closing_date": "05-2023",
       "passwords": [
         "federal-signet-password"
       ]
@@ -52,6 +55,7 @@
       "account_number": "2222",
       "file_marker": "2222",
       "opening_date": "06-2023",
+      "closing_date": null,
       "passwords": [
         "your-hdfc-swiggy-password"
       ]
@@ -61,6 +65,7 @@
       "account_number": "7890",
       "file_marker": "7890",
       "opening_date": "09-2019",
+      "closing_date": "10-2022",
       "passwords": [
         "your-icici-password"
       ]
@@ -71,6 +76,7 @@
       "account_number": "1234-idfc",
       "file_marker": "1234",
       "opening_date": "12-2022",
+      "closing_date": null,
       "passwords": [
         "password-option-1",
         "password-option-2"
@@ -91,6 +97,7 @@
       "account_number": "543212XXXXXX1234",
       "file_marker": "543212XXXXXX1234",
       "opening_date": "07-2018",
+      "closing_date": "02-2024",
       "passwords": [
         "pnb-password-1",
         "pnb-password-2"
@@ -102,6 +109,7 @@
       "account_number": "6666",
       "file_marker": "",
       "opening_date": "10-2020",
+      "closing_date": null,
       "passwords": [
         "your-yes-ace-password"
       ]

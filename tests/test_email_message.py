@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import date
 from email.message import EmailMessage, Message
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from networthcsv.utils.email.email_message import (
     body_matches,
     from_matches,
     is_pdf_attachment_part,
+    message_in_date_range,
     message_matches_account,
     save_attachments,
     subject_matches,
@@ -188,6 +190,67 @@ class FromMatchesTests(unittest.TestCase):
         self.assertTrue(from_matches(msg, ["bank.com"]))
         self.assertTrue(from_matches(msg, ["bob@bank.com"]))
         self.assertFalse(from_matches(msg, ["other.com"]))
+
+
+class MessageDateRangeTests(unittest.TestCase):
+    def _msg_on(self, year: int, month: int) -> EmailMessage:
+        month_names = (
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        )
+        msg = _statement_msg_with_attachments(
+            [("statement.pdf", b"%PDF-1.4", "application/pdf")]
+        )
+        msg.replace_header(
+            "Date",
+            f"Mon, 15 {month_names[month - 1]} {year} 10:00:00 +0000",
+        )
+        return msg
+
+    def test_message_in_date_range_inclusive_bounds(self) -> None:
+        msg = self._msg_on(2024, 3)
+        self.assertTrue(message_in_date_range(msg, date(2024, 1, 1), date(2024, 3, 1)))
+        self.assertFalse(message_in_date_range(msg, date(2024, 4, 1), date(2024, 6, 1)))
+        self.assertFalse(
+            message_in_date_range(msg, date(2023, 1, 1), date(2023, 12, 1))
+        )
+
+    def test_message_matches_account_respects_closing_date(self) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                **_account().model_dump(),
+                "opening_date": date(2024, 1, 1),
+                "closing_date": date(2024, 2, 1),
+            }
+        )
+        inside = self._msg_on(2024, 2)
+        outside = self._msg_on(2024, 3)
+        self.assertTrue(
+            message_matches_account(
+                inside,
+                account,
+                date(2024, 1, 1),
+                date(2024, 2, 1),
+            )
+        )
+        self.assertFalse(
+            message_matches_account(
+                outside,
+                account,
+                date(2024, 1, 1),
+                date(2024, 2, 1),
+            )
+        )
 
 
 class PdfAttachmentFilterTests(unittest.TestCase):

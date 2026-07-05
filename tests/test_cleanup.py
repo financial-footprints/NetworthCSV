@@ -149,6 +149,30 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(staging.exists())
 
     @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_prepare_month_accepts_manual_upload_without_file_marker_in_text(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, download_path, account = _staging_layout(tmp)
+            staging = self._write_pdf(staging_dir, "manual__2023-05.pdf")
+            mock_extract.return_value = "generic statement text with no account marker"
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2023-05",
+                [staging],
+                account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2023-05")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(pdf_out.is_file())
+            self.assertTrue(txt_out.is_file())
+            self.assertFalse(staging.exists())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_keeps_last_matching_identifier_for_same_month(
         self, mock_extract: MagicMock
     ) -> None:
@@ -464,6 +488,26 @@ class CollectMonthGroupsTests(unittest.TestCase):
             self.assertEqual(collected.groups["2023-04"], [staging])
             self.assertEqual(collected.path_month[staging], "2023-04")
 
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_manual_upload_uses_filename_month_over_pdf_text(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, _download_path, account = _staging_layout(tmp)
+            manual = staging_dir / "manual__2024-02.pdf"
+            _ = manual.write_bytes(b"%PDF-1.4\nbob")
+            mock_extract.return_value = (
+                "Credit Card Monthly Statement\n"
+                "Statement Date : 16/04/2023 | Statement Period : 17 Mar, 2023 to 16 Apr, 2023\n"
+                "bob card ending 5678"
+            )
+
+            collected = collect_month_groups(staging_dir, account)
+
+            self.assertEqual(list(collected.groups.keys()), ["2024-02"])
+            self.assertEqual(collected.groups["2024-02"], [manual])
+            self.assertEqual(collected.path_month[manual], "2024-02")
+
 
 class RunCleanupTests(unittest.TestCase):
     def _write_pdf(self, directory: Path, name: str) -> Path:
@@ -487,6 +531,31 @@ class RunCleanupTests(unittest.TestCase):
             self.assertTrue(staging.is_file())
             self.assertFalse(unknown_out.is_file())
             self.assertEqual(result.prepared, 0)
+            self.assertEqual(result.rejected, 0)
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.decrypt_pdfs_in_place", return_value=0)
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_run_upload_scope_processes_only_manual_pdf(
+        self, mock_extract: MagicMock, _mock_decrypt: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, download_path, account = _staging_layout(tmp)
+            manual = self._write_pdf(staging_dir, "manual__2024-02.pdf")
+            other = self._write_pdf(staging_dir, "INBOX__2024-01-21.pdf")
+            mock_extract.return_value = "generic statement text with no account marker"
+
+            result = run(
+                staging_dir,
+                account,
+                _run_context(download_path),
+                upload_statement_date="2024-02",
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2024-02")
+            self.assertTrue(pdf_out.is_file())
+            self.assertFalse(manual.exists())
+            self.assertTrue(other.is_file())
+            self.assertEqual(result.prepared, 1)
             self.assertEqual(result.rejected, 0)
 
 

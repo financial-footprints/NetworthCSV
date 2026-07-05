@@ -6,7 +6,8 @@
         "type": "credit_card",
         "subjects": [
           "E-statement for your BOB",
-          "E-statement for your BOBCARD"
+          "E-statement for your BOBCARD",
+          "Duplicate Statement from BOB Card"
         ],
         "statement_date_markers": [
           {
@@ -41,7 +42,9 @@
         "type": "credit_card",
         "subjects": [
           "E-statement for your BOB EASY credit card ending in",
-          "E-statement for your BOBCARD RUPAY EASY credit card ending"
+          "E-statement for your BOBCARD EASY credit card ending in",
+          "E-statement for your BOBCARD RUPAY EASY credit card ending",
+          "Duplicate Statement from BOB Card"
         ],
         "end_marker": "Reward Summary at Card Level",
         "statement_date_markers": [

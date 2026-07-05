@@ -73,6 +73,19 @@ def statement_pdf_path(
     )
 
 
+def statement_csv_path(
+    download_path: Path, account: ResolvedAccount, month_stem: str
+) -> Path:
+    return account_fy_dir(download_path, account, fy_folder_name(month_stem)) / (
+        f"{month_stem}.csv"
+    )
+
+
+_MONTH_STEM_GLOB = "????-??"
+_STATEMENT_CSV_SUFFIX = ".csv"
+_TRANSACTIONS_CSV = "transactions.csv"
+
+
 def discover_account_fy_dirs(
     download_path: Path,
     account: ResolvedAccount,
@@ -121,6 +134,18 @@ def iter_statement_pairs(
     for folder in discover_account_fy_dirs(download_path, account, fy_limit):
         for pdf_path in iter_pdfs(folder):
             yield pdf_path, txt_path_for_pdf(pdf_path)
+
+
+def iter_statement_csvs(
+    download_path: Path,
+    account: ResolvedAccount,
+    fy_limit: Path | None = None,
+) -> Iterator[Path]:
+    """Yield per-month statement CSV paths (excludes transactions.csv)."""
+    for folder in discover_account_fy_dirs(download_path, account, fy_limit):
+        for path in sorted(folder.glob(f"{_MONTH_STEM_GLOB}{_STATEMENT_CSV_SUFFIX}")):
+            if path.is_file() and path.name != _TRANSACTIONS_CSV:
+                yield path
 
 
 def resolve_fy_limit(

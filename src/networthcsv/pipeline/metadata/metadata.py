@@ -24,7 +24,10 @@ from networthcsv.pipeline.metadata.statement_balance import (
 from networthcsv.utils.path import (
     account_metadata_path,
     discover_account_fy_dirs,
+    iter_statement_csvs,
     iter_statement_pairs,
+    statement_csv_path,
+    txt_path_for_pdf,
 )
 
 logger = logging.getLogger(__name__)
@@ -82,12 +85,7 @@ def covered_month(statement_date: str) -> str:
 
 
 def statement_date_for_covered_month(covered: str) -> str:
-    year_str, month_str = covered.split("-", 1)
-    year = int(year_str)
-    month = int(month_str)
-    if month == 12:
-        return f"{year + 1}-01"
-    return f"{year}-{month + 1:02d}"
+    return _next_month_key(covered)
 
 
 def _next_month_key(month: str) -> str:
@@ -143,17 +141,25 @@ def compute_balance_gaps(
     return tuple(gaps)
 
 
-def _month_stem_from_pdf(pdf_path: Path) -> str | None:
-    match = _MONTH_STEM_PATTERN.fullmatch(pdf_path.stem)
+def _month_stem_from_path(path: Path) -> str | None:
+    match = _MONTH_STEM_PATTERN.fullmatch(path.stem)
     if match is None:
         return None
     return match.group(1)
 
 
-def _statement_formats(pdf_path: Path, txt_path: Path) -> tuple[str, ...]:
-    formats: list[str] = ["pdf"]
-    if txt_path.is_file():
+def _statement_formats(
+    pdf_path: Path | None,
+    txt_path: Path | None,
+    csv_path: Path | None,
+) -> tuple[str, ...]:
+    formats: list[str] = []
+    if pdf_path is not None and pdf_path.is_file():
+        formats.append("pdf")
+    if txt_path is not None and txt_path.is_file():
         formats.append("txt")
+    if csv_path is not None and csv_path.is_file():
+        formats.append("csv")
     return tuple(formats)
 
 
@@ -195,19 +201,42 @@ def build_account_metadata(
     download_path: Path,
     account: ResolvedAccount,
 ) -> AccountMetadata:
+    statements_by_date: dict[str, tuple[Path | None, Path | None, Path | None]] = {}
+
+    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+        statement_date = _month_stem_from_path(pdf_path)
+        if statement_date is None:
+            continue
+        existing = statements_by_date.get(statement_date, (None, None, None))
+        statements_by_date[statement_date] = (pdf_path, txt_path, existing[2])
+
+    for csv_path in iter_statement_csvs(download_path, account):
+        statement_date = _month_stem_from_path(csv_path)
+        if statement_date is None:
+            continue
+        existing = statements_by_date.get(statement_date, (None, None, None))
+        statements_by_date[statement_date] = (existing[0], existing[1], csv_path)
+
     statements: list[StatementMetadata] = []
     account_formats: set[str] = set()
 
-    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
-        statement_date = _month_stem_from_pdf(pdf_path)
-        if statement_date is None:
+    for statement_date in sorted(statements_by_date):
+        pdf_path, txt_path, csv_path = statements_by_date[statement_date]
+        if txt_path is None and pdf_path is not None:
+            txt_path = txt_path_for_pdf(pdf_path)
+        if csv_path is None:
+            csv_path = statement_csv_path(download_path, account, statement_date)
+        formats = _statement_formats(pdf_path, txt_path, csv_path)
+        if not formats:
             continue
-        formats = _statement_formats(pdf_path, txt_path)
         account_formats.update(formats)
-        opening_balance, closing_balance = _extract_statement_balances(
-            txt_path,
-            account,
-        )
+        if txt_path is not None and txt_path.is_file():
+            opening_balance, closing_balance = _extract_statement_balances(
+                txt_path,
+                account,
+            )
+        else:
+            opening_balance, closing_balance = None, None
         statements.append(
             StatementMetadata(
                 statement_date=statement_date,
@@ -217,7 +246,6 @@ def build_account_metadata(
             )
         )
 
-    statements.sort(key=lambda item: item.statement_date)
     statement_dates = tuple(item.statement_date for item in statements)
 
     if _has_transactions_csv(download_path, account):

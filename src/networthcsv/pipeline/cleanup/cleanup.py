@@ -24,6 +24,10 @@ from networthcsv.utils.path import (
 )
 from networthcsv.utils.pdf import extract_pdf_text_plumber, open_pdf_reader
 from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
+from networthcsv.pipeline.upload import (
+    month_stem_from_manual_upload,
+    manual_upload_pdf_path,
+)
 from networthcsv.pipeline.cleanup.statement_text import (
     check_file_marker,
     file_marker_present,
@@ -133,20 +137,29 @@ def _dedupe_paths_by_hash(paths: list[Path]) -> list[Path]:
     return list(seen.values())
 
 
-def collect_month_groups(staging_dir: Path, account: ResolvedAccount) -> MonthGroups:
+def collect_month_groups(
+    staging_dir: Path,
+    account: ResolvedAccount,
+    *,
+    paths: list[Path] | None = None,
+) -> MonthGroups:
     by_month: dict[str, list[Path]] = {}
     raw_by_path: dict[Path, str] = {}
     path_month: dict[Path, str] = {}
     seen: set[str] = set()
-    paths = list(iter_pdfs(staging_dir))
-    for path in sorted(paths, key=lambda item: item.as_posix()):
+    pdf_paths = paths if paths is not None else list(iter_pdfs(staging_dir))
+    for path in sorted(pdf_paths, key=lambda item: item.as_posix()):
         key = path.resolve().as_posix()
         if key in seen:
             continue
         seen.add(key)
         raw = extract_pdf_text_plumber(path, account.passwords)
         raw_by_path[path] = raw
-        month = resolve_month_stem(raw, path.name, account=account)
+        manual_month = month_stem_from_manual_upload(path.name)
+        if manual_month is not None:
+            month = manual_month
+        else:
+            month = resolve_month_stem(raw, path.name, account=account)
         path_month[path] = month
         by_month.setdefault(month, []).append(path)
     return MonthGroups(groups=by_month, raw_by_path=raw_by_path, path_month=path_month)
@@ -225,7 +238,12 @@ def prepare_month(
     canonical = pdf_out if pdf_out.is_file() else None
 
     keeper = None
-    if account.file_marker:
+    manual_candidates = [
+        path for path in unique if month_stem_from_manual_upload(path.name)
+    ]
+    if manual_candidates:
+        keeper = manual_candidates[-1]
+    elif account.file_marker:
         for path in unique:
             if file_marker_present(sanitized_by_path[path], account.file_marker):
                 keeper = path
@@ -247,8 +265,9 @@ def prepare_month(
         return 0, 1
 
     raw = raw_by_path[keeper]
+    keeper_is_manual = keeper in manual_candidates
     preserve: frozenset[Path] = frozenset()
-    if account.file_marker:
+    if account.file_marker and not keeper_is_manual:
         preserve = frozenset(
             path
             for path in unique
@@ -258,8 +277,10 @@ def prepare_month(
     for path in unique:
         if path == keeper:
             continue
-        if not file_marker_present(sanitized_by_path[path], account.file_marker):
-            if account.file_marker:
+        if keeper_is_manual or not file_marker_present(
+            sanitized_by_path[path], account.file_marker
+        ):
+            if account.file_marker and not keeper_is_manual:
                 _ = check_file_marker(
                     sanitized_by_path[path],
                     file_marker=account.file_marker,
@@ -318,6 +339,8 @@ def run(
     staging_dir: Path,
     account: ResolvedAccount,
     ctx: RunContext,
+    *,
+    upload_statement_date: str | None = None,
 ) -> CleanupAccountResult:
     if not staging_dir.is_dir():
         ctx.reporter.cleanup_skipped(account.bank, staging_dir)
@@ -342,7 +365,16 @@ def run(
 
     prepared = 0
     rejected = 0
-    collected = collect_month_groups(staging_dir, account)
+    if upload_statement_date is not None:
+        upload_path = manual_upload_pdf_path(staging_dir, upload_statement_date)
+        staging_paths = [upload_path] if upload_path.is_file() else []
+    else:
+        staging_paths = None
+    collected = collect_month_groups(
+        staging_dir,
+        account,
+        paths=staging_paths,
+    )
 
     for month, candidates in sorted(collected.groups.items()):
         if month == "unknown-month":
@@ -404,8 +436,18 @@ def run(
     return result
 
 
-def run_account(ctx: RunContext, account: ResolvedAccount) -> CleanupAccountResult:
-    return run(account_download_path(ctx.settings, account), account, ctx)
+def run_account(
+    ctx: RunContext,
+    account: ResolvedAccount,
+    *,
+    upload_statement_date: str | None = None,
+) -> CleanupAccountResult:
+    return run(
+        account_download_path(ctx.settings, account),
+        account,
+        ctx,
+        upload_statement_date=upload_statement_date,
+    )
 
 
 def main() -> None:

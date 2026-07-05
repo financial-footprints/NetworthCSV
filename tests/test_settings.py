@@ -501,11 +501,24 @@ class SettingsTests(unittest.TestCase):
         )
         start, end = resolve_account_search_dates(account, date(2022, 1, 1))
         self.assertEqual(start, date(2023, 4, 1))
-        self.assertEqual(end, date(2024, 8, 1))
+        self.assertEqual(end, date(2024, 9, 1))
 
         start, end = resolve_account_search_dates(account, date(2024, 1, 1))
         self.assertEqual(start, date(2024, 1, 1))
-        self.assertEqual(end, date(2024, 8, 1))
+        self.assertEqual(end, date(2024, 9, 1))
+
+    def test_resolve_account_search_dates_includes_month_after_closing(self) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "subjects": ["stmt"],
+                "closing_date": date(2024, 2, 1),
+            }
+        )
+        _start, end = resolve_account_search_dates(account, None)
+        self.assertEqual(end, date(2024, 3, 1))
 
     def test_invalid_opening_date_format(self) -> None:
         with self.assertRaises(ValueError):

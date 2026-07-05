@@ -233,14 +233,14 @@ class MessageDateRangeTests(unittest.TestCase):
                 "closing_date": date(2024, 2, 1),
             }
         )
-        inside = self._msg_on(2024, 2)
-        outside = self._msg_on(2024, 3)
+        inside = self._msg_on(2024, 3)
+        outside = self._msg_on(2024, 4)
         self.assertTrue(
             message_matches_account(
                 inside,
                 account,
                 date(2024, 1, 1),
-                date(2024, 2, 1),
+                date(2024, 3, 1),
             )
         )
         self.assertFalse(
@@ -248,7 +248,7 @@ class MessageDateRangeTests(unittest.TestCase):
                 outside,
                 account,
                 date(2024, 1, 1),
-                date(2024, 2, 1),
+                date(2024, 3, 1),
             )
         )
 

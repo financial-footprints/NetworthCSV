@@ -886,13 +886,21 @@ def resolve_account_search_dates(
         start_candidates.append(_month_start(account.opening_date))
     effective_start = max(start_candidates) if start_candidates else None
     effective_end = (
-        _month_start(account.closing_date) if account.closing_date is not None else None
+        exclusive_search_end_date(_month_start(account.closing_date))
+        if account.closing_date is not None
+        else None
     )
     return effective_start, effective_end
 
 
 def exclusive_search_end_date(end_date: date) -> date:
-    """Return the exclusive IMAP/Gmail upper bound for an inclusive closing month."""
+    """Return the first day of the month after ``end_date``.
+
+    Used as the exclusive IMAP/Gmail ``BEFORE`` bound for an inclusive
+    message-filter end month. Closed-account search sets the inclusive end
+    to closing month + 1 via ``resolve_account_search_dates``, then applies
+    this helper again for the server query upper bound.
+    """
     if end_date.month == 12:
         return date(end_date.year + 1, 1, 1)
     return date(end_date.year, end_date.month + 1, 1)

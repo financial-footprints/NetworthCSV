@@ -9,6 +9,11 @@ from networthcsv.pipeline.get_statements.imap import (
     build_gmail_raw_query,
     build_imap_search_criteria,
 )
+from networthcsv.settings import (
+    ResolvedAccount,
+    exclusive_search_end_date,
+    resolve_account_search_dates,
+)
 
 
 class BuildImapSearchTests(unittest.TestCase):
@@ -82,6 +87,31 @@ class BuildImapSearchTests(unittest.TestCase):
             criteria,
             ("OR", "SUBJECT", "A", "SUBJECT", "B"),
         )
+
+    def test_closed_account_imap_before_uses_month_after_inclusive_end(self) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "subjects": ["stmt"],
+                "closing_date": date(2024, 2, 1),
+            }
+        )
+        _start, effective_end = resolve_account_search_dates(account, None)
+        if effective_end is None:
+            self.fail("expected closing-date search end")
+        self.assertEqual(effective_end, date(2024, 3, 1))
+        search_end = exclusive_search_end_date(effective_end)
+        _charset, criteria = build_imap_search_criteria(
+            account.subjects,
+            date(2024, 1, 1),
+            host="imap.example.com",
+            end_date=search_end,
+        )
+        self.assertIn("BEFORE", criteria)
+        before_index = criteria.index("BEFORE")
+        self.assertEqual(criteria[before_index + 1], "01-Apr-2024")
 
 
 if __name__ == "__main__":

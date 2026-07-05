@@ -4,12 +4,7 @@ Parse credit card and bank statement PDFs from email into CSV files. The pipelin
 
 ## Setup
 
-Requires [uv](https://docs.astral.sh/uv/).
-
-```bash
-cd NetworthCSV
-make install
-```
+The application is not ready for usage yet.
 
 ## Configuration
 
@@ -17,10 +12,23 @@ NetworthCSV uses two JSON files:
 
 | File               | Purpose                 |
 | ------------------ | ----------------------- |
-| `app.config.json`  | Bank defaults.          |
+| `app.config.json`  | Bank defaults           |
 | `user.config.json` | Secrets and local paths |
 
-Copy [`user.config.sample.json`](user.config.sample.json) to `user.config.json` and edit paths, passwords, and accounts. Supported banks and product variants are defined in [`app.config.json`](app.config.json).
+Create a config directory on your machine, then copy the sample files from the repository:
+
+- [`user.config.sample.json`](https://github.com/financial-footprints/NetworthCSV/blob/main/user.config.sample.json) → `user.config.json`
+- [`app.config.json`](https://github.com/financial-footprints/NetworthCSV/blob/main/app.config.json)
+
+Edit `user.config.json` with your paths, passwords, and accounts. In `app.config.json`, set `user_config` to the path of your `user.config.json` (relative paths are resolved from the directory that contains `app.config.json`).
+
+Point NetworthCSV at your `app.config.json`:
+
+```bash
+export NETWORTHCSV_CONFIG=/path/to/app.config.json
+```
+
+Or pass `--config /path/to/app.config.json` on the command line.
 
 Each app-config variant may set an optional `type`: `credit_card` (default) or `bank_account`. Non-default variants inherit `type` from `default` when omitted. The resolved account carries this as metadata and determines the on-disk folder layout.
 
@@ -43,19 +51,17 @@ Each account needs a `bank`, an `account_number` (globally unique — shown in t
 `identifier` matches the account's `account_number`. You can also pass `--identifier` / `-i` on the command line without editing config:
 
 ```bash
-uv run python -m networthcsv --identifier 5678
+networthcsv --identifier 5678
 ```
 
 **Alerts** — optional `alerts` block (`"console"` or `"email"`) for pipeline validation failures. See the sample config.
-
-Config path: repo-root `app.config.json` by default, or set `NETWORTHCSV_CONFIG` to override.
 
 ## Usage
 
 Full pipeline (extract → cleanup → metadata → parse) for all configured accounts:
 
 ```bash
-make dev
+networthcsv
 ```
 
 Or run stages individually:
@@ -70,10 +76,8 @@ python -m networthcsv.pipeline.parse            # write transactions.csv
 Delete cleanup, metadata, and parse outputs for a single account:
 
 ```bash
-uv run networthcsv --account-number 5678
+networthcsv --account-number 5678
 ```
-
-Also available as `python -m networthcsv.pipeline.delete_statements --account-number 5678`.
 
 Output layout:
 
@@ -87,15 +91,4 @@ Example: `{download_path}/FY23-2024/credit_card/5678/2024-01.pdf`
 
 ## Development
 
-The repo includes a `Makefile` that wraps common tasks. Run `make help` for a short list.
-
-| Command        | Description                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------- |
-| `make help`    | Print available targets.                                                                     |
-| `make install` | Create the venv, run `uv lock`, and `uv sync --group dev`.                                   |
-| `make dev`     | Run the full pipeline (`uv run python -m networthcsv`).                                      |
-| `make upgrade` | Upgrade locked dependencies and sync the dev group.                                          |
-| `make test`    | Run unit tests (`uv run python -m unittest discover -s tests`).                              |
-| `make lint`    | Type-check with [basedpyright](https://docs.basedpyright.com/) (config in `pyproject.toml`). |
-| `make format`  | Format `src/` and `tests/` with [ruff](https://docs.astral.sh/ruff/).                        |
-| `make clean`   | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`.       |
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for setup, testing, and contribution guidelines.

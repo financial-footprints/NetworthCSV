@@ -9,6 +9,10 @@
           "E-statement for your BOBCARD",
           "Duplicate Statement from BOB Card"
         ],
+        "end_markers": [
+          "Reward Summary at Card Level",
+          "Page 1 of"
+        ],
         "statement_date_markers": [
           {
             "mode": "label_single",
@@ -19,6 +23,12 @@
             "label": "Statement Period :",
             "joiner": " to ",
             "take": "end"
+          },
+          {
+            "mode": "top_range",
+            "joiner": " To ",
+            "take": "end",
+            "search_chars": 500
           }
         ],
         "balance_markers": {
@@ -27,6 +37,23 @@
               "mode": "summary_table_column",
               "context": "Account Summary",
               "column": "Opening Balance"
+            },
+            {
+              "mode": "summary_table_column",
+              "context": "This Month's Statement At A Glance",
+              "column": "Opening Balance"
+            },
+            {
+              "mode": "summary_table_row",
+              "after": "GST No:",
+              "which": 2,
+              "column": "opening"
+            },
+            {
+              "mode": "summary_table_row",
+              "after": "GST No:",
+              "which": 1,
+              "column": "opening"
             }
           ],
           "closing": [
@@ -34,6 +61,23 @@
               "mode": "summary_table_column",
               "context": "Account Summary",
               "column": "Closing Balance"
+            },
+            {
+              "mode": "summary_table_column",
+              "context": "This Month's Statement At A Glance",
+              "column": "Closing Balance"
+            },
+            {
+              "mode": "summary_table_row",
+              "after": "GST No:",
+              "which": 2,
+              "column": "closing"
+            },
+            {
+              "mode": "summary_table_row",
+              "after": "GST No:",
+              "which": 1,
+              "column": "closing"
             }
           ]
         }
@@ -46,21 +90,10 @@
           "E-statement for your BOBCARD RUPAY EASY credit card ending",
           "Duplicate Statement from BOB Card"
         ],
-        "end_marker": "Reward Summary at Card Level",
-        "statement_date_markers": [
-          {
-            "mode": "label_single",
-            "label": "Statement Date :"
-          },
-          {
-            "mode": "label_range",
-            "label": "Statement Period :",
-            "joiner": " to ",
-            "take": "end"
-          }
-        ],
         "information_markers": [
           "Please register your Mobile No. & E-Mail ID",
+          "Please register your Mobile No. and Email ID",
+          "Please register your Mobile Number & Email ID",
           "Loan Summary",
           "GO DIGITAL to SELF-SERVICE",
           "YOUR CONVENIENCE IS OUR PRIORITY",
@@ -68,7 +101,9 @@
           "SCHEDULE OF CHARGES",
           "IMPORTANT",
           "CIBIL Information",
-          "Billing Dispute Resolution"
+          "Billing Dispute Resolution",
+          "For T&C & details on Fee/charges",
+          "Important Security Update for Your BOBCARD"
         ]
       }
     },
@@ -106,7 +141,9 @@
         "subjects": [
           "Edge CSB Bank RuPay Credit Card Statement"
         ],
-        "end_marker": "------------------------------------------------ End of Transactions ------------------------------------------------",
+        "end_markers": [
+          "------------------------------------------------ End of Transactions ------------------------------------------------"
+        ],
         "statement_date_markers": [
           {
             "mode": "top_range",
@@ -165,7 +202,9 @@
         "subjects": [
           "Edge Federal Bank Credit Card Statement"
         ],
-        "end_marker": "------------------------------------------------ End of Transactions ------------------------------------------------",
+        "end_markers": [
+          "------------------------------------------------ End of Transactions ------------------------------------------------"
+        ],
         "information_markers": [
           "IMPORTANT INFORMATION",
           "Issued by"
@@ -201,7 +240,9 @@
         "bodies": [
           "<title>Signet</title>"
         ],
-        "end_marker": "GSTN of Federal Bank",
+        "end_markers": [
+          "GSTN of Federal Bank"
+        ],
         "information_markers": [
           "The following illustration will indicate",
           "Organic Credit Cards",
@@ -253,7 +294,9 @@
         "subjects": [
           "HDFC Bank Credit Card Statement"
         ],
-        "end_marker": "Reward Points Summary",
+        "end_markers": [
+          "Reward Points Summary"
+        ],
         "information_markers": [
           "Benefits on your card",
           "IMPORTANT INFORMATION",
@@ -352,7 +395,9 @@
         "subjects": [
           "HDFC Bank - Swiggy HDFC Bank Credit Card Statement"
         ],
-        "end_marker": "Cashback Summary",
+        "end_markers": [
+          "Cashback Summary"
+        ],
         "statement_date_markers": [
           {
             "mode": "label_single",
@@ -371,7 +416,9 @@
         "subjects": [
           "Your HDFC Bank - Tata Neu Infinity HDFC Bank Credit Card Statement"
         ],
-        "end_marker": "Bonus NeuCoins Summary",
+        "end_markers": [
+          "Bonus NeuCoins Summary"
+        ],
         "statement_date_markers": [
           {
             "mode": "label_single",
@@ -419,7 +466,9 @@
         "subjects": [
           "ICICI Bank Credit Card Statement for the period"
         ],
-        "end_marker": "MOST IMPORTANT TERMS AND CONDITIONS (MITC)",
+        "end_markers": [
+          "MOST IMPORTANT TERMS AND CONDITIONS (MITC)"
+        ],
         "information_markers": [
           "For exclusive",
           "offers, visit",
@@ -515,7 +564,9 @@
         "subjects": [
           "FIRST WOW! Credit Card Statement"
         ],
-        "end_marker": "IMPORTANT INFORMATION",
+        "end_markers": [
+          "IMPORTANT INFORMATION"
+        ],
         "information_markers": [
           "Payment Modes",
           "SPECIAL BENEFITS ON YOUR CARD",
@@ -559,7 +610,9 @@
         "subjects": [
           "IndusInd Bank Credit Card"
         ],
-        "end_marker": "Rewards Opening Balance",
+        "end_markers": [
+          "Rewards Opening Balance"
+        ],
         "information_markers": [
           "IMPORTANT MESSAGES:",
           "PROMOTIONAL MESSAGES:",
@@ -604,7 +657,9 @@
         "subjects": [
           "Your PNB Credit Card Statement for the month"
         ],
-        "end_marker": "********** End of Statement **********",
+        "end_markers": [
+          "********** End of Statement **********"
+        ],
         "information_markers": [
           "*TAD for the month consists of current month purchases, charges, cash advances and amount of BT/EMI due for the month if any. Making only the minimum payment if any month would result in the repayment stretching over subsequent Always get MORE with months with consequent interest payment on your outstanding balance. Please examine your statement immediately upon receipt. If no error is reported within 60 days from the date PNB Credit Cards of statement, the account will be considered correct. Place of supply : PNB, Credit Card Processing Center, Ground Floor, C-24, Sec-58, Noida, Uttar Pradesh 201301, State Code : 09 GSTIN No.: 07AAACP0165G3ZP Registered Address : Punjab National Bank, Plot No. 7, East Block Road, Bhikaji Cama Place, New Delhi, New Delhi, Delhi, 110066 State Code : 07",
           "Presenting Rupay Platinum",
@@ -655,7 +710,9 @@
         "subjects": [
           "Your YES_BANK"
         ],
-        "end_marker": "------------------End of the Statement------------------",
+        "end_markers": [
+          "------------------End of the Statement------------------"
+        ],
         "information_markers": [
           "Your Reward Points Summary",
           "To redeem your Reward Points",

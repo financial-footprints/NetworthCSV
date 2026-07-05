@@ -38,8 +38,8 @@ _MATCHING_FIELD_NAMES = frozenset(
         "subjects",
         "bodies",
         "from_filters",
-        "start_marker",
-        "end_marker",
+        "start_markers",
+        "end_markers",
         "information_markers",
         "statement_date_markers",
         "balance_markers",
@@ -125,6 +125,7 @@ class SummaryTableRowMarker(BalanceMarkerBase):
     mode: Literal["summary_table_row"]
     after: str
     column: SummaryTableRowColumn
+    which: int = Field(default=1, ge=1)
 
 
 class SingleAmountAfterMarker(BalanceMarkerBase):
@@ -271,6 +272,33 @@ def normalize_marker(value: object) -> str | None:
     return marker or None
 
 
+def normalize_start_markers(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="start_markers")
+
+
+def normalize_end_markers(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="end_markers")
+
+
+def _coerce_legacy_marker_fields(data: object) -> object:
+    """Map deprecated start_marker/end_marker to list fields when loading config JSON."""
+    if not isinstance(data, dict):
+        return data
+    raw = cast(dict[str, object], data)
+    if "start_marker" not in raw and "end_marker" not in raw:
+        return data
+    coerced = dict(raw)
+    if "start_marker" in coerced:
+        legacy = normalize_marker(coerced.pop("start_marker"))
+        if legacy is not None and not coerced.get("start_markers"):
+            coerced["start_markers"] = [legacy]
+    if "end_marker" in coerced:
+        legacy = normalize_marker(coerced.pop("end_marker"))
+        if legacy is not None and not coerced.get("end_markers"):
+            coerced["end_markers"] = [legacy]
+    return coerced
+
+
 def normalize_information_markers(value: object) -> list[str]:
     return normalize_string_list(value, field_name="information_markers")
 
@@ -414,6 +442,14 @@ OptionalFromFilters = Annotated[
     list[str] | None, BeforeValidator(_optional(normalize_from))
 ]
 Marker = Annotated[str | None, BeforeValidator(normalize_marker)]
+StartMarkers = Annotated[list[str], BeforeValidator(normalize_start_markers)]
+OptionalStartMarkers = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_start_markers))
+]
+EndMarkers = Annotated[list[str], BeforeValidator(normalize_end_markers)]
+OptionalEndMarkers = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_end_markers))
+]
 InformationMarkers = Annotated[
     list[str], BeforeValidator(normalize_information_markers)
 ]
@@ -482,11 +518,10 @@ class MatchingFieldsCore(BaseModel):
         extra="forbid", populate_by_name=True
     )
 
-    start_marker: Marker = None
-    end_marker: Marker = None
-
 
 class MatchingFields(MatchingFieldsCore):
+    start_markers: StartMarkers = []
+    end_markers: EndMarkers = []
     subjects: Subjects
     account_type: AccountTypeName = Field(default="credit_card", alias="type")
     bodies: Bodies = []
@@ -501,6 +536,8 @@ class VariantOverride(MatchingFieldsCore):
     account_type: OptionalAccountTypeName = Field(default=None, alias="type")
     bodies: OptionalBodies = None
     from_filters: OptionalFromFilters = Field(default=None, alias="from")
+    start_markers: OptionalStartMarkers = None
+    end_markers: OptionalEndMarkers = None
     information_markers: OptionalInformationMarkers = None
     statement_date_markers: OptionalStatementDateMarkers = None
     balance_markers: OptionalBalanceMarkers = None
@@ -512,8 +549,8 @@ class VariantOverride(MatchingFieldsCore):
             and self.account_type is None
             and self.bodies is None
             and self.from_filters is None
-            and self.start_marker is None
-            and self.end_marker is None
+            and self.start_markers is None
+            and self.end_markers is None
             and self.information_markers is None
             and self.statement_date_markers is None
             and self.balance_markers is None
@@ -548,6 +585,7 @@ def _normalize_bank_variants(
                 )
             variant_context = f"{context} banks.{bank_name}.{variant_name}"
             try:
+                variant_value = _coerce_legacy_marker_fields(variant_value)
                 if variant_name == "default":
                     variants[variant_name] = MatchingFields.model_validate(
                         variant_value
@@ -660,6 +698,8 @@ class UserAccountConfig(MatchingFieldsCore):
     subjects: OptionalSubjects = None
     bodies: OptionalBodies = None
     from_filters: OptionalFromFilters = Field(default=None, alias="from")
+    start_markers: OptionalStartMarkers = None
+    end_markers: OptionalEndMarkers = None
     information_markers: OptionalInformationMarkers = None
     statement_date_markers: OptionalStatementDateMarkers = None
     balance_markers: OptionalBalanceMarkers = None
@@ -785,6 +825,11 @@ def _prepare_user_config_data(data: dict[str, object], base: Path) -> dict[str, 
     download_raw = data.get("download_path")
     if download_raw:
         prepared["download_path"] = _resolve_path(download_raw, base)
+    accounts_raw = data.get("accounts")
+    if isinstance(accounts_raw, list):
+        prepared["accounts"] = [
+            _coerce_legacy_marker_fields(item) for item in accounts_raw
+        ]
     return prepared
 
 

@@ -26,36 +26,40 @@ def sanitize_statement_text(raw: str) -> str:
 def trim_by_markers(
     raw: str,
     *,
-    start_marker: str | None = None,
-    end_marker: str | None = None,
+    start_markers: list[str] | None = None,
+    end_markers: list[str] | None = None,
 ) -> str:
-    """Keep lines from start_marker through end_marker, inclusive of both marker lines."""
+    """Keep lines from start_markers through end_markers, inclusive of marker lines."""
+    start = list(start_markers) if start_markers else []
+    end = list(end_markers) if end_markers else []
+
     lines = raw.split("\n")
     start_idx = 0
 
-    if start_marker is not None:
-        found = next((i for i, line in enumerate(lines) if start_marker in line), None)
-        if found is None:
-            logger.debug("start_marker not found: %r", start_marker)
+    if start:
+        found_indices = [
+            index
+            for index, line in enumerate(lines)
+            if any(marker in line for marker in start)
+        ]
+        if not found_indices:
+            logger.debug("start_markers not found: %r", start)
         else:
-            start_idx = found
+            start_idx = min(found_indices)
 
     end_idx = len(lines)
-    if end_marker is not None:
-        found = next(
-            (
-                i
-                for i, line in enumerate(lines[start_idx:], start=start_idx)
-                if end_marker in line
-            ),
-            None,
-        )
-        if found is None:
-            if any(end_marker in line for line in lines):
+    if end:
+        found_indices = [
+            index
+            for index, line in enumerate(lines[start_idx:], start=start_idx)
+            if any(marker in line for marker in end)
+        ]
+        if not found_indices:
+            if any(marker in line for line in lines for marker in end):
                 return ""
-            logger.debug("end_marker not found: %r", end_marker)
+            logger.debug("end_markers not found: %r", end)
         else:
-            end_idx = found + 1
+            end_idx = max(found_indices) + 1
 
     if start_idx >= end_idx:
         return ""

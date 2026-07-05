@@ -308,9 +308,13 @@ def _apply_summary_table_row(
     if anchor is None:
         return None
     tail = text[anchor.end() : anchor.end() + 1200]
+    match_count = 0
     for line in tail.split("\n"):
         amounts = _amounts_with_positions(line, currency_only=True)
         if len(amounts) < 3:
+            continue
+        match_count += 1
+        if match_count < marker.which:
             continue
         if marker.column == "opening":
             return amounts[0][0]

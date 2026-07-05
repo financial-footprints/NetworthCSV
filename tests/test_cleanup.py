@@ -322,7 +322,7 @@ class PrepareMonthTests(unittest.TestCase):
                 "junk\n5678\n********** End of Statement **********"
             )
 
-            account = account.model_copy(update={"end_marker": "End of Statement"})
+            account = account.model_copy(update={"end_markers": ["End of Statement"]})
 
             prepared, rejected = prepare_month(
                 staging_dir,

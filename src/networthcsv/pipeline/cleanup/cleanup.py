@@ -181,8 +181,8 @@ def _write_txt_atomically(txt_path: Path, content: str) -> None:
 def _sanitized_text(raw: str, account: ResolvedAccount) -> str:
     trimmed = trim_by_markers(
         raw,
-        start_marker=account.start_marker,
-        end_marker=account.end_marker,
+        start_markers=list(account.start_markers),
+        end_markers=list(account.end_markers),
     )
     sanitized = sanitize_statement_text(trimmed)
     return purge_information_markers(

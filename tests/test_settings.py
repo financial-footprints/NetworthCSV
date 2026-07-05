@@ -197,8 +197,8 @@ class SettingsTests(unittest.TestCase):
         bodies: list[str] | None = None,
         from_filters: list[str] | None = None,
         passwords: list[str] | None = None,
-        start_marker: str | None = None,
-        end_marker: str | None = None,
+        start_markers: list[str] | None = None,
+        end_markers: list[str] | None = None,
         information_markers: list[str] | None = None,
         account_type: str = "credit_card",
     ) -> ResolvedAccount:
@@ -213,8 +213,8 @@ class SettingsTests(unittest.TestCase):
                 "bodies": bodies or [],
                 "from": from_filters or [],
                 "passwords": passwords or ["x"],
-                "start_marker": start_marker,
-                "end_marker": end_marker,
+                "start_markers": start_markers or [],
+                "end_markers": end_markers or [],
                 "information_markers": information_markers or [],
             }
         )
@@ -567,6 +567,34 @@ class SettingsTests(unittest.TestCase):
                         "default": {"subjects": ["PNB default"]},
                         "platinum": {
                             "subjects": ["PNB statement"],
+                            "start_markers": ["Transaction Date"],
+                            "end_markers": ["End of Statement"],
+                        },
+                    }
+                },
+            )
+            settings = load_settings(app_config_path)
+            account = settings.accounts[0]
+            self.assertEqual(account.start_markers, ["Transaction Date"])
+            self.assertEqual(account.end_markers, ["End of Statement"])
+
+    def test_legacy_marker_fields_coerced_to_lists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = (root / "statements").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="pnb", variant="platinum")],
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {
+                    "pnb": {
+                        "default": {"subjects": ["PNB default"]},
+                        "platinum": {
+                            "subjects": ["PNB statement"],
                             "start_marker": "Transaction Date",
                             "end_marker": "End of Statement",
                         },
@@ -575,8 +603,8 @@ class SettingsTests(unittest.TestCase):
             )
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.start_marker, "Transaction Date")
-            self.assertEqual(account.end_marker, "End of Statement")
+            self.assertEqual(account.start_markers, ["Transaction Date"])
+            self.assertEqual(account.end_markers, ["End of Statement"])
 
     def test_information_markers_from_variant_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -17,7 +17,7 @@ from networthcsv.pipeline.cleanup.statement_text import (
 class TrimByMarkersTests(unittest.TestCase):
     def test_end_marker_only(self) -> None:
         raw = "header\nrow1\n********** End of Statement **********\nfooter"
-        result = trim_by_markers(raw, end_marker="End of Statement")
+        result = trim_by_markers(raw, end_markers=["End of Statement"])
         self.assertEqual(
             result,
             "header\nrow1\n********** End of Statement **********",
@@ -25,28 +25,58 @@ class TrimByMarkersTests(unittest.TestCase):
 
     def test_start_marker_only(self) -> None:
         raw = "junk\nTransaction Date\nrow1\nrow2"
-        result = trim_by_markers(raw, start_marker="Transaction Date")
+        result = trim_by_markers(raw, start_markers=["Transaction Date"])
         self.assertEqual(result, "Transaction Date\nrow1\nrow2")
 
     def test_both_markers(self) -> None:
         raw = "junk\nstart here\nkeep\nend here\nmore junk"
-        result = trim_by_markers(raw, start_marker="start here", end_marker="end here")
+        result = trim_by_markers(
+            raw, start_markers=["start here"], end_markers=["end here"]
+        )
         self.assertEqual(result, "start here\nkeep\nend here")
 
     def test_start_marker_not_found(self) -> None:
         raw = "only content"
-        result = trim_by_markers(raw, start_marker="missing")
+        result = trim_by_markers(raw, start_markers=["missing"])
         self.assertEqual(result, "only content")
 
     def test_end_marker_not_found(self) -> None:
         raw = "only content"
-        result = trim_by_markers(raw, end_marker="missing")
+        result = trim_by_markers(raw, end_markers=["missing"])
         self.assertEqual(result, "only content")
 
     def test_start_after_end_returns_empty(self) -> None:
         raw = "end\nstart"
-        result = trim_by_markers(raw, start_marker="start", end_marker="end")
+        result = trim_by_markers(raw, start_markers=["start"], end_markers=["end"])
         self.assertEqual(result, "")
+
+    def test_end_markers_use_latest_match(self) -> None:
+        raw = (
+            "header\n"
+            "txn line\n"
+            "Page 1 of 4\n"
+            "more txn\n"
+            "Page 2 of 4\n"
+            "Reward Summary at Card Level\n"
+            "footer"
+        )
+        result = trim_by_markers(
+            raw,
+            end_markers=["Reward Summary at Card Level", "Page 1 of"],
+        )
+        self.assertIn("more txn", result)
+        self.assertIn("Reward Summary at Card Level", result)
+        self.assertNotIn("footer", result)
+
+    def test_end_markers_fallback_when_reward_summary_missing(self) -> None:
+        raw = "header\ntxn line\nPage 1 of 5\nPage 2 of 5\nlegal"
+        result = trim_by_markers(
+            raw,
+            end_markers=["Reward Summary at Card Level", "Page 1 of"],
+        )
+        self.assertIn("Page 1 of 5", result)
+        self.assertNotIn("Page 2 of 5", result)
+        self.assertNotIn("legal", result)
 
 
 class PurgeInformationMarkersTests(unittest.TestCase):

@@ -1,0 +1,35 @@
+   INDUSIND BANK ePAY CREDIT CARD STATEMENT
+                                                                 Previous Balance
+                                                                    0.00 DR
+                                                              Purchases & Other Charges
+                                                                    950.00
+                                                                  Cash Advance
+                                                                     0.00
+                                                               Payment & Other Credits
+    Credit   Credit Limit Available Credit Limit Cash Limit Available Cash Limit 0.00
+   Summary
+              1,00,000.00   99,050.00   20,000.00    20,000.00
+                                                                 Total Amount Due
+   Minimum Amount Due (MAD) calculation on your IndusInd Bank Credit Card 950.00 DR
+                                                                Minimum Amount Due
+                                                                     80.00
+                          ACCOUNTSUMMARY
+                                                                 Statement Period
+     Date       TransactionDetails MerchantCategory Amount(in )
+                                             Points             16/01/2022 To 15/02/2022
+   Purchases & Cash Transactions for MS NEHA GUPTA (Credit Card No. 0377XXXXXXXX3855)
+   28/01/2022 REGISTRATION OFFICE FEE 356 GOVT SERVICES 0       450.00 DR
+                                   ADMIN                           Statement Date
+   05/02/2022 DOCUMENT PROCESSING CHARGE 356 GOVT SERVICES 0    500.00 DR
+                                   ADMIN                              15/02/2022
+   Total                                      0         950.00
+                                                                 Total Outstanding
+                                                                   (includingLoans)
+                                                                     950.00 DR
+   MS NEHA GUPTA
+   3 CG Road Ahmedabad
+   Ahmedabad
+   AHMEDABAD GJ - 380009
+   Invoice and Credit note No : 8123456789012345678
+     PaymentDueDate Min.AmountDue
+     07/03/2022 80.00

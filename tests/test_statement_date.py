@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-import re
 import unittest
 from datetime import date
-from pathlib import Path
 
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_date,
@@ -21,8 +19,6 @@ from networthcsv.settings import (
     _resolve_variant_defaults,
 )
 
-_SAMPLES_ROOT = Path(__file__).resolve().parents[1] / ".local" / "samples"
-_DUMMY_FILENAME = "dummy__2099-99-99.pdf"
 _APP_CONFIG = AppConfig.from_json(
     json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")),
     config_path=DEFAULT_CONFIG_PATH,
@@ -81,32 +77,6 @@ class MonthStemFromNameTests(unittest.TestCase):
 
     def test_unknown_when_missing(self) -> None:
         self.assertEqual(month_stem_from_name("attachment.pdf"), "unknown-month")
-
-
-class SampleGoldenTests(unittest.TestCase):
-    def test_all_local_samples_resolve_to_expected_month(self) -> None:
-        if not _SAMPLES_ROOT.is_dir():
-            self.skipTest(f"samples not found: {_SAMPLES_ROOT}")
-
-        failures: list[str] = []
-        for sample_path in sorted(_SAMPLES_ROOT.rglob("*.txt")):
-            rel = sample_path.relative_to(_SAMPLES_ROOT)
-            parts = rel.parts
-            if len(parts) < 3:
-                continue
-            bank = parts[0]
-            variant = parts[1]
-            month_match = re.match(r"(\d{4}-\d{2})__", parts[-1])
-            if month_match is None:
-                continue
-            expected = month_match.group(1)
-            text = sample_path.read_text(encoding="utf-8")
-            account = _account(bank=bank, variant=variant)
-            actual = resolve_month_stem(text, _DUMMY_FILENAME, account=account)
-            if actual != expected:
-                failures.append(f"{rel}: expected {expected}, got {actual}")
-
-        self.assertEqual(failures, [])
 
 
 class ResolveMonthStemTests(unittest.TestCase):
@@ -195,7 +165,7 @@ class ExtractStatementDateTests(unittest.TestCase):
         self.assertEqual(parsed, date(2024, 1, 17))
 
     def test_idfc_wow_header_range_fallback(self) -> None:
-        text = "18/05/2023 - 17/06/2023\nAccount Number Statement Date\n5994517941"
+        text = "18/05/2023 - 17/06/2023\nAccount Number Statement Date\n9000000001"
         parsed = extract_statement_date(
             text, account=_account(bank="idfc", variant="wow")
         )

@@ -1,0 +1,136 @@
+"""Golden tests for bank statement fixtures under tests/fixtures/."""
+
+from __future__ import annotations
+
+import json
+import unittest
+
+from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
+from networthcsv.pipeline.metadata.statement_balance import (
+    balances_match,
+    extract_closing_balance,
+    extract_opening_balance,
+)
+from networthcsv.settings import (
+    DEFAULT_CONFIG_PATH,
+    AppConfig,
+    ResolvedAccount,
+    _resolve_variant_defaults,
+)
+from fixtures.helpers import (
+    FIXTURES_ROOT,
+    MANIFEST_PATH,
+    REQUIRED_MANIFEST_KEYS,
+    list_fixture_paths,
+    load_manifest,
+)
+
+_DUMMY_FILENAME = "dummy__2099-99-99.pdf"
+_APP_CONFIG = AppConfig.from_json(
+    json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")),
+    config_path=DEFAULT_CONFIG_PATH,
+)
+
+
+def _account(*, bank: str, variant: str | None) -> ResolvedAccount:
+    bank_variants = _APP_CONFIG.banks[bank]
+    defaults = _resolve_variant_defaults(bank_variants, variant)
+    return ResolvedAccount.model_validate(
+        {
+            "bank": bank,
+            "variant": variant,
+            "account_number": "1234",
+            "passwords": ["x"],
+            **defaults.model_dump(),
+        }
+    )
+
+
+class MetadataFixtureManifestTests(unittest.TestCase):
+    def test_manifest_file_exists(self) -> None:
+        self.assertTrue(MANIFEST_PATH.is_file(), f"missing manifest: {MANIFEST_PATH}")
+
+    def test_every_fixture_file_listed_in_manifest(self) -> None:
+        manifest = load_manifest()
+        fixture_paths = list_fixture_paths()
+        self.assertGreater(len(fixture_paths), 0)
+        missing = [path for path in fixture_paths if path not in manifest]
+        self.assertEqual(missing, [])
+
+    def test_every_manifest_entry_has_fixture_file(self) -> None:
+        manifest = load_manifest()
+        fixture_paths = set(list_fixture_paths())
+        missing_files = [rel for rel in manifest if rel not in fixture_paths]
+        self.assertEqual(missing_files, [])
+
+    def test_manifest_entries_have_required_keys(self) -> None:
+        for rel, entry in load_manifest().items():
+            with self.subTest(fixture=rel):
+                for key in REQUIRED_MANIFEST_KEYS:
+                    self.assertIn(key, entry, f"{rel}: missing {key!r}")
+
+
+class MetadataFixtureGoldenTests(unittest.TestCase):
+    """Extract statement month and balances from every fixture; compare to manifest."""
+
+    def test_all_fixtures_match_manifest(self) -> None:
+        if not FIXTURES_ROOT.is_dir():
+            self.skipTest(f"fixtures not found: {FIXTURES_ROOT}")
+
+        manifest = load_manifest()
+        failures: list[str] = []
+
+        for rel, expected in sorted(manifest.items()):
+            parts = rel.split("/")
+            if len(parts) < 3:
+                continue
+
+            sample_path = FIXTURES_ROOT / rel
+            if not sample_path.is_file():
+                failures.append(f"{rel}: fixture file missing")
+                continue
+
+            bank, variant = parts[0], parts[1]
+            text = sample_path.read_text(encoding="utf-8")
+            account = _account(bank=bank, variant=variant)
+
+            expected_month = expected.get("statement_month")
+            if expected_month:
+                actual_month = resolve_month_stem(
+                    text, _DUMMY_FILENAME, account=account
+                )
+                if actual_month != expected_month:
+                    failures.append(
+                        f"{rel}: month expected {expected_month!r}, got {actual_month!r}",
+                    )
+
+            opening = extract_opening_balance(
+                text,
+                tuple(account.metadata.balances.opening),
+            )
+            closing = extract_closing_balance(
+                text,
+                tuple(account.metadata.balances.closing),
+            )
+
+            expected_opening = expected.get("opening")
+            expected_closing = expected.get("closing")
+
+            if expected_opening is not None and (
+                opening is None or not balances_match(opening, expected_opening)
+            ):
+                failures.append(
+                    f"{rel}: opening expected {expected_opening!r}, got {opening!r}",
+                )
+            if expected_closing is not None and (
+                closing is None or not balances_match(closing, expected_closing)
+            ):
+                failures.append(
+                    f"{rel}: closing expected {expected_closing!r}, got {closing!r}",
+                )
+
+        self.assertEqual(failures, [])
+
+
+if __name__ == "__main__":
+    _ = unittest.main()

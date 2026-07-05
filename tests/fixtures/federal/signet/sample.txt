@@ -1,0 +1,51 @@
+                         Credit Card Number
+                         468798XXXXXX5821
+
+                        Total Amount Due (in Rs.)
+                             0.00
+
+           Name and Address of the Customer Minimum Amount Due (in Rs.)
+       ANANYA REDDY                       0.00
+       12 MG ROAD RESIDENCY **
+       HYDERABAD
+       . Telangana 500032
+
+               Statement Period     Annual Percentage Rate (APR)*
+            22-03-2021 to 21-04-2021       45%
+
+          Credit Limit  Cash Limit      Statement Date
+           169,000      16,900.00        21-04-2021
+
+       Available Credit Limit Available Cash Limit Payment Due Date
+           169000        16900           09-05-2021
+
+
+
+
+
+        0.00                  10.00              10.00                   0.00
+
+
+
+
+
+        0                  0             0             0                   0
+
+
+
+
+
+
+         14-04-2021 COOPERATIVE STORE MEMBERSHIP                       10.00 Dr
+         18-04-2021 PAYMENT RECEIVED THROUGH PG                     10.00 Cr
+
+
+
+
+
+
+
+                          GSTN of Federal Bank: 32AABCT0020H3Z3 | HSN Code: 997113
+                                  Invoice No: 2021042215865821
+           For any query, you may write us on contact@federalbank.co.in or call us at 1800 420 1199 or +91 484 2630994 (for NRI customers)
+                                                                        1

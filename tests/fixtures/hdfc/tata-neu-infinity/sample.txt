@@ -1,0 +1,24 @@
+    Tata Neu Infinity HDFC Bank Credit Card Statement
+    HSN Code: 997113 HDFC Bank Credit Cards GSTIN: 33AAACH2702H2Z6
+    ROHIT KAPOOR          Credit Card No.  652926XXXXXX3851
+    45 Connaught Place New Delhi Alternate Account Number 0001010410004593851
+    NEW DELHI 110001 Delhi
+                           Statement Date      01 Nov, 2021
+    Email : rohit.sample@example.com
+                           Billing Period 02 Oct, 2021 - 01 Nov, 2021
+     PREVIOUS STATEMENT DUES                     FINANCE CHARGES TOTAL AMOUNT DUE
+                        RECEIVED   (Current Billing Cycle)
+                  _                                           C2,100.00
+          C0.00         C2.00   +    C2,102.19 +   C0.00  =
+         TOTAL CREDIT LIMIT
+          (Including Cash) AVAILABLE CREDIT LIMIT AVAILABLE CASH LIMIT MINIMUM DUE DUE DATE
+                                                              C110.00  21 Nov, 2021
+           C8,00,000        C7,97,900         C3,20,000
+   Past Dues  OVER LIMIT 3 MONTHS + 2 MONTHS   1 MONTH    CURRENT DUES MINIMUM DUES
+   (if any)   C0.00      C0.00      C0.00      C0.00      C110.00     C110.00
+                       Domestic Transactions
+                       DATE & TIME TRANSACTION DESCRIPTION    Base NeuCoins* AMOUNT PI
+                                   ROHIT KAPOOR
+                       08/10/2021| 10:15 GOVT FACILITY CHARGE              C 10.00 l
+                       15/10/2021| 16:48 INSURANCE PREMIUM                  C 321.99 l
+    Page 1 of 3

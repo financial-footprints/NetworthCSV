@@ -1,0 +1,92 @@
+{
+  "bob/easy/format1.txt": {
+    "closing": "192.00",
+    "opening": "42.00",
+    "statement_month": "2024-10"
+  },
+  "bob/easy/format2.txt": {
+    "closing": "1250.00",
+    "opening": "-10.00",
+    "statement_month": "2025-03"
+  },
+  "csb/edge/sample.txt": {
+    "closing": "2100.50",
+    "opening": "0.00",
+    "statement_month": "2021-04"
+  },
+  "federal/edge/sample.txt": {
+    "closing": "-650.25",
+    "opening": "0.00",
+    "statement_month": "2021-01"
+  },
+  "federal/signet/sample.txt": {
+    "closing": "0.00",
+    "opening": "0.00",
+    "statement_month": "2021-04"
+  },
+  "hdfc/diners/sample.txt": {
+    "closing": "-2222.22",
+    "opening": "0.00",
+    "statement_month": "2021-03"
+  },
+  "hdfc/regalia-gold/sample.txt": {
+    "closing": "-55.55",
+    "opening": "-500.55",
+    "statement_month": "2021-12"
+  },
+  "hdfc/regalia/sample.txt": {
+    "closing": "12345.67",
+    "opening": "0.00",
+    "statement_month": "2021-09"
+  },
+  "hdfc/swiggy/sample.txt": {
+    "closing": "850.00",
+    "opening": "0.00",
+    "statement_month": "2021-05"
+  },
+  "hdfc/tata-neu-infinity/sample.txt": {
+    "closing": "2100.00",
+    "opening": "0.00",
+    "statement_month": "2021-11"
+  },
+  "icici/amazon/sample.txt": {
+    "closing": "275.50",
+    "opening": "0.00",
+    "statement_month": "2021-10"
+  },
+  "icici/coral/sample.txt": {
+    "closing": "-150.00",
+    "opening": "-2626.26",
+    "statement_month": "2022-05"
+  },
+  "icici/platinum/sample.txt": {
+    "closing": "-1800.00",
+    "opening": "-3261.52",
+    "statement_month": "2022-04"
+  },
+  "idfc/wow/sample.txt": {
+    "closing": "-350.00",
+    "opening": "-350.00",
+    "statement_month": "2021-06"
+  },
+  "indusind/amex-epay/sample.txt": {
+    "closing": "950.00",
+    "opening": "0.00",
+    "statement_month": "2022-02"
+  },
+  "indusind/auraedge/sample.txt": {
+    "closing": "-750.00",
+    "opening": "0.00",
+    "statement_month": "2021-02"
+  },
+  "pnb/platinum/sample.txt": {
+    "closing": "-850",
+    "opening": "-750",
+    "statement_month": "2021-05"
+  },
+  "yes/ace/sample.txt": {
+    "closing": "-120.00",
+    "opening": "-120.00",
+    "statement_month": "2021-02"
+  }
+}

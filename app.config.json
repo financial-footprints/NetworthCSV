@@ -361,11 +361,18 @@
             }
           ],
           "balances": {
+            "match_tolerance": "0.99",
             "opening": [
               {
                 "mode": "summary_table_column",
                 "context": "Account Summary",
                 "column": "Opening Balance"
+              },
+              {
+                "mode": "summary_table_row",
+                "after": "Account Summary",
+                "which": 1,
+                "column": "opening"
               }
             ],
             "closing": [
@@ -373,6 +380,12 @@
                 "mode": "summary_table_column",
                 "context": "Account Summary",
                 "column": "Total Dues"
+              },
+              {
+                "mode": "summary_table_row",
+                "after": "Account Summary",
+                "which": 1,
+                "column": "closing"
               }
             ]
           }

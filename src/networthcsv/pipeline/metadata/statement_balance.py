@@ -11,6 +11,7 @@ from networthcsv.pipeline.cleanup.statement_date import (
 )
 from networthcsv.settings import (
     BalanceMarker,
+    DEFAULT_BALANCE_MATCH_TOLERANCE,
     EdgeSummaryMarker,
     EquationFirstAfterMarker,
     LabelNextLineMarker,
@@ -61,6 +62,12 @@ _TABLE_SECTION_BOUNDARY = re.compile(
     re.IGNORECASE,
 )
 
+_SUMMARY_TABLE_HEADER = re.compile(
+    r"Opening|Balance|Total\s+Dues|Credits|Debits|Charges|Payment|Purchase|Finance|"
+    r"Previous\s+Balance|Closing\s+Balance",
+    re.IGNORECASE,
+)
+
 
 def parse_amount_string(value: str) -> str | None:
     """Parse an Indian credit-card amount into a normalized decimal string."""
@@ -97,6 +104,21 @@ def parse_amount_string(value: str) -> str | None:
     elif debit:
         amount = abs(amount)
     return format(amount, "f")
+
+
+def balances_match(
+    left: str,
+    right: str,
+    *,
+    tolerance: Decimal | None = None,
+) -> bool:
+    """Return True when two balance strings agree within bank rounding tolerance."""
+    threshold = DEFAULT_BALANCE_MATCH_TOLERANCE if tolerance is None else tolerance
+    left_parsed = parse_amount_string(left)
+    right_parsed = parse_amount_string(right)
+    if left_parsed is None or right_parsed is None:
+        return left == right
+    return abs(Decimal(left_parsed) - Decimal(right_parsed)) <= threshold
 
 
 def _is_inside_cid(text: str, index: int) -> bool:
@@ -136,6 +158,10 @@ def _is_table_section_boundary(line: str) -> bool:
     return _TABLE_SECTION_BOUNDARY.search(line) is not None
 
 
+def _summary_table_header_seen(header_lines: list[str]) -> bool:
+    return any(_SUMMARY_TABLE_HEADER.search(line) for line in header_lines)
+
+
 def _label_position_in_headers(header_lines: list[str], column: str) -> int | None:
     for line in header_lines:
         match = _label_regex(column).search(line)
@@ -145,11 +171,26 @@ def _label_position_in_headers(header_lines: list[str], column: str) -> int | No
     words = column.split()
     if not words:
         return None
-    for word in (words[0], words[-1]) if len(words) > 1 else words:
+    if len(words) > 1:
+        last_pos: int | None = None
+        first_pos: int | None = None
         for line in header_lines:
-            match = _label_regex(word).search(line)
+            match = _label_regex(words[-1]).search(line)
             if match is not None:
-                return match.start()
+                last_pos = match.start()
+            match = _label_regex(words[0]).search(line)
+            if match is not None and first_pos is None:
+                first_pos = match.start()
+        if last_pos is not None:
+            return last_pos
+        if first_pos is not None:
+            return first_pos
+        return None
+
+    for line in header_lines:
+        match = _label_regex(words[0]).search(line)
+        if match is not None:
+            return match.start()
     return None
 
 
@@ -198,8 +239,21 @@ def _apply_label_next_line(text: str, marker: LabelNextLineMarker) -> str | None
     match = _find_label(text, marker.label)
     if match is None:
         return None
-    window = text[match.end() : match.end() + 400]
-    return _first_amount_in_text(window)
+    tail = text[match.end() : match.end() + 400]
+    line_break = tail.find("\n")
+    if line_break == -1:
+        return None
+    for line in tail[line_break + 1 :].split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        currency_amounts = _amounts_with_positions(line, currency_only=True)
+        if currency_amounts:
+            return currency_amounts[0][0]
+        amounts = _amounts_with_positions(line, currency_only=False)
+        if amounts:
+            return amounts[0][0]
+    return None
 
 
 def _apply_summary_table_column(
@@ -222,7 +276,7 @@ def _apply_summary_table_column(
         if _is_table_section_boundary(line):
             break
         row_amounts, row_currency_only = _summary_row_amounts(line)
-        if len(row_amounts) >= 2:
+        if len(row_amounts) >= 3 and _summary_table_header_seen(header_lines):
             data_line = line
             data_currency_only = row_currency_only
             break

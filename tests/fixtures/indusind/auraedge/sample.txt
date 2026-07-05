@@ -1,0 +1,28 @@
+   INDUSIND BANK PLATINUM AURA EDGE CREDIT CARD STATEMENT
+                                                                   Previous Balance
+                                                                     0.00 DR
+                                                                 Purchases & Other Charges
+                                                                      10.00
+                                                                    Cash Advance
+                                                                      0.00
+                                                                  Payment & Other Credits
+                                                                     760.00
+     CCrreeddiitt Credit Limit Available Credit Limit Cash Limit Available Cash Limit
+    SSuummmmaarryy 500000.00 500750.00   100000.00    100000.00
+                                                                   Total Amount Due
+                              750.00 CR
+                                                                   Minimum Amount Due
+     1:            2:               0.00
+                            ACCOUNT SUMMARY                          06/03/2021
+     Date        Transaction Details  Merchant Category Reward Amount (in )
+                                                  Points
+    Payment Details for MR RAHUL MEHTA (Credit Card No. 4412XXXXXXXX3856) Statement Period
+    03/02/2021 SWIFTPAY PAYMENT                     0     760.00 CR
+                                                                 16/01/2021 To 15/02/2021
+    TOTAL                                           0    760.00
+    Purchase & Cash Transactions for MR RAHUL MEHTA (Credit Card No. 4412XXXXXXXX3856)
+    29/01/2021 MUNICIPAL SERVICE FEE IN GOVT SERVICES 0 10.00 DR Statement Date
+    TOTAL                                           0    10.00       15/02/2021
+                                                                    Total Outstanding
+                                                                     (Including Loans)
+                                                                     750.00 CR

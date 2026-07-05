@@ -1,0 +1,28 @@
+                                          Diners Club International Credit Card Statement
+                                 HDFC Bank Credit Cards GSTIN : 33AAACH2702H2Z6 HSN Code : 997113
+0  Name : RAHUL MEHTA                       Statement for HDFC Bank Credit Card
+0001015260001153847
+   Email : rahul.sample@example.com                      Card No: 3610 10XXXX 3847
+0  Address : 22 Lake View Road Kochi Statement Date:20/03/2021 AAN : 0001015260001153847
+        KOCHI-682016 Kerala
+                                     Payment Due Date  Total Dues  Minimum Amount Due
+   GST No :
+  In case you wish to update the personal details,please write a letter 09/04/2021 -2,222.22 0.00
+  to The Manager, HDFC Bank Card Division, # 8, L B Road,
+  Thiruvanmiyur, Chennai   600041
+                                       Credit Limit Available Credit Limit Available Cash Limit
+                                        8,00,000        8,02,222       3,20,000
+                                                    Account Summary
+                                    Opening  Payment/  Purchase/ Finance
+                                                                         Total Dues
+                                    Balance   Credits   Debits   Charges
+                                      0.00    3,320.00  1,097.78  0.00    -2,222.22
+                                  Domestic Transactions
+       Date    Transaction Description                               Amount (in Rs.)
+               RAHUL MEHTA
+  19/02/2021 14:08:11 PASSPORT OFFICE FEE                               1,097.78
+  20/02/2021 08:22:17 IMPS PMT 778812345678 3847 (Ref# 00000000008822123456789) 1,115.00Cr
+  27/02/2021 16:41:03 IMPS PMT 778823456789 3847 (Ref# 00000000007733123456789) 738.00Cr
+  03/03/2021 09:15:44 IMPS PMT 778834567890 3847 (Ref# 00000000006644123456789) 730.00Cr
+  04/03/2021 21:07:52 IMPS PMT 778845678901 3847 (Ref# 00000000005555123456789) 737.00Cr
+                                      Page 1 of 2

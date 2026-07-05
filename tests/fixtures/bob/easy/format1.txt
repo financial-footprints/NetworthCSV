@@ -17,14 +17,14 @@
                              Opening Balance Payment/Credits        Closing Balance
                                                        Purchases/Debits
                                  42.00        100.00      50.00        192.00
-                                       .  . Online Pay I.D. 0001234567890123456
+                                       .  . Online Pay I.D. 9081726354458392
   Transaction Details
     Date  Ref. No.          Particulars        Reward       Source Amt. Amount
-   09/10/2024 R35669 SAMPLE SHOP 356                   0   INR         50.00    50.00 DR
+   08/10/2024 R88001 MUNICIPAL SERVICE FEE               0   INR         50.00    50.00 DR
    Please register your Mobile No. and Email ID via the BOBCARD mobile app.
                                       Page 1 of 4
   Transaction Details
-   10/10/2024 R35670 SAMPLE SHOP 356                   0   INR         25.00    25.00 DR
+   11/10/2024 R88002 LIBRARY MEMBERSHIP RENEWAL          0   INR         25.00    25.00 DR
                                       Page 2 of 4
   Reward Summary at Card Level
    XXXX4829  Primary  0  0  0  0  0  0  0  0

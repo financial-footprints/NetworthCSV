@@ -8,6 +8,7 @@ import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
@@ -137,12 +138,30 @@ BalanceMarker = Annotated[
 
 _balance_marker_adapter: TypeAdapter[BalanceMarker] = TypeAdapter(BalanceMarker)
 
+DEFAULT_BALANCE_MATCH_TOLERANCE = Decimal("0.21")
+
 
 class BalanceMarkersConfig(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     opening: list[BalanceMarker] = []
     closing: list[BalanceMarker] = []
+    match_tolerance: Decimal = Field(default=DEFAULT_BALANCE_MATCH_TOLERANCE)
+
+    @field_validator("match_tolerance", mode="before")
+    @classmethod
+    def validate_match_tolerance(cls, value: object) -> Decimal:
+        if value is None:
+            return DEFAULT_BALANCE_MATCH_TOLERANCE
+        try:
+            tolerance = Decimal(str(value))
+        except InvalidOperation as exc:
+            raise ValueError(
+                "metadata.balances.match_tolerance must be a number"
+            ) from exc
+        if tolerance < 0:
+            raise ValueError("metadata.balances.match_tolerance must be >= 0")
+        return tolerance
 
 
 def normalize_bank(value: object) -> str:
@@ -316,7 +335,14 @@ def normalize_balances(value: object) -> BalanceMarkersConfig:
             raise ValueError(
                 f"metadata.balances.closing[{index}]: {_format_exception(exc)}"
             ) from exc
-    return BalanceMarkersConfig(opening=opening, closing=closing)
+    match_tolerance = raw.get("match_tolerance")
+    payload: dict[str, object] = {
+        "opening": opening,
+        "closing": closing,
+    }
+    if match_tolerance is not None:
+        payload["match_tolerance"] = match_tolerance
+    return BalanceMarkersConfig.model_validate(payload)
 
 
 def normalize_body_contains(value: object) -> list[str]:

@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from dataclasses import asdict, dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -18,6 +19,7 @@ from networthcsv.settings import (
     format_opening_date,
 )
 from networthcsv.pipeline.metadata.statement_balance import (
+    balances_match,
     extract_closing_balance,
     extract_opening_balance,
 )
@@ -112,6 +114,8 @@ def months_between_exclusive(start: str, end: str) -> tuple[str, ...]:
 
 def compute_balance_gaps(
     statements: tuple[StatementMetadata, ...],
+    *,
+    tolerance: Decimal | None = None,
 ) -> tuple[BalanceGap, ...]:
     """Mark gap months and adjacent-statement balance discontinuities."""
     if len(statements) < 2:
@@ -135,14 +139,17 @@ def compute_balance_gaps(
             continue
 
         if between:
-            status: BalanceGapStatus = "matched" if closing == opening else "mismatched"
+            status: BalanceGapStatus = (
+                "matched"
+                if balances_match(closing, opening, tolerance=tolerance)
+                else "mismatched"
+            )
             gaps.extend(BalanceGap(month=month, status=status) for month in between)
             continue
 
-        if (
-            following_covered == _next_month_key(previous_covered)
-            and closing != opening
-        ):
+        if following_covered == _next_month_key(
+            previous_covered
+        ) and not balances_match(closing, opening, tolerance=tolerance):
             gaps.append(BalanceGap(month=previous_covered, status="discontinuity"))
             gaps.append(BalanceGap(month=following_covered, status="discontinuity"))
 

@@ -7,6 +7,7 @@ import os
 import tempfile
 import unittest
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 from unittest import mock
@@ -730,6 +731,67 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(len(markers.opening), 1)
             self.assertEqual(markers.opening[0].mode, "summary_table_column")
             self.assertEqual(len(markers.closing), 1)
+            self.assertEqual(markers.match_tolerance, Decimal("0.21"))
+
+    def test_balance_match_tolerance_defaults_when_omitted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = (root / "statements").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="bob")],
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {
+                    "bob": {
+                        "default": {
+                            "mail": {"subjects": ["BOB"]},
+                            "metadata": {"balances": {"opening": [], "closing": []}},
+                        }
+                    }
+                },
+            )
+            settings = load_settings(app_config_path)
+            self.assertEqual(
+                settings.accounts[0].metadata.balances.match_tolerance,
+                Decimal("0.21"),
+            )
+
+    def test_balance_match_tolerance_loads_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = (root / "statements").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[self._account(bank="bob")],
+            )
+            app_config_path = self._write_app_config(
+                root,
+                "user.config.json",
+                {
+                    "bob": {
+                        "default": {
+                            "mail": {"subjects": ["BOB"]},
+                            "metadata": {
+                                "balances": {
+                                    "match_tolerance": "0.50",
+                                    "opening": [],
+                                    "closing": [],
+                                }
+                            },
+                        }
+                    }
+                },
+            )
+            settings = load_settings(app_config_path)
+            self.assertEqual(
+                settings.accounts[0].metadata.balances.match_tolerance,
+                Decimal("0.50"),
+            )
 
     def test_invalid_statement_date_marker_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

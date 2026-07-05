@@ -1,0 +1,26 @@
+                                           Hdfc Bank Regalia Gold Credit Card Statement
+                                 HDFC Bank Credit Cards GSTIN : 33AAACH2702H2Z6 HSN Code : 997113
+0  Name : VIKRAM DESAI                       Statement for HDFC Bank Credit Card
+0001018170001633849
+   Email : vikram.sample@example.com                      Card No: 5522 60XX XXXX 3849
+0  Address : 8 Anna Salai Chennai Statement Date:20/12/2021 AAN : 0001018170001633849
+        CHENNAI-600002 Tamil Nadu
+                                     Payment Due Date  Total Dues  Minimum Amount Due
+   GST No :
+  In case you wish to update the personal details,please write a letter to 09/01/2022 -55.55 -55.55
+  The Manager, HDFC Bank Card Division, # 8, L B Road, Thiruvanmiyur,
+  Chennai   600041
+                                       Credit Limit Available Credit Limit Available Cash Limit
+                                        5,00,000        5,00,056       2,00,056
+                                                    Account Summary
+                                    Opening  Payment/  Purchase/ Finance
+                                                                         Total Dues
+                                    Balance   Credits   Debits   Charges
+                                     -500.55  15,040.00 15,405.00 0.00     -55.55
+                                  Domestic Transactions
+       Date    Transaction Description                               Amount (in Rs.)
+               VIKRAM DESAI
+  18/11/2021 09:33:41 IMPS PMT 889912345678 3849 (Ref# 00000000009988123456789) 760.00Cr
+  18/11/2021 09:34:02 MUNICIPAL TAX SETTLEMENT                            15,405.00
+  19/11/2021   TELE TRANSFER CREDIT (Ref# ST889900883000010194501)       3,750.00Cr
+                                      Page 1 of 2

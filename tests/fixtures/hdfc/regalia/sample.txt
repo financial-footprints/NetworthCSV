@@ -1,0 +1,26 @@
+                                              Regalia Mastercard Credit Card Statement
+                    HDFC Bank Credit Cards GSTIN : 33AAACH2702H2Z6 HSN Code : 997113
+0  Name : PRIYA SHARMA                       Statement for HDFC Bank Credit Card
+0001017100000593848
+   Email : priya.sample@example.com                      Card No: 5522 60XX XXXX 3848
+0  Address : 14 Residency Road Bengaluru Statement Date:20/09/2021 AAN : 0001017100000593848
+        BENGALURU-560025 Karnataka
+                                     Payment Due Date  Total Dues  Minimum Amount Due
+   GST No :
+  In case you wish to update the personal details,please write a letter 10/10/2021 12,345.67 620.00
+  to The Manager, HDFC Bank Card Division, # 8, L B Road,
+  Thiruvanmiyur, Chennai   600041
+                                       Credit Limit Available Credit Limit Available Cash Limit
+                                        5,00,000        4,87,654       2,00,000
+                                                    Account Summary
+                                    Opening  Payment/  Purchase/ Finance
+                                                                         Total Dues
+                                    Balance   Credits   Debits   Charges
+                                      0.00     5.00    12,350.67  0.00    12,345.67
+                                  Domestic Transactions
+       Date    Transaction Description                               Amount (in Rs.)
+               PRIYA SHARMA
+  12/09/2021 07:18:22 HOSPITAL OUTPATIENT DEPOSIT                           163.00
+  13/09/2021 15:44:09 INSURANCE PREMIUM PAYMENT                          12,100.00
+  14/09/2021 11:03:51 LIBRARY ANNUAL MEMBERSHIP                              87.67
+                                      Page 1 of 2

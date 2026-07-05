@@ -79,7 +79,7 @@ class BobFormatFixtureTests(unittest.TestCase):
     def test_format1_trim_keeps_through_reward_summary(self) -> None:
         trimmed = self.trimmed_format1
         self.assertIn("Reward Summary at Card Level", trimmed)
-        self.assertIn("R35670 SAMPLE SHOP", trimmed)
+        self.assertIn("R88002 LIBRARY MEMBERSHIP", trimmed)
         self.assertNotIn("Page 3 of 4", trimmed)
 
     def test_format2_balances_from_second_summary_row(self) -> None:

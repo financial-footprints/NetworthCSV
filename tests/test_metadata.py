@@ -263,6 +263,107 @@ class ComputeBalanceGapsTests(unittest.TestCase):
 
         self.assertEqual(compute_balance_gaps(statements), ())
 
+    def test_adjacent_statements_small_diff_produces_no_gaps(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                opening_balance="11000.00",
+                closing_balance="11111.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-03",
+                formats=("pdf",),
+                opening_balance="11111.01",
+                closing_balance="11500.00",
+            ),
+        )
+
+        self.assertEqual(compute_balance_gaps(statements), ())
+
+    def test_adjacent_statements_diff_above_tolerance_marks_discontinuity(
+        self,
+    ) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                opening_balance="11000.00",
+                closing_balance="11111.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-03",
+                formats=("pdf",),
+                opening_balance="11111.22",
+                closing_balance="11500.00",
+            ),
+        )
+
+        self.assertEqual(
+            compute_balance_gaps(statements),
+            (
+                BalanceGap(month="2024-01", status="discontinuity"),
+                BalanceGap(month="2024-02", status="discontinuity"),
+            ),
+        )
+
+    def test_adjacent_statements_boundary_tolerance_produces_no_gaps(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                opening_balance="11000.00",
+                closing_balance="11111.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-03",
+                formats=("pdf",),
+                opening_balance="11111.21",
+                closing_balance="11500.00",
+            ),
+        )
+
+        self.assertEqual(compute_balance_gaps(statements), ())
+
+    def test_small_diff_across_gap_is_matched(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                opening_balance="0.00",
+                closing_balance="10.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-04",
+                formats=("pdf",),
+                opening_balance="10.01",
+                closing_balance="20.00",
+            ),
+        )
+
+        self.assertEqual(
+            compute_balance_gaps(statements),
+            (BalanceGap(month="2024-02", status="matched"),),
+        )
+
+    def test_adjacent_credit_card_statements_no_discontinuity(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2021-05",
+                formats=("pdf",),
+                opening_balance="-2222.22",
+                closing_balance="11111.11",
+            ),
+            StatementMetadata(
+                statement_date="2021-06",
+                formats=("pdf",),
+                opening_balance="11111.11",
+                closing_balance="-555.55",
+            ),
+        )
+
+        self.assertEqual(compute_balance_gaps(statements), ())
+
     def test_single_statement_produces_no_gaps(self) -> None:
         statements = (
             StatementMetadata(

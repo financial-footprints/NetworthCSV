@@ -137,34 +137,34 @@ def purge_information_markers(
     return _drop_blank_lines(result)
 
 
-def file_marker_present(text: str, file_marker: str) -> bool:
-    return file_marker in text
+def file_marker_present(text: str, file_markers: list[str]) -> bool:
+    return any(marker in text for marker in file_markers if marker)
 
 
 def check_file_marker(
     text: str,
     *,
-    file_marker: str,
+    file_markers: list[str],
     source_file: str,
     account_label: str,
     alerts: AlertService | None = None,
 ) -> bool:
-    if file_marker_present(text, file_marker):
+    if file_marker_present(text, file_markers):
         return True
     logger.debug(
-        "ignored %s for %s: file marker %r not found",
+        "ignored %s for %s: file markers %r not found",
         source_file,
         account_label,
-        file_marker,
+        file_markers,
     )
     if alerts is not None:
         alerts.emit(
             Alert(
                 kind=AlertKind.FILE_MARKER_MISSING,
-                message=f"file marker {file_marker!r} not found in {source_file}",
+                message=f"file markers {file_markers!r} not found in {source_file}",
                 account=account_label,
                 source_file=source_file,
-                file_marker=file_marker,
+                file_markers=file_markers,
             )
         )
     return False

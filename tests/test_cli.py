@@ -38,7 +38,7 @@ class CliTests(unittest.TestCase):
                         "bank": "bob",
                         "variant": "easy",
                         "account_number": "1",
-                        "file_marker": "1",
+                        "file_markers": "1",
                         "passwords": ["x"],
                     }
                 ],

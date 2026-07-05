@@ -19,4 +19,4 @@ class Alert:
     message: str
     account: str
     source_file: str
-    file_marker: str
+    file_markers: list[str]

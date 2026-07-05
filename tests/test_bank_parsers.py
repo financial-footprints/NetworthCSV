@@ -19,7 +19,7 @@ class BankParserRegistryTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_marker": "1",
+                "file_markers": "1",
                 "subjects": ["stmt"],
                 "passwords": ["x"],
             }

@@ -36,14 +36,14 @@ def _extract_side_effect(
 
 
 def _account(
-    *, file_marker: str = "5678", account_number: str = "5678"
+    *, file_markers: list[str] | str = "5678", account_number: str = "5678"
 ) -> ResolvedAccount:
     return ResolvedAccount.model_validate(
         {
             "bank": "bob",
             "variant": "easy",
             "account_number": account_number,
-            "file_marker": file_marker,
+            "file_markers": file_markers,
             "subjects": ["BOB"],
             "bodies": [],
             "from": [],
@@ -103,7 +103,7 @@ class PrepareMonthTests(unittest.TestCase):
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            account = _account(file_marker="", account_number="acct-1")
+            account = _account(file_markers=[], account_number="acct-1")
             staging_dir, download_path, account = _staging_layout(tmp, account)
             staging = self._write_pdf(staging_dir, "All Mail__2023-04-18.pdf")
             mock_extract.return_value = "statement with no matchable marker"
@@ -233,6 +233,56 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(txt_out.is_file())
             self.assertTrue(first.is_file())
             self.assertTrue(second.is_file())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_accepts_month_when_any_file_marker_matches(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            account = _account(file_markers=["5678", "XXXX5678"], account_number="5678")
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            staging = self._write_pdf(staging_dir, "All Mail__2023-04-18.pdf")
+            mock_extract.return_value = "card ending XXXX5678"
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2023-04",
+                [staging],
+                account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2023-04")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(pdf_out.is_file())
+            self.assertTrue(txt_out.is_file())
+            self.assertIn("XXXX5678", txt_out.read_text(encoding="utf-8"))
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_rejects_month_when_no_file_markers_match(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            account = _account(file_markers=["5678", "XXXX5678"], account_number="5678")
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            staging = self._write_pdf(staging_dir, "All Mail__2023-04-18.pdf")
+            mock_extract.return_value = "card ending 9999"
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2023-04",
+                [staging],
+                account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2023-04")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (0, 1))
+            self.assertFalse(pdf_out.is_file())
+            self.assertFalse(txt_out.is_file())
+            self.assertTrue(staging.is_file())
 
     @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_reject_preserves_existing_month_outputs(

@@ -348,10 +348,8 @@ def normalize_account_number(value: object) -> str:
     return account_number
 
 
-def normalize_file_marker(value: object) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
+def normalize_file_markers(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="file_markers")
 
 
 def normalize_passwords(value: object) -> list[str]:
@@ -445,7 +443,7 @@ AccountNumber = Annotated[str, BeforeValidator(normalize_account_number)]
 OptionalIdentifier = Annotated[
     str | None, BeforeValidator(_optional(normalize_account_number))
 ]
-FileMarker = Annotated[str, BeforeValidator(normalize_file_marker)]
+FileMarkers = Annotated[list[str], BeforeValidator(normalize_file_markers)]
 Passwords = Annotated[list[str], BeforeValidator(normalize_passwords)]
 
 
@@ -655,7 +653,7 @@ class UserAccountConfig(MatchingFieldsCore):
     bank: BankName
     variant: VariantName = None
     account_number: AccountNumber
-    file_marker: FileMarker = ""
+    file_markers: FileMarkers = []
     passwords: Passwords
     opening_date: date | None = None
     closing_date: date | None = None
@@ -869,7 +867,7 @@ class ResolvedAccount(MatchingFields):
     bank: str
     variant: str | None = None
     account_number: str
-    file_marker: str = ""
+    file_markers: FileMarkers = []
     passwords: list[str] = Field(min_length=1)
     opening_date: date | None = None
     closing_date: date | None = None
@@ -954,7 +952,7 @@ def _resolved_account(
             "bank": bank_key,
             "variant": user_account.variant,
             "account_number": user_account.account_number,
-            "file_marker": user_account.file_marker,
+            "file_markers": user_account.file_markers,
             "passwords": user_account.passwords,
             "opening_date": user_account.opening_date,
             "closing_date": user_account.closing_date,

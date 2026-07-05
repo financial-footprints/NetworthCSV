@@ -46,7 +46,7 @@ def _write_minimal_configs(root: Path) -> Path:
                         "bank": "bob",
                         "variant": "easy",
                         "account_number": "1",
-                        "file_marker": "1",
+                        "file_markers": "1",
                         "passwords": ["x"],
                     }
                 ],
@@ -84,14 +84,14 @@ def _write_two_account_configs(root: Path) -> Path:
                         "bank": "bob",
                         "variant": "easy",
                         "account_number": "1",
-                        "file_marker": "1",
+                        "file_markers": "1",
                         "passwords": ["x"],
                     },
                     {
                         "bank": "bob",
                         "variant": "other",
                         "account_number": "2",
-                        "file_marker": "2",
+                        "file_markers": "2",
                         "passwords": ["x"],
                     },
                 ],
@@ -271,7 +271,7 @@ class RuntimeApiTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_marker": "1",
+                "file_markers": "1",
                 "subjects": ["stmt"],
                 "passwords": ["x"],
             }
@@ -299,7 +299,7 @@ class StageErrorTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_marker": "1",
+                "file_markers": "1",
                 "subjects": ["stmt"],
                 "passwords": ["x"],
             }
@@ -319,7 +319,7 @@ class StageErrorTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_marker": "1",
+                "file_markers": "1",
                 "subjects": ["stmt"],
                 "passwords": ["x"],
             }
@@ -361,7 +361,7 @@ class StageErrorTests(unittest.TestCase):
             {
                 "bank": "bob",
                 "account_number": "1",
-                "file_marker": "1",
+                "file_markers": "1",
                 "subjects": ["stmt"],
                 "passwords": ["x"],
             }

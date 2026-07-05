@@ -51,7 +51,7 @@ def _account(*, account_number: str = "5678") -> ResolvedAccount:
             "bank": "bob",
             "variant": "easy",
             "account_number": account_number,
-            "file_marker": account_number,
+            "file_markers": account_number,
             "subjects": ["BOB"],
             "passwords": ["secret"],
         }

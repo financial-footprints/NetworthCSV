@@ -35,7 +35,7 @@ class SmtpEmailAlertHandler:
                     f"{index}. [{alert.kind}] {alert.message}",
                     f"   account: {alert.account}",
                     f"   file: {alert.source_file}",
-                    f"   file_marker: {alert.file_marker!r}",
+                    f"   file_markers: {alert.file_markers!r}",
                     "",
                 ]
             )

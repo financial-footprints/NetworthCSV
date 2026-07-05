@@ -147,14 +147,20 @@ class SanitizeStatementTextTests(unittest.TestCase):
 
 class FileMarkerValidationTests(unittest.TestCase):
     def test_file_marker_present(self) -> None:
-        self.assertTrue(file_marker_present("Card ending in 1234", "1234"))
-        self.assertFalse(file_marker_present("Card ending in 5678", "1234"))
+        self.assertTrue(file_marker_present("Card ending in 1234", ["1234"]))
+        self.assertFalse(file_marker_present("Card ending in 5678", ["1234"]))
+        self.assertTrue(
+            file_marker_present("Card ending in XXXX5678", ["1234", "XXXX5678"])
+        )
+        self.assertFalse(
+            file_marker_present("Card ending in 9999", ["1234", "XXXX5678"])
+        )
 
     @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
     def test_file_marker_found(self, mock_debug: MagicMock) -> None:
         result = check_file_marker(
             "Card ending in 1234",
-            file_marker="1234",
+            file_markers=["1234"],
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
         )
@@ -165,16 +171,16 @@ class FileMarkerValidationTests(unittest.TestCase):
     def test_file_marker_missing(self, mock_debug: MagicMock) -> None:
         result = check_file_marker(
             "Card ending in 5678",
-            file_marker="1234",
+            file_markers=["1234"],
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
         )
         self.assertFalse(result)
         mock_debug.assert_called_once_with(
-            "ignored %s for %s: file marker %r not found",
+            "ignored %s for %s: file markers %r not found",
             "2024-01.pdf",
             "pnb/platinum",
-            "1234",
+            ["1234"],
         )
 
 

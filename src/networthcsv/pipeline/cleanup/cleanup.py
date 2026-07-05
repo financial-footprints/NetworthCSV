@@ -249,9 +249,9 @@ def prepare_month(
     ]
     if manual_candidates:
         keeper = manual_candidates[-1]
-    elif account.file_marker:
+    elif account.file_markers:
         for path in unique:
-            if file_marker_present(sanitized_by_path[path], account.file_marker):
+            if file_marker_present(sanitized_by_path[path], account.file_markers):
                 keeper = path
     elif unique:
         keeper = unique[-1]
@@ -260,10 +260,10 @@ def prepare_month(
         for path in unique:
             if canonical is not None and path.resolve() == canonical.resolve():
                 continue
-            if account.file_marker:
+            if account.file_markers:
                 _ = check_file_marker(
                     sanitized_by_path[path],
-                    file_marker=account.file_marker,
+                    file_markers=account.file_markers,
                     source_file=path.name,
                     account_label=label,
                     alerts=alerts,
@@ -273,23 +273,23 @@ def prepare_month(
     raw = raw_by_path[keeper]
     keeper_is_manual = keeper in manual_candidates
     preserve: frozenset[Path] = frozenset()
-    if account.file_marker and not keeper_is_manual:
+    if account.file_markers and not keeper_is_manual:
         preserve = frozenset(
             path
             for path in unique
             if path != keeper
-            and not file_marker_present(sanitized_by_path[path], account.file_marker)
+            and not file_marker_present(sanitized_by_path[path], account.file_markers)
         )
     for path in unique:
         if path == keeper:
             continue
         if keeper_is_manual or not file_marker_present(
-            sanitized_by_path[path], account.file_marker
+            sanitized_by_path[path], account.file_markers
         ):
-            if account.file_marker and not keeper_is_manual:
+            if account.file_markers and not keeper_is_manual:
                 _ = check_file_marker(
                     sanitized_by_path[path],
-                    file_marker=account.file_marker,
+                    file_markers=account.file_markers,
                     source_file=path.name,
                     account_label=label,
                     alerts=alerts,
@@ -407,8 +407,8 @@ def run(
                 and txt_is_current(pdf_out, txt_out)
             ):
                 txt_content = txt_out.read_text(encoding="utf-8")
-                if not account.file_marker or file_marker_present(
-                    txt_content, account.file_marker
+                if not account.file_markers or file_marker_present(
+                    txt_content, account.file_markers
                 ):
                     continue
 

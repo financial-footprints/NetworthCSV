@@ -17,10 +17,10 @@ class ConsoleAlertHandler:
     def send(self, alerts: Sequence[Alert]) -> None:
         for alert in alerts:
             logger.debug(
-                "ALERT [%s] %s (account=%s, file=%s, file_marker=%r)",
+                "ALERT [%s] %s (account=%s, file=%s, file_markers=%r)",
                 alert.kind,
                 alert.message,
                 alert.account,
                 alert.source_file,
-                alert.file_marker,
+                alert.file_markers,
             )

@@ -49,7 +49,7 @@ def _account(
             "bank": "bob",
             "variant": "easy",
             "account_number": account_number,
-            "file_marker": account_number,
+            "file_markers": account_number,
             "subjects": ["BOB"],
             "passwords": ["secret"],
             "opening_date": opening_date,
@@ -350,7 +350,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
                     "bank": "bob",
                     "variant": "easy",
                     "account_number": "5678",
-                    "file_marker": "5678",
+                    "file_markers": "5678",
                     "subjects": ["BOB"],
                     "passwords": ["secret"],
                     "statement_date_markers": [

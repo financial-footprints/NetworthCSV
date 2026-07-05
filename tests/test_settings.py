@@ -42,7 +42,7 @@ from networthcsv.settings import (
     normalize_bodies,
     normalize_from,
     normalize_account_number,
-    normalize_file_marker,
+    normalize_file_markers,
     normalize_variant,
     resolve_config_path,
 )
@@ -161,7 +161,7 @@ class SettingsTests(unittest.TestCase):
     def _account(self, **kwargs: object) -> dict[str, object]:
         data: dict[str, object] = {
             "account_number": "1234",
-            "file_marker": "1234",
+            "file_markers": "1234",
             "passwords": ["x"],
         }
         data.update(kwargs)
@@ -192,7 +192,7 @@ class SettingsTests(unittest.TestCase):
         bank: str = "bob",
         variant: str | None = None,
         account_number: str = "1234",
-        file_marker: str = "1234",
+        file_markers: list[str] | str = "1234",
         subjects: list[str] | None = None,
         bodies: list[str] | None = None,
         from_filters: list[str] | None = None,
@@ -207,7 +207,7 @@ class SettingsTests(unittest.TestCase):
                 "bank": bank,
                 "variant": variant,
                 "account_number": account_number,
-                "file_marker": file_marker,
+                "file_markers": file_markers,
                 "subjects": subjects or ["BOB"],
                 "type": account_type,
                 "bodies": bodies or [],
@@ -250,7 +250,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings.accounts[0].subjects, ["BOB"])
             self.assertEqual(settings.accounts[0].passwords, ["secret", "other"])
             self.assertEqual(settings.accounts[0].account_number, "1234")
-            self.assertEqual(settings.accounts[0].file_marker, "1234")
+            self.assertEqual(settings.accounts[0].file_markers, ["1234"])
             self.assertEqual(settings.accounts[0].bodies, [])
             self.assertEqual(settings.accounts[0].from_filters, [])
             self.assertEqual(settings.accounts[0].account_type, "credit_card")
@@ -375,10 +375,12 @@ class SettingsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _ = normalize_account_number("   ")
 
-        self.assertEqual(normalize_file_marker("1234"), "1234")
-        self.assertEqual(normalize_file_marker("  XXXX 5678  "), "XXXX 5678")
-        self.assertEqual(normalize_file_marker(""), "")
-        self.assertEqual(normalize_file_marker(None), "")
+        self.assertEqual(normalize_file_markers("1234"), ["1234"])
+        self.assertEqual(normalize_file_markers("  XXXX 5678  "), ["XXXX 5678"])
+        self.assertEqual(normalize_file_markers(["1234", "5678"]), ["1234", "5678"])
+        self.assertEqual(normalize_file_markers(""), [])
+        self.assertEqual(normalize_file_markers(None), [])
+        self.assertEqual(normalize_file_markers([]), [])
 
         self.assertEqual(normalize_bodies(["A", "a", " B "]), ["A", "B"])
         self.assertEqual(normalize_bodies(None), [])

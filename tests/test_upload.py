@@ -30,7 +30,7 @@ def _account() -> ResolvedAccount:
             "bank": "bob",
             "variant": "easy",
             "account_number": "5678",
-            "file_marker": "5678",
+            "file_markers": "5678",
             "subjects": ["BOB"],
             "passwords": ["secret"],
         }

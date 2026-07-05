@@ -26,7 +26,7 @@ def _account() -> ResolvedAccount:
             "bank": "icici",
             "variant": "amazon",
             "account_number": "1234",
-            "file_marker": "1234",
+            "file_markers": "1234",
             "subjects": ["ICICI Bank Credit Card Statement for the period"],
             "bodies": [],
             "from": ["icicibank.com"],

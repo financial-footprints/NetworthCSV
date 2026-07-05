@@ -42,7 +42,7 @@ class AlertServiceTests(unittest.TestCase):
             message="missing",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            file_marker="1234",
+            file_markers=["1234"],
         )
 
         service.emit(alert)
@@ -59,7 +59,7 @@ class AlertServiceTests(unittest.TestCase):
             message="missing",
             account="bob/easy",
             source_file="2024-02.pdf",
-            file_marker="5678",
+            file_markers=["5678"],
         )
 
         service.emit(alert)
@@ -75,7 +75,7 @@ class AlertServiceTests(unittest.TestCase):
             message="missing",
             account="bob/easy",
             source_file="2024-02.pdf",
-            file_marker="5678",
+            file_markers=["5678"],
         )
 
         service.emit(alert)
@@ -98,7 +98,7 @@ class AlertServiceTests(unittest.TestCase):
                 message="missing",
                 account="pnb/platinum",
                 source_file="2024-01.pdf",
-                file_marker="1234",
+                file_markers=["1234"],
             )
         )
         mock_console_cls.assert_called_once()
@@ -116,7 +116,7 @@ class AlertServiceTests(unittest.TestCase):
                     message="missing",
                     account="pnb/platinum",
                     source_file="2024-01.pdf",
-                    file_marker="1234",
+                    file_markers=["1234"],
                 )
             )
             service.flush()
@@ -132,7 +132,7 @@ class ConsoleAlertHandlerTests(unittest.TestCase):
             message="file marker '1234' not found in 2024-01.pdf",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            file_marker="1234",
+            file_markers=["1234"],
         )
 
         handler.send([alert])
@@ -154,7 +154,7 @@ class SmtpEmailAlertHandlerTests(unittest.TestCase):
             message="file marker '1234' not found in 2024-01.pdf",
             account="pnb/platinum",
             source_file="2024-01.pdf",
-            file_marker="1234",
+            file_markers=["1234"],
         )
 
         handler.send([alert])
@@ -173,7 +173,7 @@ class CheckFileMarkerAlertIntegrationTests(unittest.TestCase):
 
         result = check_file_marker(
             "no card digits here",
-            file_marker="1234",
+            file_markers=["1234"],
             source_file="2024-01.pdf",
             account_label="pnb/platinum",
             alerts=service,

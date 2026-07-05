@@ -50,7 +50,7 @@ class PeriodCovered:
     months: tuple[str, ...]
 
 
-BalanceGapStatus = Literal["matched", "mismatched"]
+BalanceGapStatus = Literal["matched", "mismatched", "discontinuity"]
 
 
 @dataclass(frozen=True)
@@ -113,7 +113,7 @@ def months_between_exclusive(start: str, end: str) -> tuple[str, ...]:
 def compute_balance_gaps(
     statements: tuple[StatementMetadata, ...],
 ) -> tuple[BalanceGap, ...]:
-    """Mark calendar gap months where statement coverage skips months."""
+    """Mark gap months and adjacent-statement balance discontinuities."""
     if len(statements) < 2:
         return ()
 
@@ -128,16 +128,23 @@ def compute_balance_gaps(
         previous_covered = covered_month(previous.statement_date)
         following_covered = covered_month(following.statement_date)
         between = months_between_exclusive(previous_covered, following_covered)
-        if not between:
-            continue
 
         closing = previous.closing_balance
         opening = following.opening_balance
         if closing is None or opening is None:
             continue
 
-        status: BalanceGapStatus = "matched" if closing == opening else "mismatched"
-        gaps.extend(BalanceGap(month=month, status=status) for month in between)
+        if between:
+            status: BalanceGapStatus = "matched" if closing == opening else "mismatched"
+            gaps.extend(BalanceGap(month=month, status=status) for month in between)
+            continue
+
+        if (
+            following_covered == _next_month_key(previous_covered)
+            and closing != opening
+        ):
+            gaps.append(BalanceGap(month=previous_covered, status="discontinuity"))
+            gaps.append(BalanceGap(month=following_covered, status="discontinuity"))
 
     return tuple(gaps)
 

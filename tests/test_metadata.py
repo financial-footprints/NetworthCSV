@@ -155,6 +155,48 @@ class ComputeBalanceGapsTests(unittest.TestCase):
 
         self.assertEqual(compute_balance_gaps(statements), ())
 
+    def test_adjacent_statements_mismatch_marks_discontinuity(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                opening_balance="0.00",
+                closing_balance="10.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-03",
+                formats=("pdf",),
+                opening_balance="15.00",
+                closing_balance="20.00",
+            ),
+        )
+
+        self.assertEqual(
+            compute_balance_gaps(statements),
+            (
+                BalanceGap(month="2024-01", status="discontinuity"),
+                BalanceGap(month="2024-02", status="discontinuity"),
+            ),
+        )
+
+    def test_adjacent_statements_missing_balance_skips_discontinuity(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                opening_balance="0.00",
+                closing_balance="10.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-03",
+                formats=("pdf",),
+                opening_balance=None,
+                closing_balance="20.00",
+            ),
+        )
+
+        self.assertEqual(compute_balance_gaps(statements), ())
+
     def test_matching_balances_across_gap(self) -> None:
         statements = (
             StatementMetadata(

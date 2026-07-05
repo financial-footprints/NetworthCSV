@@ -442,6 +442,9 @@ OptionalAccountTypeName = Annotated[str | None, BeforeValidator(_optional_accoun
 OptionalBankName = Annotated[str | None, BeforeValidator(_optional_bank)]
 VariantName = Annotated[str | None, BeforeValidator(normalize_variant)]
 AccountNumber = Annotated[str, BeforeValidator(normalize_account_number)]
+OptionalIdentifier = Annotated[
+    str | None, BeforeValidator(_optional(normalize_account_number))
+]
 FileMarker = Annotated[str, BeforeValidator(normalize_file_marker)]
 Passwords = Annotated[list[str], BeforeValidator(normalize_passwords)]
 
@@ -716,9 +719,7 @@ AlertSettings = Annotated[
 class RunSettings(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    bank: OptionalBankName = None
-    variant: VariantName = None
-    account_type: OptionalAccountTypeName = None
+    identifier: OptionalIdentifier = None
     financial_year: Marker = None
 
 
@@ -809,23 +810,15 @@ class UserConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_run_filter(self) -> UserConfig:
-        if self.run is None:
-            return self
-        run = self.run
-        if run.variant is not None and run.bank is None:
-            raise ValueError("run.variant requires run.bank")
-        if run.bank is None:
+        if self.run is None or self.run.identifier is None:
             return self
         matches = [
             account
             for account in self.accounts
-            if _user_account_matches_run_filter(account, run)
+            if _user_account_matches_run_filter(account, self.run)
         ]
         if not matches:
-            known = ", ".join(
-                account_label_from_parts(account.bank, account.variant)
-                for account in self.accounts
-            )
+            known = ", ".join(account.account_number for account in self.accounts)
             raise ValueError(f"run filter matches no account (known: {known})")
         return self
 
@@ -965,36 +958,28 @@ def _resolved_account(
 def _user_account_matches_run_filter(
     account: UserAccountConfig, run: RunSettings
 ) -> bool:
-    if run.bank is not None and account.bank != run.bank:
-        return False
-    if run.variant is not None and account.variant != run.variant:
-        return False
-    return True
+    if run.identifier is None:
+        return True
+    return account.account_number == run.identifier
 
 
 def _account_matches_run_filter(account: ResolvedAccount, run: RunSettings) -> bool:
-    if run.bank is not None and account.bank != run.bank:
-        return False
-    if run.variant is not None and account.variant != run.variant:
-        return False
-    if run.account_type is not None and account.account_type != run.account_type:
-        return False
-    return True
+    if run.identifier is None:
+        return True
+    return account.account_number == run.identifier
 
 
 def _validate_run_filter(
     run: RunSettings,
     accounts: Sequence[ResolvedAccount],
 ) -> None:
-    if run.variant is not None and run.bank is None:
-        raise ValueError("run.variant requires run.bank")
-    if run.bank is None and run.account_type is None:
+    if run.identifier is None:
         return
     matches = [
         account for account in accounts if _account_matches_run_filter(account, run)
     ]
     if not matches:
-        known = ", ".join(account_label(account) for account in accounts)
+        known = ", ".join(account.account_number for account in accounts)
         raise ValueError(f"run filter matches no account (known: {known})")
 
 
@@ -1033,7 +1018,7 @@ def merge_settings(app: AppConfig, user: UserConfig) -> Settings:
 
 def accounts_to_run(settings: Settings) -> list[ResolvedAccount]:
     run = settings.run
-    if run.bank is None and run.account_type is None:
+    if run.identifier is None:
         return list(settings.accounts)
     return [
         account

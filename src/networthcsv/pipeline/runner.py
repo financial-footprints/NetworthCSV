@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from networthcsv.context import RunContext
+from networthcsv.errors import raise_if_cancelled
 from networthcsv.pipeline.cleanup import cleanup as cleanup_stage
 from networthcsv.pipeline.get_statements import extract as extract_stage
 from networthcsv.pipeline.metadata import metadata as metadata_stage
@@ -51,6 +52,7 @@ def _run_account_stage(
     selected = accounts_to_run(ctx.settings)
     results: list[T] = []
     for index, account in enumerate(selected):
+        raise_if_cancelled(ctx)
         if index > 0:
             ctx.reporter.blank_line()
         _report_account_banner(ctx, account, index, len(selected))
@@ -59,6 +61,7 @@ def _run_account_stage(
 
 
 def run_pipeline(ctx: RunContext) -> PipelineResult:
+    raise_if_cancelled(ctx)
     extract_result = run_extract(ctx)
     ctx.reporter.blank_line()
 
@@ -68,6 +71,7 @@ def run_pipeline(ctx: RunContext) -> PipelineResult:
     selected = accounts_to_run(ctx.settings)
 
     for index, account in enumerate(selected):
+        raise_if_cancelled(ctx)
         if index > 0:
             ctx.reporter.blank_line()
         _report_account_banner(ctx, account, index, len(selected))
@@ -76,10 +80,12 @@ def run_pipeline(ctx: RunContext) -> PipelineResult:
         cleanup_results.append(cleanup_result)
         ctx.reporter.blank_line()
 
+        raise_if_cancelled(ctx)
         metadata_result = metadata_stage.run_account(ctx, account)
         metadata_results.append(metadata_result)
         ctx.reporter.blank_line()
 
+        raise_if_cancelled(ctx)
         parse_result = parse_stage.run_account(ctx, account)
         parse_results.append(parse_result)
 

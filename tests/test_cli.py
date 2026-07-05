@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from networthcsv.cli import apply_run_overrides, load_context
+from networthcsv.cli import apply_run_overrides, load_context, parse_run_args
 from networthcsv.errors import ConfigError
 from networthcsv.settings import (
     RunSettings,
@@ -66,40 +66,34 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             app_config_path = self._write_minimal_configs(Path(tmp))
             settings = load_settings(app_config_path)
-            updated = apply_run_overrides(settings, {"bank": "bob", "variant": "easy"})
-            self.assertEqual(updated.run.bank, "bob")
-            self.assertEqual(updated.run.variant, "easy")
+            updated = apply_run_overrides(settings, {"identifier": "1"})
+            self.assertEqual(updated.run.identifier, "1")
 
     def test_load_context_applies_run_overrides(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app_config_path = self._write_minimal_configs(Path(tmp))
             ctx = load_context(
                 config_path=app_config_path,
-                run_overrides=RunSettings(bank="bob", variant="easy"),
+                run_overrides=RunSettings(identifier="1"),
             )
             selected = accounts_to_run(ctx.settings)
             self.assertEqual(len(selected), 1)
 
-    def test_apply_run_overrides_merges_account_type(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            app_config_path = self._write_minimal_configs(Path(tmp))
-            settings = load_settings(app_config_path)
-            updated = apply_run_overrides(
-                settings, {"account_type": "credit_card", "bank": "bob"}
-            )
-            self.assertEqual(updated.run.account_type, "credit_card")
-            self.assertEqual(updated.run.bank, "bob")
+    def test_parse_run_args_reads_identifier(self) -> None:
+        options = parse_run_args(["--identifier", "abcd"])
+        self.assertIsNotNone(options.run_overrides)
+        assert options.run_overrides is not None
+        self.assertEqual(options.run_overrides.identifier, "abcd")
 
-    def test_load_context_applies_account_type_filter(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            app_config_path = self._write_minimal_configs(Path(tmp))
-            ctx = load_context(
-                config_path=app_config_path,
-                run_overrides={"account_type": "credit_card", "bank": "bob"},
-            )
-            selected = accounts_to_run(ctx.settings)
-            self.assertEqual(len(selected), 1)
-            self.assertEqual(selected[0].account_type, "credit_card")
+    def test_parse_run_args_reads_short_identifier_flag(self) -> None:
+        options = parse_run_args(["-i", "abcd"])
+        self.assertIsNotNone(options.run_overrides)
+        assert options.run_overrides is not None
+        self.assertEqual(options.run_overrides.identifier, "abcd")
+
+    def test_parse_run_args_reads_config_path(self) -> None:
+        options = parse_run_args(["--config", "/tmp/app.config.json"])
+        self.assertEqual(options.config_path, Path("/tmp/app.config.json"))
 
     def test_apply_run_overrides_raises_when_no_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,14 +101,16 @@ class CliTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _ = apply_run_overrides(
                     load_settings(app_config_path),
-                    {"bank": "missing"},
+                    {"identifier": "missing"},
                 )
 
     def test_validate_run_filter_raises_when_no_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app_config_path = self._write_minimal_configs(Path(tmp))
             settings = load_settings(app_config_path)
-            settings = dataclasses.replace(settings, run=RunSettings(bank="missing"))
+            settings = dataclasses.replace(
+                settings, run=RunSettings(identifier="missing")
+            )
             with self.assertRaises(ValueError):
                 validate_run_filter(settings)
 

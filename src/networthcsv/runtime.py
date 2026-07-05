@@ -6,6 +6,7 @@ from typing import Literal
 
 from networthcsv.cli import load_context
 from networthcsv.context import RunContext
+from networthcsv.errors import raise_if_cancelled
 from networthcsv.pipeline.cleanup import cleanup as cleanup_stage
 from networthcsv.pipeline.metadata import metadata as metadata_stage
 from networthcsv.pipeline.parse import parse as parse_stage
@@ -66,11 +67,14 @@ def process_upload(
     statement_date: str | None = None,
 ) -> None:
     """Run post-upload stages for one account without re-fetching email."""
+    raise_if_cancelled(ctx)
     if source_format == "pdf":
         _ = cleanup_stage.run_account(
             ctx,
             account,
             upload_statement_date=statement_date,
         )
+    raise_if_cancelled(ctx)
     _ = metadata_stage.run_account(ctx, account)
+    raise_if_cancelled(ctx)
     _ = parse_stage.run_account(ctx, account)

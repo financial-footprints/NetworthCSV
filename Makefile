@@ -6,7 +6,7 @@ PYTHON := $(UV) run python
 help:
 	@echo "Targets:"
 	@echo "  install   Create venv and install dependencies"
-	@echo "  dev       Run the full pipeline"
+	@echo "  dev       Run the full pipeline (optional: IDENTIFIER=account_number)"
 	@echo "  upgrade   Upgrade locked dependencies"
 	@echo "  clean     Remove Python build artifacts and caches"
 	@echo "  test      Run unit tests"
@@ -20,7 +20,7 @@ install:
 	$(UV) sync --group dev
 
 dev:
-	$(PYTHON) -m networthcsv
+	$(PYTHON) -m networthcsv $(if $(IDENTIFIER),--identifier $(IDENTIFIER),)
 
 upgrade:
 	$(UV) sync --upgrade --group dev

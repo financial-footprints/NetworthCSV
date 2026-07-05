@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import dataclasses
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 from networthcsv.utils.alerts.service import build_alert_service
-from networthcsv.context import RunContext
+from networthcsv.context import CancelChecker, RunContext
 from networthcsv.errors import NetworthCsvError
 from networthcsv.pipeline.reporter import (
     ConsoleRunReporter,
@@ -25,12 +27,51 @@ from networthcsv.settings import (
 )
 
 __all__ = [
+    "CliRunOptions",
     "apply_run_overrides",
     "cli_main",
     "load_context",
+    "parse_run_args",
     "run_global_main",
     "run_stage_main",
 ]
+
+
+@dataclass(frozen=True)
+class CliRunOptions:
+    config_path: Path | None = None
+    run_overrides: RunSettings | None = None
+
+
+def _build_run_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(add_help=False)
+    _ = parser.add_argument(
+        "--identifier",
+        "-i",
+        dest="identifier",
+        metavar="ID",
+        help="Run only the account with this account_number",
+    )
+    _ = parser.add_argument(
+        "--config",
+        dest="config_path",
+        metavar="PATH",
+        help="Path to app.config.json (default: repo root or NETWORTHCSV_CONFIG)",
+    )
+    return parser
+
+
+def parse_run_args(argv: list[str] | None = None) -> CliRunOptions:
+    """Parse shared CLI flags for NetworthCSV entry points."""
+    parser = _build_run_parser()
+    args, _ = parser.parse_known_args(argv)
+
+    run_overrides: RunSettings | None = None
+    if args.identifier is not None:
+        run_overrides = RunSettings(identifier=args.identifier)
+
+    config_path = Path(args.config_path) if args.config_path else None
+    return CliRunOptions(config_path=config_path, run_overrides=run_overrides)
 
 
 def apply_run_overrides(
@@ -58,6 +99,7 @@ def load_context(
     config_path: str | Path | None = None,
     run_overrides: RunSettings | Mapping[str, object] | None = None,
     reporter: RunReporter | None = None,
+    should_cancel: CancelChecker | None = None,
 ) -> RunContext:
     settings = load_settings(config_path)
     settings = apply_run_overrides(settings, run_overrides)
@@ -66,6 +108,7 @@ def load_context(
         settings=settings,
         alerts=build_alert_service(alerts=settings.alerts),
         reporter=reporter if reporter is not None else NullRunReporter(),
+        should_cancel=should_cancel,
     )
 
 
@@ -75,11 +118,13 @@ def run_stage_main(
     flush_alerts: bool = True,
     config_path: str | Path | None = None,
     run_overrides: RunSettings | Mapping[str, object] | None = None,
+    argv: list[str] | None = None,
 ) -> None:
     """Load config and run a stage for configured account(s)."""
+    cli_options = parse_run_args(argv)
     ctx = load_context(
-        config_path=config_path,
-        run_overrides=run_overrides,
+        config_path=config_path or cli_options.config_path,
+        run_overrides=run_overrides or cli_options.run_overrides,
         reporter=ConsoleRunReporter(),
     )
     run_stage_for_accounts(ctx, run_account)
@@ -93,11 +138,13 @@ def run_global_main(
     flush_alerts: bool = True,
     config_path: str | Path | None = None,
     run_overrides: RunSettings | Mapping[str, object] | None = None,
+    argv: list[str] | None = None,
 ) -> None:
     """Load config and run a single global stage."""
+    cli_options = parse_run_args(argv)
     ctx = load_context(
-        config_path=config_path,
-        run_overrides=run_overrides,
+        config_path=config_path or cli_options.config_path,
+        run_overrides=run_overrides or cli_options.run_overrides,
         reporter=ConsoleRunReporter(),
     )
     _ = run(ctx)

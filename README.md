@@ -31,14 +31,19 @@ Each account needs a `bank`, an `account_number` (globally unique — shown in t
 - `thunderbird` — reads locally cached mail from a Thunderbird profile. Close Thunderbird before running.
 - `email` — read-only IMAP (Gmail, Outlook, etc.). For Gmail, use folder `[Gmail]/All Mail` and an [App Password](https://myaccount.google.com/apppasswords).
 
-**Run scope** — optional `run` block in user config limits which accounts or FY folders a run processes:
+**Run scope** — optional `run` block in user config limits which account or FY folders a run processes:
 
 ```json
 "run": {
-  "bank": "hdfc",
-  "variant": "swiggy",
+  "identifier": "5678",
   "financial_year": "FY23-2024"
 }
+```
+
+`identifier` matches the account's `account_number`. You can also pass `--identifier` / `-i` on the command line without editing config:
+
+```bash
+uv run python -m networthcsv --identifier 5678
 ```
 
 **Alerts** — optional `alerts` block (`"console"` or `"email"`) for pipeline validation failures. See the sample config.

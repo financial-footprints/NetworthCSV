@@ -1344,17 +1344,6 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 _ = load_app_config(overlay_path)
 
-    def test_run_settings_rejects_variant_without_bank(self) -> None:
-        with self.assertRaises(ValidationError):
-            _ = UserConfig.model_validate(
-                self._user_config_payload(
-                    download_path=".",
-                    profile=".",
-                    accounts=[self._account(bank="bob")],
-                    run={"variant": "easy"},
-                )
-            )
-
     def test_run_settings_rejects_no_matching_account(self) -> None:
         with self.assertRaises(ValidationError):
             _ = UserConfig.model_validate(
@@ -1362,7 +1351,7 @@ class SettingsTests(unittest.TestCase):
                     download_path=".",
                     profile=".",
                     accounts=[self._account(bank="bob", variant="easy")],
-                    run={"bank": "pnb", "variant": "platinum"},
+                    run={"identifier": "missing"},
                 )
             )
 
@@ -1378,10 +1367,11 @@ class SettingsTests(unittest.TestCase):
                         "thunderbird": {"profile": "."},
                     },
                     "download_path": ".",
-                    "accounts": [self._account(bank="bob", variant="easy")],
+                    "accounts": [
+                        self._account(bank="bob", variant="easy", account_number="5678")
+                    ],
                     "run": {
-                        "bank": "bob",
-                        "variant": "easy",
+                        "identifier": "5678",
                         "financial_year": "FY23-2024",
                     },
                 },
@@ -1392,11 +1382,10 @@ class SettingsTests(unittest.TestCase):
                 {"bob": self._bob_bank_config()},
             )
             settings = load_settings(app_config_path)
-            self.assertEqual(settings.run.bank, "bob")
-            self.assertEqual(settings.run.variant, "easy")
+            self.assertEqual(settings.run.identifier, "5678")
             self.assertEqual(settings.run.financial_year, "FY23-2024")
 
-    def test_accounts_to_run_filters_by_bank_and_variant(self) -> None:
+    def test_accounts_to_run_filters_by_identifier(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             user_config_path = root / "user.config.json"
@@ -1414,7 +1403,7 @@ class SettingsTests(unittest.TestCase):
                             bank="pnb", variant="platinum", account_number="2"
                         ),
                     ],
-                    "run": {"bank": "bob", "variant": "easy"},
+                    "run": {"identifier": "1"},
                 },
             )
             app_config_path = self._write_app_config(
@@ -1432,103 +1421,21 @@ class SettingsTests(unittest.TestCase):
             selected = accounts_to_run(settings)
             self.assertEqual(len(selected), 1)
             self.assertEqual(selected[0].bank, "bob")
-            self.assertEqual(selected[0].variant, "easy")
+            self.assertEqual(selected[0].account_number, "1")
 
-    def test_accounts_to_run_filters_by_account_type_only(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            user_config_path = root / "user.config.json"
-            self._write_json(
-                user_config_path,
-                {
-                    "source": {
-                        "type": "thunderbird",
-                        "thunderbird": {"profile": "."},
-                    },
-                    "download_path": ".",
-                    "accounts": [
-                        self._account(bank="bob", variant="easy", account_number="1"),
-                        self._account(
-                            bank="bob", variant="savings", account_number="2"
-                        ),
-                    ],
-                    "run": {"account_type": "bank_account"},
-                },
-            )
-            app_config_path = self._write_app_config(
-                root,
-                str(user_config_path.name),
-                {
-                    "bob": {
-                        "default": {"subjects": ["BOB"]},
-                        "easy": {"subjects": ["BOB CC"]},
-                        "savings": {
-                            "type": "bank_account",
-                            "subjects": ["BOB savings"],
-                        },
-                    },
-                },
-            )
-            settings = load_settings(app_config_path)
-            selected = accounts_to_run(settings)
-            self.assertEqual(len(selected), 1)
-            self.assertEqual(selected[0].variant, "savings")
-            self.assertEqual(selected[0].account_type, "bank_account")
-
-    def test_accounts_to_run_filters_by_bank_and_account_type(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            user_config_path = root / "user.config.json"
-            self._write_json(
-                user_config_path,
-                {
-                    "source": {
-                        "type": "thunderbird",
-                        "thunderbird": {"profile": "."},
-                    },
-                    "download_path": ".",
-                    "accounts": [
-                        self._account(bank="bob", variant="easy", account_number="1"),
-                        self._account(
-                            bank="pnb", variant="platinum", account_number="2"
-                        ),
-                    ],
-                    "run": {"bank": "bob", "account_type": "credit_card"},
-                },
-            )
-            app_config_path = self._write_app_config(
-                root,
-                str(user_config_path.name),
-                {
-                    "bob": self._bob_bank_config(),
-                    "pnb": {
-                        "default": {"subjects": ["PNB default"]},
-                        "platinum": {"subjects": ["PNB"]},
-                    },
-                },
-            )
-            settings = load_settings(app_config_path)
-            selected = accounts_to_run(settings)
-            self.assertEqual(len(selected), 1)
-            self.assertEqual(selected[0].bank, "bob")
-            self.assertEqual(selected[0].account_type, "credit_card")
-
-    def test_validate_run_filter_raises_when_account_type_no_match(self) -> None:
+    def test_validate_run_filter_raises_when_identifier_no_match(self) -> None:
         settings = self._settings(
             accounts=[
-                self._account_settings(
-                    bank="bob", variant="easy", account_type="credit_card"
-                ),
+                self._account_settings(bank="bob", variant="easy", account_number="1"),
             ],
-            run=RunSettings(account_type="bank_account"),
+            run=RunSettings(identifier="missing"),
         )
         with self.assertRaises(ValueError):
             validate_run_filter(settings)
 
     def test_run_settings_model_defaults(self) -> None:
         run = RunSettings()
-        self.assertIsNone(run.bank)
-        self.assertIsNone(run.account_type)
+        self.assertIsNone(run.identifier)
         self.assertIsNone(run.financial_year)
 
     def test_account_type_defaults_to_credit_card(self) -> None:

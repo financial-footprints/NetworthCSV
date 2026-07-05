@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from networthcsv.context import RunContext
-from networthcsv.errors import StageError
+from networthcsv.errors import JobCancelledError, StageError
 from networthcsv.pipeline.cleanup.cleanup import run as cleanup_run
 from networthcsv.pipeline.parse.parse import run as parse_run
 from networthcsv.pipeline.reporter import NullRunReporter
@@ -28,7 +28,7 @@ from networthcsv.pipeline.runner import (
     run_parse,
     run_pipeline,
 )
-from networthcsv.runtime import process
+from networthcsv.runtime import process, process_upload
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.utils.path import discover_account_fy_dirs
 from networthcsv.settings import ResolvedAccount, load_settings
@@ -228,6 +228,20 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(len(result.metadata), 1)
         self.assertEqual(len(result.parse), 1)
 
+    @patch("networthcsv.pipeline.runner.extract_stage.run_all")
+    def test_run_pipeline_raises_when_cancelled_before_extract(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = RunContext(
+                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                alerts=AlertService(handler=None),
+                should_cancel=lambda: True,
+            )
+            with self.assertRaises(JobCancelledError):
+                _ = run_pipeline(ctx)
+        mock_extract.assert_not_called()
+
 
 class RuntimeApiTests(unittest.TestCase):
     @patch("networthcsv.runtime.run_pipeline")
@@ -248,6 +262,35 @@ class RuntimeApiTests(unittest.TestCase):
                 reporter=NullRunReporter(),
             )
             self.assertIs(process(ctx), expected)
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.run_account")
+    def test_process_upload_raises_when_cancelled(
+        self, mock_cleanup: MagicMock
+    ) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1",
+                "file_marker": "1",
+                "subjects": ["stmt"],
+                "passwords": ["x"],
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = RunContext(
+                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                alerts=AlertService(handler=None),
+                reporter=NullRunReporter(),
+                should_cancel=lambda: True,
+            )
+            with self.assertRaises(JobCancelledError):
+                process_upload(
+                    ctx,
+                    account,
+                    source_format="csv",
+                    statement_date="2024-01-15",
+                )
+        mock_cleanup.assert_not_called()
 
 
 class StageErrorTests(unittest.TestCase):

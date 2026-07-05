@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Prepare statement PDFs: decrypt, validate, extract once, write paired FY folder outputs."""
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from pypdf import PdfReader, PdfWriter
 
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.context import RunContext
+from networthcsv.errors import StageError
 from networthcsv.pipeline.results import CleanupAccountResult
 from networthcsv.utils.path import (
     discover_account_fy_dirs,
@@ -22,7 +22,7 @@ from networthcsv.utils.path import (
     txt_is_current,
     txt_path_for_pdf,
 )
-from networthcsv.utils.pdf import extract_pdf_text_plumber, open_pdf_reader
+from networthcsv.utils.pdf import extract_pdf_text_plumber
 from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
 from networthcsv.pipeline.upload import (
     month_stem_from_manual_upload,
@@ -113,7 +113,13 @@ def decrypt_pdfs_in_place(download_dir: Path, passwords: list[str]) -> int:
         if not reader.is_encrypted:
             logger.debug("skip (already decrypted): %s", path)
             continue
-        reader = open_pdf_reader(path, passwords)
+        if not passwords:
+            raise StageError(f"encrypted PDF requires password: {path}")
+        for password in passwords:
+            if reader.decrypt(password) != 0:
+                break
+        else:
+            raise StageError(f"none of {len(passwords)} password(s) worked for {path}")
         writer = PdfWriter()
         for page in reader.pages:
             _ = writer.add_page(page)
@@ -451,16 +457,9 @@ def run_account(
 
 
 def main() -> None:
-    from networthcsv.cli import cli_main, load_context
-    from networthcsv.pipeline.reporter import ConsoleRunReporter
-    from networthcsv.pipeline.runner import run_cleanup
+    from networthcsv.cli import cli_main, run_stage_main
 
-    def _run() -> None:
-        ctx = load_context(reporter=ConsoleRunReporter())
-        _ = run_cleanup(ctx)
-        ctx.alerts.flush()
-
-    cli_main(_run)
+    cli_main(lambda: run_stage_main(run_account=run_account))
 
 
 if __name__ == "__main__":

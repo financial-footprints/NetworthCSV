@@ -28,6 +28,7 @@ __all__ = [
     "apply_run_overrides",
     "cli_main",
     "load_context",
+    "run_global_main",
     "run_stage_main",
 ]
 
@@ -82,6 +83,24 @@ def run_stage_main(
         reporter=ConsoleRunReporter(),
     )
     run_stage_for_accounts(ctx, run_account)
+    if flush_alerts:
+        ctx.alerts.flush()
+
+
+def run_global_main(
+    *,
+    run: Callable[[RunContext], object],
+    flush_alerts: bool = True,
+    config_path: str | Path | None = None,
+    run_overrides: RunSettings | Mapping[str, object] | None = None,
+) -> None:
+    """Load config and run a single global stage."""
+    ctx = load_context(
+        config_path=config_path,
+        run_overrides=run_overrides,
+        reporter=ConsoleRunReporter(),
+    )
+    _ = run(ctx)
     if flush_alerts:
         ctx.alerts.flush()
 

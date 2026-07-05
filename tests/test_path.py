@@ -13,7 +13,6 @@ from networthcsv.settings import (
     Settings,
     ThunderbirdSource,
     ThunderbirdSourceSettings,
-    account_fy_path,
 )
 from networthcsv.utils.path import (
     account_fy_dir,
@@ -131,7 +130,7 @@ class PathTests(unittest.TestCase):
             accounts=[_account()],
         )
         self.assertEqual(
-            account_fy_path(settings, settings.accounts[0], "FY23-2024"),
+            account_fy_dir(settings.download_path, settings.accounts[0], "FY23-2024"),
             Path("/statements/FY23-2024/credit_card/5678"),
         )
 

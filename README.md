@@ -1,6 +1,6 @@
 # NetworthCSV
 
-Parse credit card and bank statement PDFs from email into CSV files. The pipeline extracts statement attachments from Thunderbird local mail or live IMAP, decrypts PDFs, extracts text, and writes `transactions.csv` per financial year folder.
+Parse credit card and bank statement PDFs from email into CSV files. The pipeline extracts statement attachments from Thunderbird local mail or live IMAP, decrypts PDFs, extracts text, writes metadata, and writes `transactions.csv` per financial year folder.
 
 ## Setup
 
@@ -47,7 +47,7 @@ Config path: repo-root `app.config.json` by default, or set `NETWORTHCSV_CONFIG`
 
 ## Usage
 
-Full pipeline (extract → cleanup → parse) for all configured accounts:
+Full pipeline (extract → cleanup → metadata → parse) for all configured accounts:
 
 ```bash
 make dev
@@ -85,4 +85,4 @@ The repo includes a `Makefile` that wraps common tasks. Run `make help` for a sh
 | `make test`    | Run unit tests (`uv run python -m unittest discover -s tests`).                              |
 | `make lint`    | Type-check with [basedpyright](https://docs.basedpyright.com/) (config in `pyproject.toml`). |
 | `make format`  | Format `src/` and `tests/` with [ruff](https://docs.astral.sh/ruff/).                        |
-| `make cleanup` | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`.       |
+| `make clean` | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`.       |

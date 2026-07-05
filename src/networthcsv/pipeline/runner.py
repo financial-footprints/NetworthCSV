@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol, TypeVar
+from typing import TypeVar
 
 from networthcsv.context import RunContext
 from networthcsv.pipeline.cleanup import cleanup as cleanup_stage
@@ -20,16 +20,6 @@ from networthcsv.pipeline.results import (
 from networthcsv.settings import ResolvedAccount, accounts_to_run
 
 T = TypeVar("T")
-
-
-class AccountStage(Protocol):
-    def run_account(
-        self, ctx: RunContext, account: ResolvedAccount
-    ) -> CleanupAccountResult | MetadataAccountResult | ParseAccountResult: ...
-
-
-class GlobalStage(Protocol):
-    def run_all(self, ctx: RunContext) -> ExtractStageResult: ...
 
 
 def _report_account_banner(

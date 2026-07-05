@@ -13,9 +13,8 @@ from networthcsv.pipeline.results import (
     MetadataAccountResult,
     ParseAccountResult,
     ParseFyResult,
-    PipelineResult,
 )
-from networthcsv.settings import EmailSourceSettings, ResolvedAccount, account_label
+from networthcsv.settings import ResolvedAccount, account_label
 
 
 class RunReporter:
@@ -204,8 +203,3 @@ class ConsoleRunReporter(RunReporter):
             f"done: {result.total_transactions} transaction(s) from "
             f"{result.total_txts} txt(s) in {len(result.fy_results)} folder(s)"
         )
-
-
-def report_pipeline(reporter: RunReporter, result: PipelineResult) -> None:
-    for account_result in result.extract.accounts:
-        reporter.extract_account_done(account_result)

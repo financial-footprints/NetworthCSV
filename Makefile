@@ -8,7 +8,7 @@ help:
 	@echo "  install   Create venv and install dependencies"
 	@echo "  dev       Run the full pipeline"
 	@echo "  upgrade   Upgrade locked dependencies"
-	@echo "  cleanup     Remove Python build artifacts and caches"
+	@echo "  clean     Remove Python build artifacts and caches"
 	@echo "  test      Run unit tests"
 	@echo "  lint      Type-check with basedpyright"
 	@echo "  format    Format Python sources with ruff"
@@ -33,7 +33,7 @@ lint:
 format:
 	$(UV) run ruff format src tests
 
-cleanup:
+clean:
 	/usr/bin/rm -rf build dist .ruff_cache
 	if command -v fd >/dev/null 2>&1; then \
 		fd -H -I -t d __pycache__ -E .venv -x rm -rf; \

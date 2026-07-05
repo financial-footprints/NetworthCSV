@@ -34,16 +34,10 @@ def run_account(ctx: RunContext, account: ResolvedAccount) -> ExtractAccountResu
 
 
 def main() -> None:
-    from networthcsv.cli import cli_main, load_context
-    from networthcsv.pipeline.reporter import ConsoleRunReporter
+    from networthcsv.cli import cli_main, run_global_main
     from networthcsv.pipeline.runner import run_extract
 
-    def _run() -> None:
-        ctx = load_context(reporter=ConsoleRunReporter())
-        _ = run_extract(ctx)
-        ctx.alerts.flush()
-
-    cli_main(_run)
+    cli_main(lambda: run_global_main(run=run_extract))
 
 
 if __name__ == "__main__":

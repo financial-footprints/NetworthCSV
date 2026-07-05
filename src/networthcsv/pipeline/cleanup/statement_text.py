@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Text processing helpers for statement PDFs."""
 
 from __future__ import annotations

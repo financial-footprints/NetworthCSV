@@ -13,7 +13,6 @@ from typing import Annotated, ClassVar, Literal, cast
 
 from networthcsv.errors import ConfigError
 from networthcsv.logging import LogLevel
-from networthcsv.utils.path import account_fy_dir
 
 from pydantic import (
     BaseModel,
@@ -1006,10 +1005,6 @@ def account_label(account: ResolvedAccount) -> str:
 
 def account_download_path(settings: Settings, account: ResolvedAccount) -> Path:
     return settings.download_path / account.account_type / account.account_number
-
-
-def account_fy_path(settings: Settings, account: ResolvedAccount, fy_name: str) -> Path:
-    return account_fy_dir(settings.download_path, account, fy_name)
 
 
 def resolve_config_path(override: str | Path | None = None) -> Path:

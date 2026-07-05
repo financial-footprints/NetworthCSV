@@ -26,7 +26,6 @@ from networthcsv.settings import (
     UserAccountConfig,
     UserConfig,
     account_download_path,
-    account_fy_path,
     account_label,
     accounts_to_run,
     parse_opening_date,
@@ -778,21 +777,6 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(
             account_download_path(settings, settings.accounts[0]),
             Path("/statements/bank_account/1234"),
-        )
-
-    def test_account_fy_path(self) -> None:
-        settings = self._settings(
-            accounts=[
-                self._account_settings(
-                    bank="hdfc",
-                    variant="swiggy",
-                    subjects=["Swiggy statement"],
-                )
-            ],
-        )
-        self.assertEqual(
-            account_fy_path(settings, settings.accounts[0], "FY23-2024"),
-            Path("/statements/FY23-2024/credit_card/1234"),
         )
 
     def test_icici_variant_subjects(self) -> None:

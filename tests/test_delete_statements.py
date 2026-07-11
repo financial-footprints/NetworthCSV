@@ -13,22 +13,23 @@ from networthcsv.pipeline.delete_statements.delete import (
     delete_account_statements,
 )
 from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.banks import get_handler
 from networthcsv.utils.path import account_fy_dir, account_metadata_path, fy_folder_name
 
 
 def _account(*, account_number: str = "5678") -> ResolvedAccount:
+    handler = get_handler("bob", "easy")
+    defaults = handler.matching_defaults()
     return ResolvedAccount.model_validate(
         {
             "bank": "bob",
             "variant": "easy",
             "account_number": account_number,
             "passwords": ["secret"],
-            "mail": {"subjects": ["BOB"]},
-            "statement": {"text_contains": [account_number]},
-            "metadata": {
-                "statement_date": [
-                    {"mode": "label_single", "label": "Statement Date :"},
-                ],
+            **defaults.model_dump(),
+            "statement": {
+                **defaults.statement.model_dump(),
+                "text_contains": [account_number],
             },
         }
     )

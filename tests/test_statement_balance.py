@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from networthcsv.pipeline.metadata.statement_balance import (
+from networthcsv.utils.banks.helpers.amounts import (
     balances_match,
     parse_amount_string,
 )

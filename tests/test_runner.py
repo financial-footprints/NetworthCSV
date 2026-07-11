@@ -56,17 +56,7 @@ def _write_minimal_configs(root: Path) -> Path:
     )
     app_config_path = root / "app.config.json"
     app_config_path.write_text(
-        json.dumps(
-            {
-                "user_config": user_config_path.name,
-                "banks": {
-                    "bob": {
-                        "default": {"mail": {"subjects": ["stmt"]}},
-                        "easy": {"mail": {"subjects": ["stmt"]}},
-                    }
-                },
-            }
-        ),
+        json.dumps({"user_config": user_config_path.name}),
         encoding="utf-8",
     )
     return app_config_path
@@ -89,7 +79,7 @@ def _write_two_account_configs(root: Path) -> Path:
                     },
                     {
                         "bank": "bob",
-                        "variant": "other",
+                        "variant": "default",
                         "account_number": "2",
                         "statement": {"text_contains": "2"},
                         "passwords": ["x"],
@@ -101,18 +91,7 @@ def _write_two_account_configs(root: Path) -> Path:
     )
     app_config_path = root / "app.config.json"
     app_config_path.write_text(
-        json.dumps(
-            {
-                "user_config": user_config_path.name,
-                "banks": {
-                    "bob": {
-                        "default": {"mail": {"subjects": ["stmt"]}},
-                        "easy": {"mail": {"subjects": ["stmt"]}},
-                        "other": {"mail": {"subjects": ["stmt"]}},
-                    }
-                },
-            }
-        ),
+        json.dumps({"user_config": user_config_path.name}),
         encoding="utf-8",
     )
     return app_config_path

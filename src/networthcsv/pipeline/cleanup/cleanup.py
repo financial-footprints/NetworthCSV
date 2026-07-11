@@ -28,12 +28,9 @@ from networthcsv.pipeline.upload import (
     month_stem_from_manual_upload,
     manual_upload_pdf_path,
 )
-from networthcsv.pipeline.cleanup.statement_text import (
+from networthcsv.utils.banks.helpers.text import (
     check_text_contains,
     text_contains_present,
-    purge_drop_sections,
-    sanitize_statement_text,
-    trim_by_markers,
 )
 from networthcsv.settings import (
     ResolvedAccount,
@@ -50,6 +47,7 @@ class MonthGroups:
     groups: dict[str, list[Path]]
     raw_by_path: dict[Path, str]
     path_month: dict[Path, str]
+    path_hash: dict[Path, str]
 
 
 def _is_staging_pdf(download_dir: Path, path: Path) -> bool:
@@ -131,10 +129,16 @@ def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _dedupe_paths_by_hash(paths: list[Path]) -> list[Path]:
+def _dedupe_paths_by_hash(
+    paths: list[Path],
+    *,
+    path_hash: dict[Path, str] | None = None,
+) -> list[Path]:
     seen: dict[str, Path] = {}
     for path in sorted(paths):
-        digest = _file_hash(path)
+        digest = path_hash.get(path) if path_hash is not None else None
+        if digest is None:
+            digest = _file_hash(path)
         if digest not in seen:
             seen[digest] = path
     return list(seen.values())
@@ -149,6 +153,7 @@ def collect_month_groups(
     by_month: dict[str, list[Path]] = {}
     raw_by_path: dict[Path, str] = {}
     path_month: dict[Path, str] = {}
+    path_hash: dict[Path, str] = {}
     seen: set[str] = set()
     hash_to_raw: dict[str, str] = {}
     pdf_paths = paths if paths is not None else list(iter_pdfs(staging_dir))
@@ -158,6 +163,7 @@ def collect_month_groups(
             continue
         seen.add(key)
         digest = _file_hash(path)
+        path_hash[path] = digest
         raw = hash_to_raw.get(digest)
         if raw is None:
             raw = extract_pdf_text_plumber(path, account.passwords)
@@ -170,7 +176,12 @@ def collect_month_groups(
             month = resolve_month_stem(raw, path.name, account=account)
         path_month[path] = month
         by_month.setdefault(month, []).append(path)
-    return MonthGroups(groups=by_month, raw_by_path=raw_by_path, path_month=path_month)
+    return MonthGroups(
+        groups=by_month,
+        raw_by_path=raw_by_path,
+        path_month=path_month,
+        path_hash=path_hash,
+    )
 
 
 def _write_txt_atomically(txt_path: Path, content: str) -> None:
@@ -181,16 +192,10 @@ def _write_txt_atomically(txt_path: Path, content: str) -> None:
 
 
 def _sanitized_text(raw: str, account: ResolvedAccount) -> str:
-    trimmed = trim_by_markers(
-        raw,
-        trim_start=list(account.statement.trim_start),
-        trim_end=list(account.statement.trim_end),
-    )
-    sanitized = sanitize_statement_text(trimmed)
-    return purge_drop_sections(
-        sanitized,
-        drop_sections=account.statement.drop_sections,
-    )
+    from networthcsv.utils.banks import get_handler
+
+    handler = get_handler(account.bank, account.variant)
+    return handler.clean_text(raw)
 
 
 def _write_statement_pair(
@@ -226,6 +231,7 @@ def prepare_month(
     *,
     raw_by_path: dict[Path, str] | None = None,
     path_month: dict[Path, str] | None = None,
+    path_hash: dict[Path, str] | None = None,
     alerts: AlertService | None = None,
 ) -> tuple[int, int]:
     """Resolve one statement month. Returns (prepared, rejected) counts."""
@@ -233,7 +239,7 @@ def prepare_month(
     if not existing:
         return 0, 0
 
-    unique = _dedupe_paths_by_hash(existing)
+    unique = _dedupe_paths_by_hash(existing, path_hash=path_hash)
     if raw_by_path is None:
         raw_by_path = {
             path: extract_pdf_text_plumber(path, account.passwords) for path in unique
@@ -411,6 +417,7 @@ def run(
             account,
             raw_by_path=collected.raw_by_path,
             path_month=collected.path_month,
+            path_hash=collected.path_hash,
             alerts=alerts,
         )
         prepared += month_prepared

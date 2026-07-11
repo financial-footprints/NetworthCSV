@@ -11,9 +11,6 @@ from pathlib import Path
 from typing import Literal
 
 from networthcsv.context import RunContext
-from networthcsv.pipeline.cleanup.statement_date import (
-    extract_statement_period,
-)
 from networthcsv.pipeline.cleanup.statement_period import period_start_from_end
 from networthcsv.pipeline.results import MetadataAccountResult
 from networthcsv.settings import (
@@ -22,11 +19,8 @@ from networthcsv.settings import (
     format_account_date,
     parse_account_date,
 )
-from networthcsv.pipeline.metadata.statement_balance import (
-    balances_match,
-    extract_closing_balance,
-    extract_opening_balance,
-)
+from networthcsv.utils.banks import get_handler
+from networthcsv.utils.banks.helpers.amounts import balances_match
 from networthcsv.utils.path import (
     account_metadata_path,
     discover_account_fy_dirs,
@@ -250,7 +244,8 @@ def _resolve_statement_period(
     *,
     account: ResolvedAccount,
 ) -> tuple[str | None, str | None, bool]:
-    period_start, period_end = extract_statement_period(text, account=account)
+    handler = get_handler(account.bank, account.variant)
+    period_start, period_end = handler.get_statement_period(text)
     if period_start is not None and period_end is not None:
         if period_start > period_end:
             period_start, period_end = period_end, period_start
@@ -261,10 +256,10 @@ def _resolve_statement_period(
         )
     if period_end is None:
         return None, None, False
-    rule = account.metadata.statement_period
-    if rule is None:
+    start_day = handler.period_start_day()
+    if start_day is None:
         return None, None, False
-    period_start = period_start_from_end(period_end, rule.start_day)
+    period_start = period_start_from_end(period_end, start_day)
     return _format_account_date(period_start), _format_account_date(period_end), False
 
 
@@ -367,15 +362,8 @@ def _extract_statement_balances(
     text: str,
     account: ResolvedAccount,
 ) -> tuple[str | None, str | None]:
-    opening_markers = tuple(account.metadata.balances.opening)
-    closing_markers = tuple(account.metadata.balances.closing)
-    opening = (
-        extract_opening_balance(text, opening_markers) if opening_markers else None
-    )
-    closing = (
-        extract_closing_balance(text, closing_markers) if closing_markers else None
-    )
-    return opening, closing
+    handler = get_handler(account.bank, account.variant)
+    return handler.get_opening_balance(text), handler.get_closing_balance(text)
 
 
 def build_account_metadata(
@@ -441,9 +429,10 @@ def build_account_metadata(
     if _has_transactions_csv(download_path, account):
         account_formats.add("csv")
 
+    handler = get_handler(account.bank, account.variant)
     period_covered = _build_period_covered(
         tuple(statements),
-        tolerance=account.metadata.balances.match_tolerance,
+        tolerance=handler.balance_match_tolerance(),
     )
 
     return AccountMetadata(

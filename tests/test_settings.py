@@ -7,9 +7,7 @@ import os
 import tempfile
 import unittest
 from datetime import date
-from decimal import Decimal
 from pathlib import Path
-from typing import cast
 from unittest import mock
 
 from pydantic import ValidationError
@@ -20,7 +18,6 @@ from networthcsv.settings import (
     EmailAlertSettings,
     EmailAlertsSettings,
     EmailSource,
-    MatchingFields,
     ResolvedAccount,
     RunSettings,
     Settings,
@@ -28,7 +25,6 @@ from networthcsv.settings import (
     ThunderbirdSourceSettings,
     UserAccountConfig,
     UserConfig,
-    VariantOverride,
     account_download_path,
     account_label,
     accounts_to_run,
@@ -50,18 +46,11 @@ from networthcsv.settings import (
     normalize_variant,
     resolve_config_path,
 )
+from networthcsv.utils.banks import get_handler
 
 
 _DEFAULT_PROFILE = Path("/profile")
 _DEFAULT_DOWNLOAD_PATH = Path("/statements")
-
-
-def _variant_subjects(entry: MatchingFields | VariantOverride) -> list[str]:
-    if isinstance(entry, MatchingFields):
-        return entry.mail.subjects
-    if entry.mail is None or entry.mail.subjects is None:
-        raise AssertionError("variant mail subjects required")
-    return entry.mail.subjects
 
 
 def _complete_email_alert_settings() -> EmailAlertSettings:
@@ -79,42 +68,9 @@ class SettingsTests(unittest.TestCase):
     def _write_json(self, path: Path, data: dict[str, object]) -> None:
         _ = path.write_text(json.dumps(data), encoding="utf-8")
 
-    def _bob_bank_config(self) -> dict[str, object]:
-        return {
-            "default": {"mail": {"subjects": ["BOB"]}},
-            "easy": {"mail": {"subjects": ["BOB CREDIT CARD"]}},
-        }
-
-    def _icici_bank_config(self) -> dict[str, object]:
-        return {
-            "default": {
-                "mail": {
-                    "subjects": ["ICICI Bank Credit Card Statement for the period"]
-                }
-            },
-            "amazon": {
-                "mail": {
-                    "subjects": [
-                        "Amazon Pay ICICI Bank Credit Card Statement for the period"
-                    ]
-                }
-            },
-        }
-
-    def _write_app_config(
-        self,
-        directory: Path,
-        user_config: str,
-        banks: dict[str, object],
-    ) -> Path:
+    def _write_app_config(self, directory: Path, user_config: str) -> Path:
         config_path = directory / "app.config.json"
-        self._write_json(
-            config_path,
-            {
-                "user_config": user_config,
-                "banks": banks,
-            },
-        )
+        self._write_json(config_path, {"user_config": user_config})
         return config_path
 
     def _write_app_config_overlay(
@@ -217,9 +173,6 @@ class SettingsTests(unittest.TestCase):
         body_contains: list[str] | None = None,
         from_addresses: list[str] | None = None,
         passwords: list[str] | None = None,
-        trim_start: list[str] | None = None,
-        trim_end: list[str] | None = None,
-        drop_sections: list[str] | None = None,
         account_type: str = "credit_card",
     ) -> ResolvedAccount:
         statement_text_contains = (
@@ -238,9 +191,6 @@ class SettingsTests(unittest.TestCase):
                     "from": from_addresses or [],
                 },
                 "statement": {
-                    "trim_start": trim_start or [],
-                    "trim_end": trim_end or [],
-                    "drop_sections": drop_sections or [],
                     "text_contains": statement_text_contains,
                 },
             }
@@ -262,11 +212,7 @@ class SettingsTests(unittest.TestCase):
                     )
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertEqual(settings.source.type, "thunderbird")
             assert isinstance(settings.source, ThunderbirdSource)
@@ -274,7 +220,10 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings.download_path, statements.resolve())
             self.assertEqual(settings.accounts[0].bank, "bob")
             self.assertIsNone(settings.accounts[0].variant)
-            self.assertEqual(settings.accounts[0].mail.subjects, ["BOB"])
+            self.assertEqual(
+                settings.accounts[0].mail.subjects,
+                get_handler("bob", None).mail_subjects(),
+            )
             self.assertEqual(settings.accounts[0].passwords, ["secret", "other"])
             self.assertEqual(settings.accounts[0].account_number, "1234")
             self.assertEqual(settings.accounts[0].statement.text_contains, ["1234"])
@@ -282,37 +231,21 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings.accounts[0].mail.from_addresses, [])
             self.assertEqual(settings.accounts[0].account_type, "credit_card")
 
-    def test_bodies_and_from_from_variant_defaults(self) -> None:
+    def test_bodies_and_from_from_handler_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "profile").mkdir()
             _ = (root / "statements").mkdir()
             _ = self._write_user_config(
                 root,
-                accounts=[self._account(bank="icici", variant="amazon")],
+                accounts=[self._account(bank="federal", variant="signet")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "icici": {
-                        "default": {"mail": {"subjects": ["ICICI default"]}},
-                        "amazon": {
-                            "mail": {
-                                "subjects": ["Amazon Pay ICICI"],
-                                "body_contains": ["Amazon Pay ICICI Bank Credit Card"],
-                                "from": ["icicibank.com"],
-                            },
-                        },
-                    }
-                },
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
+            handler = get_handler("federal", "signet")
             account = settings.accounts[0]
-            self.assertEqual(
-                account.mail.body_contains, ["Amazon Pay ICICI Bank Credit Card"]
-            )
-            self.assertEqual(account.mail.from_addresses, ["icicibank.com"])
+            self.assertEqual(account.mail.body_contains, handler.mail_body_contains())
+            self.assertEqual(account.mail.from_addresses, handler.mail_from_addresses())
 
     def test_user_override_bodies_and_from(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -323,8 +256,8 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[
                     self._account(
-                        bank="icici",
-                        variant="amazon",
+                        bank="federal",
+                        variant="signet",
                         mail={
                             "body_contains": ["custom body"],
                             "from": ["custom@bank.com"],
@@ -332,28 +265,13 @@ class SettingsTests(unittest.TestCase):
                     )
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "icici": {
-                        "default": {"mail": {"subjects": ["ICICI default"]}},
-                        "amazon": {
-                            "mail": {
-                                "subjects": ["Amazon Pay ICICI"],
-                                "body_contains": ["app body"],
-                                "from": ["icicibank.com"],
-                            },
-                        },
-                    }
-                },
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
             self.assertEqual(account.mail.body_contains, ["custom body"])
             self.assertEqual(account.mail.from_addresses, ["custom@bank.com"])
 
-    def test_catch_all_uses_default(self) -> None:
+    def test_catch_all_uses_default_handler(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "profile").mkdir()
@@ -362,33 +280,13 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="icici")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "icici": {
-                        "default": {
-                            "mail": {
-                                "subjects": ["ICICI generic"],
-                                "body_contains": ["Default body"],
-                                "from": ["default.bank.com"],
-                            },
-                        },
-                        "amazon": {
-                            "mail": {
-                                "subjects": ["Amazon Pay ICICI"],
-                                "body_contains": ["Amazon body"],
-                                "from": ["amazon.bank.com"],
-                            },
-                        },
-                    }
-                },
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
+            handler = get_handler("icici", None)
             account = settings.accounts[0]
-            self.assertEqual(account.mail.subjects, ["ICICI generic"])
-            self.assertEqual(account.mail.body_contains, ["Default body"])
-            self.assertEqual(account.mail.from_addresses, ["default.bank.com"])
+            self.assertEqual(account.mail.subjects, handler.mail_subjects())
+            self.assertEqual(account.mail.body_contains, [])
+            self.assertEqual(account.mail.from_addresses, [])
 
     def test_normalize_helpers(self) -> None:
         self.assertEqual(normalize_bank("bob"), "bob")
@@ -438,11 +336,7 @@ class SettingsTests(unittest.TestCase):
                 start_date="01-06-2024",
                 accounts=[self._account(bank="bob")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertEqual(settings.start_date, date(2024, 6, 1))
 
@@ -457,11 +351,7 @@ class SettingsTests(unittest.TestCase):
                     self._account(bank="bob", opening_date="01-04-2023"),
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertEqual(settings.accounts[0].opening_date, date(2023, 4, 1))
 
@@ -480,11 +370,7 @@ class SettingsTests(unittest.TestCase):
                     ),
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertEqual(settings.accounts[0].closing_date, date(2024, 8, 1))
 
@@ -507,11 +393,7 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="bob", opening_date="01-04-2023")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertIsNone(settings.accounts[0].closing_date)
 
@@ -587,240 +469,6 @@ class SettingsTests(unittest.TestCase):
                 }
             )
 
-    def test_text_extract_markers_from_variant_defaults(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="pnb", variant="platinum")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "pnb": {
-                        "default": {"mail": {"subjects": ["PNB default"]}},
-                        "platinum": {
-                            "mail": {"subjects": ["PNB statement"]},
-                            "statement": {
-                                "trim_start": ["Transaction Date"],
-                                "trim_end": ["End of Statement"],
-                            },
-                        },
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            account = settings.accounts[0]
-            self.assertEqual(account.statement.trim_start, ["Transaction Date"])
-            self.assertEqual(account.statement.trim_end, ["End of Statement"])
-
-    def test_drop_sections_from_variant_defaults(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="pnb", variant="platinum")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "pnb": {
-                        "default": {"mail": {"subjects": ["PNB default"]}},
-                        "platinum": {
-                            "mail": {"subjects": ["PNB statement"]},
-                            "statement": {
-                                "drop_sections": [
-                                    "TAD for the month consists of current month purchases"
-                                ],
-                            },
-                        },
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            self.assertEqual(
-                settings.accounts[0].statement.drop_sections,
-                ["TAD for the month consists of current month purchases"],
-            )
-
-    def test_statement_date_from_variant_defaults(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="idfc", variant="wow")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "idfc": {
-                        "default": {"mail": {"subjects": ["Credit Card Statement"]}},
-                        "wow": {
-                            "mail": {"subjects": ["FIRST WOW! Credit Card Statement"]},
-                            "metadata": {
-                                "statement_date": [
-                                    {"mode": "label_single", "label": "Statement Date"},
-                                    {
-                                        "mode": "top_range",
-                                        "joiner": " - ",
-                                        "take": "end",
-                                        "search_chars": 500,
-                                    },
-                                ],
-                            },
-                        },
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            markers = settings.accounts[0].metadata.statement_date
-            self.assertEqual(len(markers), 2)
-            self.assertEqual(markers[0].mode, "label_single")
-            self.assertEqual(markers[1].mode, "top_range")
-
-    def test_balances_from_variant_defaults(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="bob", variant="easy")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {
-                            "mail": {"subjects": ["BOB"]},
-                            "metadata": {
-                                "balances": {
-                                    "opening": [
-                                        {
-                                            "mode": "summary_table_column",
-                                            "context": "Account Summary",
-                                            "column": "Opening Balance",
-                                        }
-                                    ],
-                                    "closing": [
-                                        {
-                                            "mode": "summary_table_column",
-                                            "context": "Account Summary",
-                                            "column": "Closing Balance",
-                                        }
-                                    ],
-                                },
-                            },
-                        },
-                        "easy": {"mail": {"subjects": ["BOB EASY"]}},
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            markers = settings.accounts[0].metadata.balances
-            self.assertEqual(len(markers.opening), 1)
-            self.assertEqual(markers.opening[0].mode, "summary_table_column")
-            self.assertEqual(len(markers.closing), 1)
-            self.assertEqual(markers.match_tolerance, Decimal("0.21"))
-
-    def test_balance_match_tolerance_defaults_when_omitted(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="bob")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {
-                            "mail": {"subjects": ["BOB"]},
-                            "metadata": {"balances": {"opening": [], "closing": []}},
-                        }
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            self.assertEqual(
-                settings.accounts[0].metadata.balances.match_tolerance,
-                Decimal("0.21"),
-            )
-
-    def test_balance_match_tolerance_loads_from_config(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="bob")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {
-                            "mail": {"subjects": ["BOB"]},
-                            "metadata": {
-                                "balances": {
-                                    "match_tolerance": "0.50",
-                                    "opening": [],
-                                    "closing": [],
-                                }
-                            },
-                        }
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            self.assertEqual(
-                settings.accounts[0].metadata.balances.match_tolerance,
-                Decimal("0.50"),
-            )
-
-    def test_invalid_statement_date_marker_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="bob")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {
-                            "mail": {"subjects": ["BOB"]},
-                            "metadata": {
-                                "statement_date": [
-                                    {"mode": "unknown_mode", "label": "x"}
-                                ],
-                            },
-                        }
-                    }
-                },
-            )
-            with self.assertRaises(ConfigError):
-                _ = load_settings(app_config_path)
-
     def test_user_override_subjects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -835,22 +483,42 @@ class SettingsTests(unittest.TestCase):
                     )
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {"mail": {"subjects": ["E-statement for your BOB"]}}
-                    }
-                },
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertEqual(
                 settings.accounts[0].mail.subjects,
                 ["Custom BOB subject for testing"],
             )
 
-    def test_missing_bank_in_app_config(self) -> None:
+    def test_handler_provides_mail_subjects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _ = (root / "profile").mkdir()
+            _ = (root / "statements").mkdir()
+            _ = self._write_user_config(
+                root,
+                accounts=[
+                    self._account(bank="bob"),
+                    self._account(
+                        bank="bob",
+                        variant="easy",
+                        account_number="5678",
+                        passwords=["y"],
+                    ),
+                ],
+            )
+            app_config_path = self._write_app_config(root, "user.config.json")
+            settings = load_settings(app_config_path)
+            self.assertEqual(
+                settings.accounts[0].mail.subjects,
+                get_handler("bob", None).mail_subjects(),
+            )
+            self.assertEqual(
+                settings.accounts[1].mail.subjects,
+                get_handler("bob", "easy").mail_subjects(),
+            )
+
+    def test_unknown_bank_raises_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _ = (root / "profile").mkdir()
@@ -859,11 +527,7 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="missing")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
                 _ = load_settings(app_config_path)
 
@@ -876,11 +540,7 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="bob")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             app_config = load_app_config(app_config_path)
             self.assertEqual(
                 app_config.user_config, (root / "user.config.json").resolve()
@@ -895,11 +555,7 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[{"bank": "bob", "passwords": ["x"]}],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
                 _ = load_settings(app_config_path)
 
@@ -1022,27 +678,23 @@ class SettingsTests(unittest.TestCase):
                     self._account(bank="icici", account_number="3333", passwords=["z"]),
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"icici": self._icici_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             amazon = settings.accounts[0]
             platinum = settings.accounts[1]
             catch_all = settings.accounts[2]
             self.assertEqual(
                 amazon.mail.subjects,
-                ["Amazon Pay ICICI Bank Credit Card Statement for the period"],
+                get_handler("icici", "amazon").mail_subjects(),
             )
             self.assertEqual(
                 platinum.mail.subjects,
-                ["ICICI Bank Credit Card Statement for the period"],
+                get_handler("icici", None).mail_subjects(),
             )
             self.assertEqual(platinum.variant, "platinum")
             self.assertEqual(
                 catch_all.mail.subjects,
-                ["ICICI Bank Credit Card Statement for the period"],
+                get_handler("icici", None).mail_subjects(),
             )
 
     def test_unknown_variant_falls_back_to_default(self) -> None:
@@ -1052,19 +704,15 @@ class SettingsTests(unittest.TestCase):
             _ = (root / "statements").mkdir()
             _ = self._write_user_config(
                 root,
-                accounts=[self._account(bank="icici", variant="coral")],
+                accounts=[self._account(bank="icici", variant="missing")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"icici": self._icici_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.variant, "coral")
+            self.assertEqual(account.variant, "missing")
             self.assertEqual(
                 account.mail.subjects,
-                ["ICICI Bank Credit Card Statement for the period"],
+                get_handler("icici", None).mail_subjects(),
             )
 
     def test_unknown_variant_user_bodies_override(self) -> None:
@@ -1077,99 +725,22 @@ class SettingsTests(unittest.TestCase):
                 accounts=[
                     self._account(
                         bank="icici",
-                        variant="coral",
+                        variant="missing",
                         account_number="test2",
                         mail={"body_contains": ["XX1001"]},
                         passwords=["test"],
                     )
                 ],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"icici": self._icici_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             account = settings.accounts[0]
-            self.assertEqual(account.variant, "coral")
+            self.assertEqual(account.variant, "missing")
             self.assertEqual(
                 account.mail.subjects,
-                ["ICICI Bank Credit Card Statement for the period"],
+                get_handler("icici", None).mail_subjects(),
             )
             self.assertEqual(account.mail.body_contains, ["XX1001"])
-
-    def test_named_variant_partial_overlay(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="icici", variant="amazon")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "icici": {
-                        "default": {
-                            "mail": {
-                                "subjects": ["ICICI default"],
-                                "body_contains": ["default body"],
-                                "from": ["default.bank.com"],
-                            },
-                        },
-                        "amazon": {"mail": {"subjects": ["Amazon Pay ICICI"]}},
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            account = settings.accounts[0]
-            self.assertEqual(account.mail.subjects, ["Amazon Pay ICICI"])
-            self.assertEqual(account.mail.body_contains, ["default body"])
-            self.assertEqual(account.mail.from_addresses, ["default.bank.com"])
-
-    def test_bank_without_default_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="icici")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "icici": {
-                        "amazon": {"mail": {"subjects": ["Amazon Pay ICICI"]}},
-                    }
-                },
-            )
-            with self.assertRaises(ConfigError):
-                _ = load_settings(app_config_path)
-
-    def test_unknown_variant_with_default_succeeds(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="icici", variant="missing")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"icici": self._icici_bank_config()},
-            )
-            settings = load_settings(app_config_path)
-            self.assertEqual(
-                settings.accounts[0].mail.subjects,
-                ["ICICI Bank Credit Card Statement for the period"],
-            )
-            self.assertEqual(settings.accounts[0].variant, "missing")
 
     def test_variant_normalization(self) -> None:
         account = UserAccountConfig.model_validate(
@@ -1208,11 +779,7 @@ class SettingsTests(unittest.TestCase):
                     "accounts": [self._account(bank="bob")],
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
                 _ = load_settings(app_config_path)
 
@@ -1229,11 +796,7 @@ class SettingsTests(unittest.TestCase):
                     "thunderbird": {"profile": str(profile)},
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             assert isinstance(settings.source, ThunderbirdSource)
             self.assertEqual(settings.source.thunderbird.profile, profile.resolve())
@@ -1254,11 +817,7 @@ class SettingsTests(unittest.TestCase):
                     },
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             assert isinstance(settings.source, EmailSource)
             self.assertEqual(settings.source.email.host, "imap.gmail.com")
@@ -1279,11 +838,7 @@ class SettingsTests(unittest.TestCase):
                     "accounts": [{"bank": "bob", "password": "legacy"}],
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
                 _ = load_settings(app_config_path)
 
@@ -1294,15 +849,14 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="bob", passwords=["secret"])],
             )
-            app_config_path = self._write_app_config(
-                root,
-                str(user_config_path.name),
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, str(user_config_path.name))
             app_config = load_app_config(app_config_path)
             user_config = load_user_config(user_config_path)
             settings = merge_settings(app_config, user_config)
-            self.assertEqual(settings.accounts[0].mail.subjects, ["BOB"])
+            self.assertEqual(
+                settings.accounts[0].mail.subjects,
+                get_handler("bob", None).mail_subjects(),
+            )
             self.assertEqual(settings.accounts[0].passwords, ["secret"])
 
     def test_alerts_config_optional(self) -> None:
@@ -1371,11 +925,7 @@ class SettingsTests(unittest.TestCase):
                     },
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                str(user_config_path.name),
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, str(user_config_path.name))
             settings = load_settings(app_config_path)
             self.assertIsNotNone(settings.alerts)
             assert settings.alerts is not None
@@ -1403,67 +953,30 @@ class SettingsTests(unittest.TestCase):
             ):
                 self.assertEqual(resolve_config_path(custom), custom.resolve())
 
-    def test_local_app_config_overlay_inherits_banks_from_base(self) -> None:
+    def test_local_app_config_overlay_overrides_user_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _ = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": self._bob_bank_config(),
-                    "icici": self._icici_bank_config(),
-                },
-            )
+            _ = self._write_app_config(root, "user.config.json")
+            custom_user_config = root / "custom.user.config.json"
             overlay_path = self._write_app_config_overlay(
                 root,
-                {
-                    "user_config": "/custom/user.config.json",
-                },
+                {"user_config": str(custom_user_config)},
             )
 
             app_config = load_app_config(overlay_path)
 
-            self.assertEqual(app_config.user_config, Path("/custom/user.config.json"))
-            self.assertIn("bob", app_config.banks)
-            self.assertIn("icici", app_config.banks)
-            self.assertEqual(
-                _variant_subjects(app_config.banks["bob"]["easy"]),
-                ["BOB CREDIT CARD"],
-            )
+            self.assertEqual(app_config.user_config, custom_user_config.resolve())
 
-    def test_local_app_config_overlay_deep_merges_bank_variants(self) -> None:
+    def test_local_app_config_overlay_inherits_base_user_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _ = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
-            overlay_path = self._write_app_config_overlay(
-                root,
-                {
-                    "banks": {
-                        "bob": {
-                            "easy": {
-                                "mail": {
-                                    "subjects": ["BOB EASY override"],
-                                }
-                            }
-                        }
-                    }
-                },
-            )
+            base_path = self._write_app_config(root, "user.config.json")
+            overlay_path = self._write_app_config_overlay(root, {})
 
             app_config = load_app_config(overlay_path)
 
-            self.assertEqual(
-                _variant_subjects(app_config.banks["bob"]["default"]),
-                ["BOB"],
-            )
-            self.assertEqual(
-                _variant_subjects(app_config.banks["bob"]["easy"]),
-                ["BOB EASY override"],
-            )
+            base_config = load_app_config(base_path)
+            self.assertEqual(app_config.user_config, base_config.user_config)
 
     def test_local_app_config_overlay_requires_base_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1507,11 +1020,7 @@ class SettingsTests(unittest.TestCase):
                     },
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                str(user_config_path.name),
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, str(user_config_path.name))
             settings = load_settings(app_config_path)
             self.assertEqual(settings.run.identifier, "5678")
             self.assertEqual(settings.run.financial_year, "FY23-2024")
@@ -1537,17 +1046,7 @@ class SettingsTests(unittest.TestCase):
                     "run": {"identifier": "1"},
                 },
             )
-            app_config_path = self._write_app_config(
-                root,
-                str(user_config_path.name),
-                {
-                    "bob": self._bob_bank_config(),
-                    "pnb": {
-                        "default": {"mail": {"subjects": ["PNB default"]}},
-                        "platinum": {"mail": {"subjects": ["PNB"]}},
-                    },
-                },
-            )
+            app_config_path = self._write_app_config(root, str(user_config_path.name))
             settings = load_settings(app_config_path)
             selected = accounts_to_run(settings)
             self.assertEqual(len(selected), 1)
@@ -1578,81 +1077,9 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="bob")],
             )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {"bob": self._bob_bank_config()},
-            )
+            app_config_path = self._write_app_config(root, "user.config.json")
             settings = load_settings(app_config_path)
             self.assertEqual(settings.accounts[0].account_type, "credit_card")
-
-    def test_account_type_inherited_from_default_variant(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="bob", variant="easy")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {
-                            "type": "bank_account",
-                            "mail": {"subjects": ["BOB default"]},
-                        },
-                        "easy": {"mail": {"subjects": ["BOB EASY"]}},
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            self.assertEqual(settings.accounts[0].account_type, "bank_account")
-
-    def test_account_type_explicit_on_variant(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _ = (root / "profile").mkdir()
-            _ = (root / "statements").mkdir()
-            _ = self._write_user_config(
-                root,
-                accounts=[self._account(bank="bob", variant="savings")],
-            )
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {"mail": {"subjects": ["BOB default"]}},
-                        "savings": {
-                            "type": "bank_account",
-                            "mail": {"subjects": ["BOB savings"]},
-                        },
-                    }
-                },
-            )
-            settings = load_settings(app_config_path)
-            self.assertEqual(settings.accounts[0].account_type, "bank_account")
-
-    def test_invalid_account_type_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            app_config_path = self._write_app_config(
-                root,
-                "user.config.json",
-                {
-                    "bob": {
-                        "default": {
-                            "type": "wallet",
-                            "subjects": ["BOB"],
-                        }
-                    }
-                },
-            )
-            with self.assertRaises(ConfigError):
-                _ = load_app_config(app_config_path)
 
 
 if __name__ == "__main__":

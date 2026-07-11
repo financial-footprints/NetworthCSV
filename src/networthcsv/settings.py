@@ -8,7 +8,7 @@ import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
@@ -19,10 +19,7 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
-    Discriminator,
     Field,
-    Tag,
-    TypeAdapter,
     ValidationError,
     field_validator,
     model_validator,
@@ -34,140 +31,7 @@ BASE_APP_CONFIG_FILENAME = "app.config.json"
 LOCAL_APP_CONFIG_FILENAME = "app.config.local.json"
 CONFIG_ENV_VAR = "NETWORTHCSV_CONFIG"
 
-StatementDateTake = Literal["start", "end"]
-
-
-class StatementDateMarkerBase(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-
-class LabelSingleMarker(StatementDateMarkerBase):
-    mode: Literal["label_single"]
-    label: str
-
-
-class LabelNextLineMarker(StatementDateMarkerBase):
-    mode: Literal["label_next_line"]
-    label: str
-
-
-class LabelRangeMarker(StatementDateMarkerBase):
-    mode: Literal["label_range"]
-    label: str
-    joiner: str
-    take: StatementDateTake = "end"
-
-
-class ContextRangeMarker(StatementDateMarkerBase):
-    mode: Literal["context_range"]
-    context: str
-    joiner: str
-    take: StatementDateTake = "end"
-
-
-class TopRangeMarker(StatementDateMarkerBase):
-    mode: Literal["top_range"]
-    joiner: str
-    take: StatementDateTake = "end"
-    search_chars: int = Field(default=2000, ge=1)
-
-
-class StatementPeriodRule(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    start_day: int = Field(ge=1, le=31)
-
-
-StatementDateMarker = Annotated[
-    Annotated[LabelSingleMarker, Tag("label_single")]
-    | Annotated[LabelNextLineMarker, Tag("label_next_line")]
-    | Annotated[LabelRangeMarker, Tag("label_range")]
-    | Annotated[ContextRangeMarker, Tag("context_range")]
-    | Annotated[TopRangeMarker, Tag("top_range")],
-    Discriminator("mode"),
-]
-
-_statement_date_marker_adapter: TypeAdapter[StatementDateMarker] = TypeAdapter(
-    StatementDateMarker
-)
-
-
-class BalanceMarkerBase(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-
-class SummaryTableColumnMarker(BalanceMarkerBase):
-    mode: Literal["summary_table_column"]
-    context: str
-    column: str
-    search_chars: int = Field(default=800, ge=1)
-
-
-EdgeSummaryField = Literal["opening", "closing"]
-
-
-class EdgeSummaryMarker(BalanceMarkerBase):
-    mode: Literal["edge_summary"]
-    field: EdgeSummaryField
-
-
-SummaryTableRowColumn = Literal["opening", "closing"]
-
-
-class SummaryTableRowMarker(BalanceMarkerBase):
-    mode: Literal["summary_table_row"]
-    after: str
-    column: SummaryTableRowColumn
-    which: int = Field(default=1, ge=1)
-
-
-class SingleAmountAfterMarker(BalanceMarkerBase):
-    mode: Literal["single_amount_after"]
-    anchor: str
-
-
-class EquationFirstAfterMarker(BalanceMarkerBase):
-    mode: Literal["equation_first_after"]
-    anchor: str
-
-
-BalanceMarker = Annotated[
-    Annotated[LabelSingleMarker, Tag("label_single")]
-    | Annotated[LabelNextLineMarker, Tag("label_next_line")]
-    | Annotated[SummaryTableColumnMarker, Tag("summary_table_column")]
-    | Annotated[EdgeSummaryMarker, Tag("edge_summary")]
-    | Annotated[SummaryTableRowMarker, Tag("summary_table_row")]
-    | Annotated[SingleAmountAfterMarker, Tag("single_amount_after")]
-    | Annotated[EquationFirstAfterMarker, Tag("equation_first_after")],
-    Discriminator("mode"),
-]
-
-_balance_marker_adapter: TypeAdapter[BalanceMarker] = TypeAdapter(BalanceMarker)
-
 DEFAULT_BALANCE_MATCH_TOLERANCE = Decimal("0.21")
-
-
-class BalanceMarkersConfig(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    opening: list[BalanceMarker] = []
-    closing: list[BalanceMarker] = []
-    match_tolerance: Decimal = Field(default=DEFAULT_BALANCE_MATCH_TOLERANCE)
-
-    @field_validator("match_tolerance", mode="before")
-    @classmethod
-    def validate_match_tolerance(cls, value: object) -> Decimal:
-        if value is None:
-            return DEFAULT_BALANCE_MATCH_TOLERANCE
-        try:
-            tolerance = Decimal(str(value))
-        except InvalidOperation as exc:
-            raise ValueError(
-                "metadata.balances.match_tolerance must be a number"
-            ) from exc
-        if tolerance < 0:
-            raise ValueError("metadata.balances.match_tolerance must be >= 0")
-        return tolerance
 
 
 def normalize_bank(value: object) -> str:
@@ -283,74 +147,6 @@ def normalize_marker(value: object) -> str | None:
     return marker or None
 
 
-def normalize_trim_start(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="trim_start")
-
-
-def normalize_trim_end(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="trim_end")
-
-
-def normalize_drop_sections(value: object) -> list[str]:
-    return normalize_string_list(value, field_name="drop_sections")
-
-
-def normalize_statement_date(value: object) -> list[StatementDateMarker]:
-    if value is None or value == "":
-        return []
-    if not isinstance(value, list):
-        raise ValueError("metadata.statement_date must be a list")
-    markers: list[StatementDateMarker] = []
-    for index, item in enumerate(cast(list[object], value)):
-        try:
-            markers.append(_statement_date_marker_adapter.validate_python(item))
-        except ValidationError as exc:
-            raise ValueError(
-                f"metadata.statement_date[{index}]: {_format_exception(exc)}"
-            ) from exc
-    return markers
-
-
-def normalize_balances(value: object) -> BalanceMarkersConfig:
-    if value is None or value == "":
-        return BalanceMarkersConfig()
-    if isinstance(value, BalanceMarkersConfig):
-        return value
-    if not isinstance(value, dict):
-        raise ValueError("metadata.balances must be an object")
-    raw = cast(dict[str, object], value)
-    opening_raw = raw.get("opening", [])
-    closing_raw = raw.get("closing", [])
-    if not isinstance(opening_raw, list):
-        raise ValueError("metadata.balances.opening must be a list")
-    if not isinstance(closing_raw, list):
-        raise ValueError("metadata.balances.closing must be a list")
-    opening: list[BalanceMarker] = []
-    closing: list[BalanceMarker] = []
-    for index, item in enumerate(cast(list[object], opening_raw)):
-        try:
-            opening.append(_balance_marker_adapter.validate_python(item))
-        except ValidationError as exc:
-            raise ValueError(
-                f"metadata.balances.opening[{index}]: {_format_exception(exc)}"
-            ) from exc
-    for index, item in enumerate(cast(list[object], closing_raw)):
-        try:
-            closing.append(_balance_marker_adapter.validate_python(item))
-        except ValidationError as exc:
-            raise ValueError(
-                f"metadata.balances.closing[{index}]: {_format_exception(exc)}"
-            ) from exc
-    match_tolerance = raw.get("match_tolerance")
-    payload: dict[str, object] = {
-        "opening": opening,
-        "closing": closing,
-    }
-    if match_tolerance is not None:
-        payload["match_tolerance"] = match_tolerance
-    return BalanceMarkersConfig.model_validate(payload)
-
-
 def normalize_body_contains(value: object) -> list[str]:
     return normalize_string_list(
         value,
@@ -441,30 +237,6 @@ OptionalFromAddresses = Annotated[
     list[str] | None, BeforeValidator(_optional(normalize_from))
 ]
 Marker = Annotated[str | None, BeforeValidator(normalize_marker)]
-TrimStart = Annotated[list[str], BeforeValidator(normalize_trim_start)]
-OptionalTrimStart = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_trim_start))
-]
-TrimEnd = Annotated[list[str], BeforeValidator(normalize_trim_end)]
-OptionalTrimEnd = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_trim_end))
-]
-DropSections = Annotated[list[str], BeforeValidator(normalize_drop_sections)]
-OptionalDropSections = Annotated[
-    list[str] | None, BeforeValidator(_optional(normalize_drop_sections))
-]
-StatementDateRules = Annotated[
-    list[StatementDateMarker], BeforeValidator(normalize_statement_date)
-]
-OptionalStatementDateRules = Annotated[
-    list[StatementDateMarker] | None,
-    BeforeValidator(_optional(normalize_statement_date)),
-]
-BalancesConfig = Annotated[BalanceMarkersConfig, BeforeValidator(normalize_balances)]
-OptionalBalancesConfig = Annotated[
-    BalanceMarkersConfig | None,
-    BeforeValidator(_optional(normalize_balances)),
-]
 BankName = Annotated[str, BeforeValidator(normalize_bank)]
 AccountTypeName = Annotated[str, BeforeValidator(normalize_account_type)]
 OptionalAccountTypeName = Annotated[str | None, BeforeValidator(_optional_account_type)]
@@ -530,110 +302,23 @@ class MailMatchOverride(MatchingFieldsCore):
 
 
 class StatementCleanupConfig(MatchingFieldsCore):
-    trim_start: TrimStart = []
-    trim_end: TrimEnd = []
-    drop_sections: DropSections = []
     text_contains: TextContains = []
 
 
 class StatementCleanupOverride(MatchingFieldsCore):
-    trim_start: OptionalTrimStart = None
-    trim_end: OptionalTrimEnd = None
-    drop_sections: OptionalDropSections = None
     text_contains: OptionalTextContains = None
-
-
-class MetadataExtractConfig(MatchingFieldsCore):
-    statement_date: StatementDateRules = []
-    statement_period: StatementPeriodRule | None = None
-    balances: BalancesConfig = Field(default_factory=BalanceMarkersConfig)
-
-
-class MetadataExtractOverride(MatchingFieldsCore):
-    statement_date: OptionalStatementDateRules = None
-    statement_period: StatementPeriodRule | None = None
-    balances: OptionalBalancesConfig = None
 
 
 class MatchingFields(MatchingFieldsCore):
     account_type: AccountTypeName = Field(default="credit_card", alias="type")
     mail: MailMatchConfig
     statement: StatementCleanupConfig = Field(default_factory=StatementCleanupConfig)
-    metadata: MetadataExtractConfig = Field(default_factory=MetadataExtractConfig)
-
-
-class VariantOverride(MatchingFieldsCore):
-    account_type: OptionalAccountTypeName = Field(default=None, alias="type")
-    mail: MailMatchOverride | None = None
-    statement: StatementCleanupOverride | None = None
-    metadata: MetadataExtractOverride | None = None
-
-    @model_validator(mode="after")
-    def require_at_least_one_field(self) -> VariantOverride:
-        if self.account_type is not None:
-            return self
-        if self.mail is not None and self.mail.model_dump(exclude_none=True):
-            return self
-        if self.statement is not None and self.statement.model_dump(exclude_none=True):
-            return self
-        if self.metadata is not None and self.metadata.model_dump(exclude_none=True):
-            return self
-        raise ValueError("variant override must set at least one field")
-
-
-BankVariantEntry = MatchingFields | VariantOverride
-
-
-def _normalize_bank_variants(
-    value: object, *, context: str
-) -> dict[str, dict[str, BankVariantEntry]]:
-    if not isinstance(value, dict):
-        raise ValueError(f"{context} must be an object")
-    banks_raw = cast(dict[str, object], value)
-    normalized: dict[str, dict[str, BankVariantEntry]] = {}
-    for bank_key, bank_value in banks_raw.items():
-        bank_name = normalize_bank(bank_key)
-        if not isinstance(bank_value, dict):
-            raise ValueError(
-                f"{context} banks.{bank_name}: bank must be an object of variants"
-            )
-        variants_raw = cast(dict[str, object], bank_value)
-        variants: dict[str, BankVariantEntry] = {}
-        for variant_key, variant_value in variants_raw.items():
-            variant_name = normalize_variant(variant_key)
-            if variant_name is None:
-                raise ValueError(
-                    f"{context} banks.{bank_name}: variant keys must be non-empty"
-                )
-            variant_context = f"{context} banks.{bank_name}.{variant_name}"
-            try:
-                if variant_name == "default":
-                    variants[variant_name] = MatchingFields.model_validate(
-                        variant_value
-                    )
-                else:
-                    variants[variant_name] = VariantOverride.model_validate(
-                        variant_value
-                    )
-            except (ValidationError, ValueError, TypeError) as exc:
-                raise ValueError(f"{variant_context}: {exc}") from exc
-        if not variants:
-            raise ValueError(
-                f"{context} banks.{bank_name}: must contain at least one variant"
-            )
-        if "default" not in variants:
-            raise ValueError(
-                f"{context} banks.{bank_name}: must define a default variant"
-            )
-        normalized[bank_name] = variants
-    return normalized
 
 
 class AppConfig(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     user_config: Path
-    banks: dict[str, dict[str, BankVariantEntry]] = Field(min_length=1)
 
     @field_validator("user_config", mode="before")
     @classmethod
@@ -641,14 +326,6 @@ class AppConfig(BaseModel):
         if value is None or str(value).strip() == "":
             raise ValueError("user_config is required")
         return value
-
-    @field_validator("banks", mode="before")
-    @classmethod
-    def normalize_banks(cls, value: object) -> dict[str, dict[str, BankVariantEntry]]:
-        normalized = _normalize_bank_variants(value, context="banks")
-        if not normalized:
-            raise ValueError("banks must contain at least one entry")
-        return normalized
 
     @classmethod
     def from_json(cls, data: dict[str, object], *, config_path: Path) -> AppConfig:
@@ -658,7 +335,6 @@ class AppConfig(BaseModel):
                 "user_config": _resolve_path(data["user_config"], base)
                 if data.get("user_config")
                 else None,
-                "banks": data.get("banks", {}),
             }
         )
 
@@ -715,7 +391,6 @@ class UserAccountConfig(MatchingFieldsCore):
     closing_date: date | None = None
     mail: MailMatchOverride | None = None
     statement: StatementCleanupOverride | None = None
-    metadata: MetadataExtractOverride | None = None
 
     @field_validator("opening_date", mode="before")
     @classmethod
@@ -992,41 +667,18 @@ def _merge_statement(
     return StatementCleanupConfig.model_validate(_merge_model_fields(base, overlay))
 
 
-def _merge_metadata(
-    base: MetadataExtractConfig, overlay: MetadataExtractOverride | None
-) -> MetadataExtractConfig:
-    if overlay is None:
-        return base
-    merged = cast(dict[str, object], base.model_dump(by_alias=True))
-    overlay_dump = cast(
-        dict[str, object], overlay.model_dump(exclude_none=True, by_alias=True)
-    )
-    balances_overlay = overlay_dump.pop("balances", None)
-    if balances_overlay is not None:
-        balances_base = cast(dict[str, object], merged.get("balances", {}))
-        merged["balances"] = _deep_merge_dict(
-            balances_base,
-            cast(dict[str, object], balances_overlay),
-        )
-    merged.update(overlay_dump)
-    return MetadataExtractConfig.model_validate(merged)
-
-
 class _MatchingOverlay(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     account_type: OptionalAccountTypeName = Field(default=None, alias="type")
     mail: MailMatchOverride | None = None
     statement: StatementCleanupOverride | None = None
-    metadata: MetadataExtractOverride | None = None
 
 
 def _matching_overlay_from(model: BaseModel) -> _MatchingOverlay:
     dumped = cast(dict[str, object], model.model_dump(exclude_none=True, by_alias=True))
     overlay_data = {
-        key: dumped[key]
-        for key in ("type", "mail", "statement", "metadata")
-        if key in dumped
+        key: dumped[key] for key in ("type", "mail", "statement") if key in dumped
     }
     return _MatchingOverlay.model_validate(overlay_data)
 
@@ -1034,7 +686,6 @@ def _matching_overlay_from(model: BaseModel) -> _MatchingOverlay:
 def merge_matching(base: MatchingFields, *overlays: BaseModel) -> MatchingFields:
     mail = base.mail
     statement = base.statement
-    metadata = base.metadata
     account_type = base.account_type
     for overlay in overlays:
         parsed = _matching_overlay_from(overlay)
@@ -1042,31 +693,20 @@ def merge_matching(base: MatchingFields, *overlays: BaseModel) -> MatchingFields
             account_type = parsed.account_type
         mail = _merge_mail(mail, parsed.mail)
         statement = _merge_statement(statement, parsed.statement)
-        metadata = _merge_metadata(metadata, parsed.metadata)
     return MatchingFields.model_validate(
         {
             "type": account_type,
             "mail": mail.model_dump(by_alias=True),
             "statement": statement.model_dump(by_alias=True),
-            "metadata": metadata.model_dump(by_alias=True),
         }
     )
 
 
-def _resolve_variant_defaults(
-    bank_variants: dict[str, BankVariantEntry], variant: str | None
-) -> MatchingFields:
-    default_entry = bank_variants["default"]
-    if not isinstance(default_entry, MatchingFields):
-        raise ValueError("bank must define a default variant with subjects")
-    if variant is None or variant == "default":
-        return default_entry
-    overlay = bank_variants.get(variant)
-    if overlay is None:
-        return default_entry
-    if isinstance(overlay, MatchingFields):
-        return overlay
-    return merge_matching(default_entry, overlay)
+def _known_bank_names() -> str:
+    from networthcsv.utils.banks import list_handlers
+
+    banks = sorted({key.split("/")[0] for key in list_handlers()})
+    return ", ".join(banks)
 
 
 def _resolved_account(
@@ -1115,22 +755,23 @@ def _validate_run_filter(
 
 
 def merge_settings(app: AppConfig, user: UserConfig) -> Settings:
+    from networthcsv.utils.banks import get_handler
+
     accounts: list[ResolvedAccount] = []
     for index, user_account in enumerate(user.accounts):
         bank_key = user_account.bank
         label = account_label_from_parts(bank_key, user_account.variant)
         context = f"accounts[{index}] ({label})"
         try:
-            bank_variants = app.banks.get(bank_key)
-            if bank_variants is None:
-                known = ", ".join(sorted(app.banks))
-                raise ValueError(
-                    f"bank {bank_key!r} is not defined in app config banks (known: {known})"
-                )
-            defaults = _resolve_variant_defaults(bank_variants, user_account.variant)
+            defaults = get_handler(bank_key, user_account.variant).matching_defaults()
             accounts.append(
                 _resolved_account(user_account, defaults, bank_key=bank_key)
             )
+        except KeyError as exc:
+            known = _known_bank_names()
+            raise ValueError(
+                f"{context}: bank {bank_key!r} is not defined (known: {known})"
+            ) from exc
         except (ValidationError, ValueError, TypeError) as exc:
             raise ValueError(f"{context}: {exc}") from exc
 

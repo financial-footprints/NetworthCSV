@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from networthcsv.pipeline.cleanup.statement_text import (
+from networthcsv.utils.banks.helpers.text import (
     check_text_contains,
     text_contains_present,
     purge_drop_sections,
@@ -184,7 +184,7 @@ class TextContainsValidationTests(unittest.TestCase):
             text_contains_present("Card ending in 9999", ["1234", "XXXX5678"])
         )
 
-    @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
+    @patch("networthcsv.utils.banks.helpers.text.logger.debug")
     def test_text_contains_found(self, mock_debug: MagicMock) -> None:
         result = check_text_contains(
             "Card ending in 1234",
@@ -195,7 +195,7 @@ class TextContainsValidationTests(unittest.TestCase):
         self.assertTrue(result)
         mock_debug.assert_not_called()
 
-    @patch("networthcsv.pipeline.cleanup.statement_text.logger.debug")
+    @patch("networthcsv.utils.banks.helpers.text.logger.debug")
     def test_text_contains_missing(self, mock_debug: MagicMock) -> None:
         result = check_text_contains(
             "Card ending in 5678",

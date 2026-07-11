@@ -11,7 +11,7 @@ from networthcsv.utils.alerts.handlers.console import ConsoleAlertHandler
 from networthcsv.utils.alerts.handlers.email import SmtpEmailAlertHandler
 from networthcsv.utils.alerts.models import Alert, AlertKind, DeliverMode
 from networthcsv.utils.alerts.service import AlertService, build_alert_service
-from networthcsv.pipeline.cleanup.statement_text import check_text_contains
+from networthcsv.utils.banks.helpers.text import check_text_contains
 from networthcsv.settings import (
     ConsoleAlertSettings,
     EmailAlertSettings,

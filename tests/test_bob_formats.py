@@ -2,33 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import unittest
 from pathlib import Path
 
 from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
-from networthcsv.pipeline.cleanup.statement_text import trim_by_markers
-from networthcsv.pipeline.metadata.statement_balance import (
-    extract_closing_balance,
-    extract_opening_balance,
-)
-from networthcsv.settings import (
-    DEFAULT_CONFIG_PATH,
-    AppConfig,
-    ResolvedAccount,
-    _resolve_variant_defaults,
-)
+from networthcsv.utils.banks.helpers.text import trim_by_markers
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.banks import get_handler
+from networthcsv.utils.banks.base import CreditCardHandler
 
 _FIXTURES = Path(__file__).resolve().parent / "fixtures" / "bob" / "easy"
-_APP_CONFIG = AppConfig.from_json(
-    json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")),
-    config_path=DEFAULT_CONFIG_PATH,
-)
 
 
 def _account(*, bank: str = "bob", variant: str | None = "easy") -> ResolvedAccount:
-    bank_variants = _APP_CONFIG.banks[bank]
-    defaults = _resolve_variant_defaults(bank_variants, variant)
+    handler = get_handler(bank, variant)
+    defaults = handler.matching_defaults()
     return ResolvedAccount.model_validate(
         {
             "bank": bank,
@@ -46,7 +34,9 @@ class BobFormatFixtureTests(unittest.TestCase):
         cls.format2 = (_FIXTURES / "format2.txt").read_text(encoding="utf-8")
         cls.format1 = (_FIXTURES / "format1.txt").read_text(encoding="utf-8")
         cls.account = _account()
-        end_markers = list(cls.account.statement.trim_end)
+        cls.handler = get_handler(cls.account.bank, cls.account.variant)
+        assert isinstance(cls.handler, CreditCardHandler)
+        end_markers = list(cls.handler.trim_end())
         cls.trimmed_format2 = trim_by_markers(cls.format2, trim_end=end_markers)
         cls.trimmed_format1 = trim_by_markers(cls.format1, trim_end=end_markers)
 
@@ -83,26 +73,14 @@ class BobFormatFixtureTests(unittest.TestCase):
         self.assertNotIn("Page 3 of 4", trimmed)
 
     def test_format2_balances_from_second_summary_row(self) -> None:
-        opening = extract_opening_balance(
-            self.trimmed_format2,
-            tuple(self.account.metadata.balances.opening),
-        )
-        closing = extract_closing_balance(
-            self.trimmed_format2,
-            tuple(self.account.metadata.balances.closing),
-        )
+        opening = self.handler.get_opening_balance(self.trimmed_format2)
+        closing = self.handler.get_closing_balance(self.trimmed_format2)
         self.assertEqual(opening, "-10.00")
         self.assertEqual(closing, "1250.00")
 
     def test_format1_balances_from_account_summary(self) -> None:
-        opening = extract_opening_balance(
-            self.format1,
-            tuple(self.account.metadata.balances.opening),
-        )
-        closing = extract_closing_balance(
-            self.format1,
-            tuple(self.account.metadata.balances.closing),
-        )
+        opening = self.handler.get_opening_balance(self.format1)
+        closing = self.handler.get_closing_balance(self.format1)
         self.assertEqual(opening, "42.00")
         self.assertEqual(closing, "192.00")
 

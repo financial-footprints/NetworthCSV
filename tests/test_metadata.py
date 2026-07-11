@@ -32,6 +32,7 @@ from networthcsv.settings import (
     ThunderbirdSourceSettings,
 )
 from networthcsv.utils.alerts.service import AlertService
+from networthcsv.utils.banks import get_handler
 from networthcsv.utils.path import (
     account_fy_dir,
     account_metadata_path,
@@ -41,28 +42,31 @@ from networthcsv.utils.path import (
 
 def _account(
     *,
+    bank: str = "bob",
+    variant: str | None = "easy",
     account_number: str = "5678",
     opening_date: date | None = None,
     closing_date: date | None = None,
 ) -> ResolvedAccount:
-    payload: dict[str, object] = {
-        "bank": "bob",
-        "variant": "easy",
+    handler = get_handler(bank, variant)
+    defaults = handler.matching_defaults()
+    payload = defaults.model_dump()
+    payload["statement"] = {
+        **payload["statement"],
+        "text_contains": [account_number],
+    }
+    resolved: dict[str, object] = {
+        "bank": bank,
+        "variant": variant,
         "account_number": account_number,
         "passwords": ["secret"],
-        "mail": {"subjects": ["BOB"]},
-        "statement": {"text_contains": [account_number]},
-        "metadata": {
-            "statement_date": [
-                {"mode": "label_single", "label": "Statement Date :"},
-            ],
-        },
+        **payload,
     }
     if opening_date is not None:
-        payload["opening_date"] = opening_date
+        resolved["opening_date"] = opening_date
     if closing_date is not None:
-        payload["closing_date"] = closing_date
-    return ResolvedAccount.model_validate(payload)
+        resolved["closing_date"] = closing_date
+    return ResolvedAccount.model_validate(resolved)
 
 
 def _run_context(download_path: Path) -> RunContext:
@@ -614,37 +618,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_extracts_balances_when_statement_text_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = ResolvedAccount.model_validate(
-                {
-                    "bank": "bob",
-                    "variant": "easy",
-                    "account_number": "5678",
-                    "passwords": ["secret"],
-                    "mail": {"subjects": ["BOB"]},
-                    "statement": {"text_contains": ["5678"]},
-                    "metadata": {
-                        "statement_date": [
-                            {"mode": "label_single", "label": "Statement Date :"},
-                        ],
-                        "balances": {
-                            "opening": [
-                                {
-                                    "mode": "summary_table_column",
-                                    "context": "Account Summary",
-                                    "column": "Opening Balance",
-                                }
-                            ],
-                            "closing": [
-                                {
-                                    "mode": "summary_table_column",
-                                    "context": "Account Summary",
-                                    "column": "Closing Balance",
-                                }
-                            ],
-                        },
-                    },
-                }
-            )
+            account = _account()
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
@@ -756,22 +730,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_hdfc_derives_period_from_statement_date_rule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = ResolvedAccount.model_validate(
-                {
-                    "bank": "hdfc",
-                    "variant": "regalia",
-                    "account_number": "5678",
-                    "passwords": ["secret"],
-                    "mail": {"subjects": ["HDFC"]},
-                    "statement": {"text_contains": ["5678"]},
-                    "metadata": {
-                        "statement_date": [
-                            {"mode": "label_single", "label": "Statement Date"}
-                        ],
-                        "statement_period": {"start_day": 21},
-                    },
-                }
-            )
+            account = _account(bank="hdfc", variant="regalia")
             fy_dir = account_fy_dir(download_path, account, "FY21-2022")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2021-09.pdf").write_bytes(b"%PDF")
@@ -789,33 +748,12 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_extracted_period_range_wins_over_statement_period_rule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = ResolvedAccount.model_validate(
-                {
-                    "bank": "hdfc",
-                    "variant": "regalia",
-                    "account_number": "5678",
-                    "passwords": ["secret"],
-                    "mail": {"subjects": ["HDFC"]},
-                    "statement": {"text_contains": ["5678"]},
-                    "metadata": {
-                        "statement_date": [
-                            {"mode": "label_single", "label": "Statement Date :"},
-                            {
-                                "mode": "label_range",
-                                "label": "Statement Period :",
-                                "joiner": " to ",
-                                "take": "end",
-                            },
-                        ],
-                        "statement_period": {"start_day": 21},
-                    },
-                }
-            )
+            account = _account(bank="hdfc", variant="regalia")
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-10.pdf").write_bytes(b"%PDF")
             _ = (fy_dir / "2024-10.txt").write_text(
-                "Statement Date : 16/10/2024 | Statement Period : 17 Sep, 2024 to 16 Oct, 2024\n",
+                "Statement Date : 16/10/2024 | Billing Period : 17 Sep, 2024 - 16 Oct, 2024\n",
                 encoding="utf-8",
             )
 

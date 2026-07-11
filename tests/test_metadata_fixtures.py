@@ -2,22 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import unittest
 
 from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
 from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
-from networthcsv.pipeline.metadata.statement_balance import (
-    balances_match,
-    extract_closing_balance,
-    extract_opening_balance,
-)
-from networthcsv.settings import (
-    DEFAULT_CONFIG_PATH,
-    AppConfig,
-    ResolvedAccount,
-    _resolve_variant_defaults,
-)
+from networthcsv.utils.banks.helpers.amounts import balances_match
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.banks import get_handler
 from fixtures.helpers import (
     FIXTURES_ROOT,
     MANIFEST_PATH,
@@ -27,15 +18,11 @@ from fixtures.helpers import (
 )
 
 _DUMMY_FILENAME = "dummy__2099-99-99.pdf"
-_APP_CONFIG = AppConfig.from_json(
-    json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")),
-    config_path=DEFAULT_CONFIG_PATH,
-)
 
 
 def _account(*, bank: str, variant: str | None) -> ResolvedAccount:
-    bank_variants = _APP_CONFIG.banks[bank]
-    defaults = _resolve_variant_defaults(bank_variants, variant)
+    handler = get_handler(bank, variant)
+    defaults = handler.matching_defaults()
     return ResolvedAccount.model_validate(
         {
             "bank": bank,
@@ -94,6 +81,7 @@ class MetadataFixtureGoldenTests(unittest.TestCase):
             bank, variant = parts[0], parts[1]
             text = sample_path.read_text(encoding="utf-8")
             account = _account(bank=bank, variant=variant)
+            handler = get_handler(account.bank, account.variant)
 
             expected_month = expected.get("statement_month")
             if expected_month:
@@ -105,14 +93,8 @@ class MetadataFixtureGoldenTests(unittest.TestCase):
                         f"{rel}: month expected {expected_month!r}, got {actual_month!r}",
                     )
 
-            opening = extract_opening_balance(
-                text,
-                tuple(account.metadata.balances.opening),
-            )
-            closing = extract_closing_balance(
-                text,
-                tuple(account.metadata.balances.closing),
-            )
+            opening = handler.get_opening_balance(text)
+            closing = handler.get_closing_balance(text)
 
             expected_opening = expected.get("opening")
             expected_closing = expected.get("closing")

@@ -47,15 +47,7 @@ class CliTests(unittest.TestCase):
         app_config_path = root / "app.config.json"
         self._write_json(
             app_config_path,
-            {
-                "user_config": user_config_path.name,
-                "banks": {
-                    "bob": {
-                        "default": {"mail": {"subjects": ["stmt"]}},
-                        "easy": {"mail": {"subjects": ["stmt"]}},
-                    }
-                },
-            },
+            {"user_config": user_config_path.name},
         )
         return app_config_path
 

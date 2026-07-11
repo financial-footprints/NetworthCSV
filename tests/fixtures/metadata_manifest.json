@@ -30,7 +30,7 @@
     "period_start": "22-03-2021",
     "period_end": "21-04-2021"
   },
-  "hdfc/diners/sample.txt": {
+  "hdfc/diners-privilege/sample.txt": {
     "closing": "-2222.22",
     "opening": "0.00",
     "statement_month": "2021-03"
@@ -100,32 +100,44 @@
   "pnb/platinum/sample.txt": {
     "closing": "-850",
     "opening": "-750",
-    "statement_month": "2021-05"
+    "statement_month": "2021-05",
+    "period_start": "17-04-2021",
+    "period_end": "16-05-2021"
   },
   "pnb/platinum/2024-03.txt": {
     "closing": "-2750.5",
     "opening": "-4200.5",
-    "statement_month": "2024-03"
+    "statement_month": "2024-03",
+    "period_start": "17-02-2024",
+    "period_end": "16-03-2024"
   },
   "pnb/platinum/2024-04.txt": {
     "closing": "-1900.0",
     "opening": "-2750.5",
-    "statement_month": "2024-04"
+    "statement_month": "2024-04",
+    "period_start": "17-03-2024",
+    "period_end": "16-04-2024"
   },
   "pnb/platinum/2024-05.txt": {
     "closing": "510.75",
     "opening": "-1900.0",
-    "statement_month": "2024-05"
+    "statement_month": "2024-05",
+    "period_start": "17-04-2024",
+    "period_end": "16-05-2024"
   },
   "pnb/platinum/2024-06.txt": {
     "closing": "1200",
     "opening": "5000",
-    "statement_month": "2024-06"
+    "statement_month": "2024-06",
+    "period_start": "17-05-2024",
+    "period_end": "16-06-2024"
   },
   "pnb/platinum/2024-07.txt": {
     "closing": "800",
     "opening": "1200",
-    "statement_month": "2024-07"
+    "statement_month": "2024-07",
+    "period_start": "17-06-2024",
+    "period_end": "16-07-2024"
   },
   "pnb/platinum/layout_mixed_integer_decimal.txt": {
     "closing": "-2750.5",

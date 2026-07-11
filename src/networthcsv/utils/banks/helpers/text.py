@@ -1,4 +1,4 @@
-"""Text processing helpers for statement PDFs."""
+"""Text trimming and sanitization helpers for statement PDFs."""
 
 from __future__ import annotations
 
@@ -9,6 +9,11 @@ from networthcsv.utils.alerts.models import Alert, AlertKind
 from networthcsv.utils.alerts.service import AlertService
 
 logger = logging.getLogger(__name__)
+
+END_OF_TRANSACTIONS_TRIM_MARKER = (
+    "------------------------------------------------ End of Transactions "
+    "------------------------------------------------"
+)
 
 _DISALLOWED = re.compile(r"[^A-Za-z0-9 \n\r.,/\-:()%&@#*+=<>|_$]")
 
@@ -95,7 +100,6 @@ def _start_anchor(words: list[str]) -> str:
 
 
 def _purge_marker_line_block(text: str, marker: str) -> str:
-    """Remove lines from the first start anchor through the last end anchor."""
     words = _marker_words(marker)
     if not words:
         return text

@@ -2,29 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import unittest
 
-from networthcsv.pipeline.metadata.statement_balance import (
-    extract_closing_balance,
-    extract_opening_balance,
-)
-from networthcsv.settings import (
-    DEFAULT_CONFIG_PATH,
-    AppConfig,
-    ResolvedAccount,
-    _resolve_variant_defaults,
-)
-
-_APP_CONFIG = AppConfig.from_json(
-    json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")),
-    config_path=DEFAULT_CONFIG_PATH,
-)
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.banks import get_handler
 
 
 def _account(*, variant: str | None = "easy") -> ResolvedAccount:
-    bank_variants = _APP_CONFIG.banks["bob"]
-    defaults = _resolve_variant_defaults(bank_variants, variant)
+    handler = get_handler("bob", variant)
+    defaults = handler.matching_defaults()
     return ResolvedAccount.model_validate(
         {
             "bank": "bob",
@@ -49,14 +35,9 @@ class BobStatementBalanceTests(unittest.TestCase):
             "    0             0            0            0\n"
         )
         account = _account()
-        opening = extract_opening_balance(
-            text,
-            tuple(account.metadata.balances.opening),
-        )
-        closing = extract_closing_balance(
-            text,
-            tuple(account.metadata.balances.closing),
-        )
+        handler = get_handler(account.bank, account.variant)
+        opening = handler.get_opening_balance(text)
+        closing = handler.get_closing_balance(text)
         self.assertEqual(opening, "0.00")
         self.assertEqual(closing, "-991.00")
 

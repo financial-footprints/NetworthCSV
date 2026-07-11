@@ -2,49 +2,27 @@
 
 from __future__ import annotations
 
-import json
 import unittest
 from datetime import date
 
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_date,
     extract_statement_period,
-    month_stem_from_name,
-    parse_date_string,
     resolve_month_stem,
 )
-from networthcsv.settings import (
-    DEFAULT_CONFIG_PATH,
-    AppConfig,
-    ResolvedAccount,
-    _resolve_variant_defaults,
-)
-
-_APP_CONFIG = AppConfig.from_json(
-    json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")),
-    config_path=DEFAULT_CONFIG_PATH,
-)
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.banks import get_handler
+from networthcsv.utils.banks.helpers.dates import parse_date_string
+from networthcsv.utils.month_stem import month_stem_from_filename
 
 
 def _account(
     *,
     bank: str = "bob",
-    variant: str | None = "easy",
-    statement_date_markers: list[dict[str, object]] | None = None,
+    variant: str | None = None,
 ) -> ResolvedAccount:
-    if statement_date_markers is not None:
-        return ResolvedAccount.model_validate(
-            {
-                "bank": bank,
-                "variant": variant,
-                "account_number": "1234",
-                "passwords": ["x"],
-                "mail": {"subjects": ["test"]},
-                "metadata": {"statement_date": statement_date_markers},
-            }
-        )
-    bank_variants = _APP_CONFIG.banks[bank]
-    defaults = _resolve_variant_defaults(bank_variants, variant)
+    handler = get_handler(bank, variant)
+    defaults = handler.matching_defaults()
     return ResolvedAccount.model_validate(
         {
             "bank": bank,
@@ -71,13 +49,15 @@ class ParseDateStringTests(unittest.TestCase):
 
 class MonthStemFromNameTests(unittest.TestCase):
     def test_yyyy_mm_dd(self) -> None:
-        self.assertEqual(month_stem_from_name("All Mail__2023-04-18.pdf"), "2023-04")
+        self.assertEqual(
+            month_stem_from_filename("All Mail__2023-04-18.pdf"), "2023-04"
+        )
 
     def test_yyyy_mm_only(self) -> None:
-        self.assertEqual(month_stem_from_name("statement_2024-01.pdf"), "2024-01")
+        self.assertEqual(month_stem_from_filename("statement_2024-01.pdf"), "2024-01")
 
     def test_unknown_when_missing(self) -> None:
-        self.assertEqual(month_stem_from_name("attachment.pdf"), "unknown-month")
+        self.assertEqual(month_stem_from_filename("attachment.pdf"), "unknown-month")
 
 
 class ResolveMonthStemTests(unittest.TestCase):
@@ -112,17 +92,7 @@ class ResolveMonthStemTests(unittest.TestCase):
 
 class MultiAttemptTests(unittest.TestCase):
     def test_second_marker_used_when_first_fails(self) -> None:
-        account = _account(
-            statement_date_markers=[
-                {"mode": "label_single", "label": "Missing Label"},
-                {
-                    "mode": "top_range",
-                    "joiner": " - ",
-                    "take": "end",
-                    "search_chars": 2000,
-                },
-            ]
-        )
+        account = _account(bank="federal", variant="signet")
         text = "21 DEC 2023 - 20 JAN 2024\n\n21/01/2024"
         parsed = extract_statement_date(text, account=account)
         self.assertIsNotNone(parsed)
@@ -221,6 +191,17 @@ class ExtractStatementPeriodTests(unittest.TestCase):
         )
         self.assertIsNone(period_start)
         self.assertEqual(period_end, date(2024, 1, 17))
+
+    def test_pnb_statement_period_bounds(self) -> None:
+        text = (
+            "Transaction Date Post Date Trnx Details "
+            "From 17-FEB-2024 to 16-MAR-2024 Amount in Rs."
+        )
+        period_start, period_end = extract_statement_period(
+            text, account=_account(bank="pnb", variant="platinum")
+        )
+        self.assertEqual(period_start, date(2024, 2, 17))
+        self.assertEqual(period_end, date(2024, 3, 16))
 
 
 if __name__ == "__main__":

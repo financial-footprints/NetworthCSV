@@ -24,6 +24,7 @@ from networthcsv.settings import (
     ThunderbirdSourceSettings,
 )
 from networthcsv.utils.alerts.service import AlertService
+from networthcsv.utils.banks import get_handler
 
 
 def _extract_side_effect(
@@ -36,30 +37,29 @@ def _extract_side_effect(
 
 
 def _account(
-    *, text_contains: list[str] | str = "5678", account_number: str = "5678"
+    *,
+    bank: str = "bob",
+    variant: str | None = "easy",
+    text_contains: list[str] | str = "5678",
+    account_number: str = "5678",
 ) -> ResolvedAccount:
+    handler = get_handler(bank, variant)
+    defaults = handler.matching_defaults()
     statement_text_contains = (
         text_contains if isinstance(text_contains, list) else [text_contains]
     )
+    payload = defaults.model_dump()
+    payload["statement"] = {
+        **payload["statement"],
+        "text_contains": statement_text_contains,
+    }
     return ResolvedAccount.model_validate(
         {
-            "bank": "bob",
-            "variant": "easy",
+            "bank": bank,
+            "variant": variant,
             "account_number": account_number,
             "passwords": ["secret"],
-            "mail": {"subjects": ["BOB"], "body_contains": [], "from": []},
-            "statement": {"text_contains": statement_text_contains},
-            "metadata": {
-                "statement_date": [
-                    {"mode": "label_single", "label": "Statement Date :"},
-                    {
-                        "mode": "label_range",
-                        "label": "Statement Period :",
-                        "joiner": " to ",
-                        "take": "end",
-                    },
-                ],
-            },
+            **payload,
         }
     )
 
@@ -323,18 +323,11 @@ class PrepareMonthTests(unittest.TestCase):
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            staging_dir, download_path, account = _staging_layout(tmp)
+            account = _account(bank="pnb", variant=None)
+            staging_dir, download_path, account = _staging_layout(tmp, account)
             staging = self._write_pdf(staging_dir, "All Mail__2023-04-18.pdf")
             mock_extract.return_value = (
                 "junk\n5678\n********** End of Statement **********"
-            )
-
-            account = account.model_copy(
-                update={
-                    "statement": account.statement.model_copy(
-                        update={"trim_end": ["End of Statement"]}
-                    )
-                }
             )
 
             prepared, rejected = prepare_month(

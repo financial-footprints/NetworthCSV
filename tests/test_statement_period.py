@@ -1,31 +1,52 @@
-"""Tests for statement period derivation from bank billing rules."""
+"""Statement period identifier helpers."""
 
 from __future__ import annotations
 
 import unittest
 from datetime import date
 
-from networthcsv.pipeline.cleanup.statement_period import period_start_from_end
+from networthcsv.utils.statement_period import (
+    fiscal_year_key,
+    is_yearly_period,
+    period_for_year_key,
+    yearly_period_for_year_key,
+    yearly_period_from_dates,
+)
 
 
-class PeriodStartFromEndTests(unittest.TestCase):
-    def test_hdfc_style_prior_month(self) -> None:
+class StatementPeriodTests(unittest.TestCase):
+    def test_yearly_period_round_trip(self) -> None:
+        period = yearly_period_from_dates(date(2024, 4, 1), date(2025, 3, 31))
+        self.assertEqual(period, "yearly-2024-04_2025-03")
+        self.assertTrue(is_yearly_period(period))
+
+    def test_fiscal_year_key(self) -> None:
         self.assertEqual(
-            period_start_from_end(date(2021, 9, 20), 21),
-            date(2021, 8, 21),
+            fiscal_year_key(date(2024, 4, 1), date(2025, 3, 31)),
+            "FY24-2025",
         )
 
-    def test_january_rolls_to_december(self) -> None:
-        self.assertEqual(
-            period_start_from_end(date(2024, 1, 20), 21),
-            date(2023, 12, 21),
-        )
+    def test_yearly_period_for_fiscal_year_key(self) -> None:
+        period = yearly_period_for_year_key("FY24-2025", year_display="fiscal_year")
+        self.assertEqual(period, "yearly-2024-04_2025-03")
 
-    def test_start_day_clamped_to_month_length(self) -> None:
-        self.assertEqual(
-            period_start_from_end(date(2021, 3, 20), 31),
-            date(2021, 2, 28),
+    def test_period_for_calendar_year_key(self) -> None:
+        start, end = period_for_year_key("2024", year_display="calendar_year")
+        self.assertEqual(start, date(2024, 1, 1))
+        self.assertEqual(end, date(2024, 12, 31))
+
+    def test_build_calendar_year_sections_fiscal(self) -> None:
+        from networthcsv.utils.statement_period import build_calendar_year_sections
+
+        sections = build_calendar_year_sections(
+            date(2024, 4, 1),
+            date(2025, 3, 31),
+            year_display="fiscal_year",
         )
+        self.assertEqual(len(sections), 1)
+        self.assertEqual(sections[0].year_key, "FY24-2025")
+        self.assertEqual(sections[0].label, "FY 2024–2025")
+        self.assertEqual(sections[0].months[0].month_key, "2025-03")
 
 
 if __name__ == "__main__":

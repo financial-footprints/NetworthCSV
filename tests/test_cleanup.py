@@ -15,6 +15,7 @@ from networthcsv.pipeline.cleanup.cleanup import (
     prepare_month,
     run,
 )
+from networthcsv.pipeline.cleanup.statement_date import PeriodSource
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.settings import (
     ResolvedAccount,
@@ -41,6 +42,7 @@ def _account(
     bank: str = "bob",
     variant: str | None = "easy",
     text_contains: list[str] | str = "5678",
+    text_not_contains: list[str] | str | None = None,
     account_number: str = "5678",
 ) -> ResolvedAccount:
     handler = get_handler(bank, variant)
@@ -48,11 +50,18 @@ def _account(
     statement_text_contains = (
         text_contains if isinstance(text_contains, list) else [text_contains]
     )
-    payload = defaults.model_dump()
-    payload["statement"] = {
-        **payload["statement"],
+    statement: dict[str, object] = {
+        **defaults.model_dump()["statement"],
         "text_contains": statement_text_contains,
     }
+    if text_not_contains is not None:
+        statement["text_not_contains"] = (
+            text_not_contains
+            if isinstance(text_not_contains, list)
+            else [text_not_contains]
+        )
+    payload = defaults.model_dump()
+    payload["statement"] = statement
     return ResolvedAccount.model_validate(
         {
             "bank": bank,
@@ -344,7 +353,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertIn("5678", txt_out.read_text(encoding="utf-8"))
 
     @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
-    def test_keeps_last_when_both_match_identifier(
+    def test_rejects_when_both_match_identifier_with_different_content(
         self, mock_extract: MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -366,16 +375,13 @@ class PrepareMonthTests(unittest.TestCase):
                 account,
             )
 
-            txt_out = txt_path_for_pdf(
-                statement_pdf_path(download_path, account, "2023-04")
-            )
-            self.assertEqual((prepared, rejected), (1, 0))
-            self.assertTrue(
-                statement_pdf_path(download_path, account, "2023-04").is_file()
-            )
-            self.assertIn("duplicate", txt_out.read_text(encoding="utf-8"))
-            self.assertFalse(first.exists())
-            self.assertFalse(second.exists())
+            pdf_out = statement_pdf_path(download_path, account, "2023-04")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (0, 1))
+            self.assertFalse(pdf_out.is_file())
+            self.assertFalse(txt_out.is_file())
+            self.assertTrue(first.is_file())
+            self.assertTrue(second.is_file())
 
     @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
     def test_hash_dedupe_staging_siblings_all_removed(
@@ -613,6 +619,250 @@ class RunCleanupTests(unittest.TestCase):
             self.assertTrue(other.is_file())
             self.assertEqual(result.prepared, 1)
             self.assertEqual(result.rejected, 0)
+
+
+_FIXTURES_ROOT = Path(__file__).resolve().parent / "fixtures"
+
+
+class HdfcInboxCleanupTests(unittest.TestCase):
+    def _write_pdf(self, directory: Path, name: str) -> Path:
+        path = directory / name
+        _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
+        return path
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_yearly_inbox_sibling_lands_in_yearly_period(
+        self, mock_extract: MagicMock
+    ) -> None:
+        yearly_text = (_FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
+            encoding="utf-8"
+        )
+        account = _account(
+            bank="hdfc",
+            variant="default",
+            text_contains="XXXXXX7890",
+            account_number="7890",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            yearly_pdf = self._write_pdf(staging_dir, "INBOX__2026-05-20 (1).pdf")
+            sibling = self._write_pdf(staging_dir, "INBOX__2026-05-20 (2).pdf")
+            bare = self._write_pdf(staging_dir, "INBOX__2026-05-20.pdf")
+            mock_extract.side_effect = _extract_side_effect(
+                {
+                    yearly_pdf: yearly_text,
+                    sibling: "HDFC card 000123456XXXXXX7890 generic monthly text",
+                    bare: "HDFC card 000123456XXXXXX7890 other attachment",
+                }
+            )
+
+            collected = collect_month_groups(staging_dir, account)
+            yearly_period = "yearly-2024-04_2025-03"
+            self.assertIn(yearly_period, collected.groups)
+            self.assertIn("2026-05", collected.groups)
+            self.assertEqual(
+                collected.path_period_source[yearly_pdf],
+                "yearly",
+            )
+            self.assertEqual(
+                collected.path_period_source[sibling],
+                "filename_fallback",
+            )
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                yearly_period,
+                collected.groups[yearly_period],
+                account,
+                raw_by_path=collected.raw_by_path,
+                path_month=collected.path_month,
+                path_hash=collected.path_hash,
+                path_period_source=collected.path_period_source,
+            )
+            yearly_out = statement_pdf_path(download_path, account, yearly_period)
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(yearly_out.is_file())
+            self.assertTrue(txt_path_for_pdf(yearly_out).is_file())
+            self.assertFalse(yearly_pdf.exists())
+
+            month_prepared, month_rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2026-05",
+                collected.groups["2026-05"],
+                account,
+                raw_by_path=collected.raw_by_path,
+                path_month=collected.path_month,
+                path_hash=collected.path_hash,
+                path_period_source=collected.path_period_source,
+            )
+            self.assertEqual((month_prepared, month_rejected), (0, 1))
+            self.assertTrue(sibling.is_file())
+            self.assertTrue(bare.is_file())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_prefers_yearly_confidence_over_filename_fallback(
+        self, mock_extract: MagicMock
+    ) -> None:
+        yearly_text = (_FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
+            encoding="utf-8"
+        )
+        account = _account(
+            bank="hdfc",
+            variant="default",
+            text_contains="XXXXXX7890",
+            account_number="7890",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            yearly_pdf = self._write_pdf(staging_dir, "INBOX__2026-05-20 (1).pdf")
+            fallback_pdf = self._write_pdf(staging_dir, "INBOX__2026-05-20.pdf")
+            mock_extract.side_effect = _extract_side_effect(
+                {
+                    yearly_pdf: yearly_text,
+                    fallback_pdf: yearly_text,
+                }
+            )
+            period = "yearly-2024-04_2025-03"
+            path_period_source: dict[Path, PeriodSource] = {
+                yearly_pdf: "yearly",
+                fallback_pdf: "filename_fallback",
+            }
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                period,
+                [yearly_pdf, fallback_pdf],
+                account,
+                path_period_source=path_period_source,
+            )
+
+            self.assertEqual((prepared, rejected), (1, 0))
+            txt_out = txt_path_for_pdf(
+                statement_pdf_path(download_path, account, period)
+            )
+            self.assertTrue(txt_out.is_file())
+            self.assertFalse(yearly_pdf.exists())
+            self.assertFalse(fallback_pdf.exists())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_deletes_staging_pdf_when_text_not_contains_violated(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            account = _account(
+                text_contains=["5678"],
+                text_not_contains=["Anotherthing"],
+            )
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            staging = self._write_pdf(staging_dir, "All Mail__2023-04-18.pdf")
+            mock_extract.return_value = "card ending 5678 for Anotherthing account"
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2023-04",
+                [staging],
+                account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2023-04")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (0, 1))
+            self.assertFalse(pdf_out.is_file())
+            self.assertFalse(txt_out.is_file())
+            self.assertFalse(staging.is_file())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_keeps_valid_candidate_when_false_positive_excluded(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            account = _account(
+                text_contains=["5678"],
+                text_not_contains=["Anotherthing"],
+            )
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            false_positive = self._write_pdf(staging_dir, "All Mail__2023-04-18.pdf")
+            valid = self._write_pdf(staging_dir, "Starred_Email__2023-04-18.pdf")
+            mock_extract.side_effect = _extract_side_effect(
+                {
+                    false_positive: "card ending 5678 Anotherthing",
+                    valid: "bob card ending 5678",
+                }
+            )
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2023-04",
+                [false_positive, valid],
+                account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2023-04")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(pdf_out.is_file())
+            self.assertTrue(txt_out.is_file())
+            self.assertFalse(false_positive.is_file())
+            self.assertFalse(valid.is_file())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_manual_upload_bypasses_text_not_contains(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            account = _account(
+                text_contains=["5678"],
+                text_not_contains=["Anotherthing"],
+            )
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            staging = self._write_pdf(staging_dir, "manual__2023-05.pdf")
+            mock_extract.return_value = "statement with Anotherthing marker"
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2023-05",
+                [staging],
+                account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, account, "2023-05")
+            txt_out = txt_path_for_pdf(pdf_out)
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(pdf_out.is_file())
+            self.assertTrue(txt_out.is_file())
+            self.assertFalse(staging.exists())
+
+    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    def test_run_removes_canonical_outputs_when_text_not_contains_violated(
+        self, mock_extract: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            account = _account(
+                text_contains=["5678"],
+                text_not_contains=["Anotherthing"],
+            )
+            staging_dir, download_path, account = _staging_layout(tmp, account)
+            pdf_out = statement_pdf_path(download_path, account, "2023-04")
+            txt_out = txt_path_for_pdf(pdf_out)
+            _ = pdf_out.parent.mkdir(parents=True, exist_ok=True)
+            _ = pdf_out.write_bytes(b"%PDF-1.4 canonical")
+            _ = txt_out.write_text(
+                "card ending 5678 Anotherthing",
+                encoding="utf-8",
+            )
+            mock_extract.return_value = "unused"
+
+            result = run(staging_dir, account, _run_context(download_path))
+
+            self.assertEqual((result.prepared, result.rejected), (0, 0))
+            self.assertFalse(pdf_out.is_file())
+            self.assertFalse(txt_out.is_file())
 
 
 if __name__ == "__main__":

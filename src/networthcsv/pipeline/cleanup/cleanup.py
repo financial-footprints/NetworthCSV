@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 
+from networthcsv.utils.alerts.models import Alert, AlertKind
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.context import RunContext
 from networthcsv.errors import StageError
@@ -17,20 +18,26 @@ from networthcsv.pipeline.results import CleanupAccountResult
 from networthcsv.utils.path import (
     discover_account_fy_dirs,
     iter_pdfs,
+    iter_statement_pairs,
     pdf_path_for_txt,
     statement_pdf_path,
     txt_is_current,
     txt_path_for_pdf,
 )
 from networthcsv.utils.pdf import extract_pdf_text_plumber
-from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
+from networthcsv.pipeline.cleanup.statement_date import (
+    PeriodSource,
+    resolve_statement_period_with_source,
+)
 from networthcsv.pipeline.upload import (
-    month_stem_from_manual_upload,
     manual_upload_pdf_path,
+    period_from_manual_upload,
 )
 from networthcsv.utils.banks.helpers.text import (
     check_text_contains,
+    statement_text_eligible,
     text_contains_present,
+    text_not_contains_violated,
 )
 from networthcsv.settings import (
     ResolvedAccount,
@@ -41,6 +48,30 @@ from networthcsv.settings import (
 
 logger = logging.getLogger(__name__)
 
+_PERIOD_SOURCE_RANK: dict[PeriodSource, int] = {
+    "manual": -1,
+    "yearly": 0,
+    "content_date": 1,
+    "filename_fallback": 2,
+    "unknown": 3,
+}
+
+
+def _period_source_rank(source: PeriodSource) -> int:
+    return _PERIOD_SOURCE_RANK[source]
+
+
+def _period_source_for_path(
+    path: Path,
+    lookup: dict[Path, PeriodSource],
+) -> PeriodSource:
+    source = lookup.get(path)
+    if source is not None:
+        return source
+    if period_from_manual_upload(path.name):
+        return "manual"
+    return "unknown"
+
 
 @dataclass(frozen=True)
 class MonthGroups:
@@ -48,6 +79,7 @@ class MonthGroups:
     raw_by_path: dict[Path, str]
     path_month: dict[Path, str]
     path_hash: dict[Path, str]
+    path_period_source: dict[Path, PeriodSource]
 
 
 def _is_staging_pdf(download_dir: Path, path: Path) -> bool:
@@ -67,11 +99,23 @@ def _delete_staging_duplicates_for_month(
     *,
     keep: Path | None = None,
     preserve: frozenset[Path] | None = None,
+    path_hash: dict[Path, str] | None = None,
+    path_period_source: dict[Path, PeriodSource] | None = None,
 ) -> int:
     removed = 0
     keep_resolved = keep.resolve() if keep is not None else None
     preserve_resolved = (
         {path.resolve() for path in preserve} if preserve is not None else set()
+    )
+    keep_digest = (
+        path_hash.get(keep) if keep is not None and path_hash is not None else None
+    )
+    if keep_digest is None and keep is not None:
+        keep_digest = _file_hash(keep)
+    keep_rank = (
+        _period_source_rank(_period_source_for_path(keep, path_period_source))
+        if keep is not None and path_period_source is not None
+        else None
     )
     for path in iter_pdfs(download_dir):
         if not _is_staging_pdf(download_dir, path):
@@ -82,6 +126,15 @@ def _delete_staging_duplicates_for_month(
             continue
         if path.resolve() in preserve_resolved:
             continue
+        if keep_rank is not None and path_period_source is not None:
+            path_rank = _period_source_rank(
+                _period_source_for_path(path, path_period_source)
+            )
+            path_digest = path_hash.get(path) if path_hash is not None else None
+            if path_digest is None:
+                path_digest = _file_hash(path)
+            if path_digest != keep_digest and path_rank <= keep_rank:
+                continue
         _ = path.unlink()
         logger.debug("removed (duplicate month): %s", path)
         removed += 1
@@ -154,6 +207,7 @@ def collect_month_groups(
     raw_by_path: dict[Path, str] = {}
     path_month: dict[Path, str] = {}
     path_hash: dict[Path, str] = {}
+    path_period_source: dict[Path, PeriodSource] = {}
     seen: set[str] = set()
     hash_to_raw: dict[str, str] = {}
     pdf_paths = paths if paths is not None else list(iter_pdfs(staging_dir))
@@ -169,18 +223,23 @@ def collect_month_groups(
             raw = extract_pdf_text_plumber(path, account.passwords)
             hash_to_raw[digest] = raw
         raw_by_path[path] = raw
-        manual_month = month_stem_from_manual_upload(path.name)
+        manual_month = period_from_manual_upload(path.name)
         if manual_month is not None:
             month = manual_month
+            source: PeriodSource = "manual"
         else:
-            month = resolve_month_stem(raw, path.name, account=account)
+            month, source = resolve_statement_period_with_source(
+                raw, path.name, account=account
+            )
         path_month[path] = month
+        path_period_source[path] = source
         by_month.setdefault(month, []).append(path)
     return MonthGroups(
         groups=by_month,
         raw_by_path=raw_by_path,
         path_month=path_month,
         path_hash=path_hash,
+        path_period_source=path_period_source,
     )
 
 
@@ -222,6 +281,86 @@ def _write_statement_pair(
     logger.debug("prepared: %s + %s", pdf_out, txt_out)
 
 
+def _remove_ineligible_canonical_outputs(
+    download_path: Path,
+    account: ResolvedAccount,
+) -> int:
+    text_contains = account.statement.text_contains
+    text_not_contains = account.statement.text_not_contains
+    if not text_not_contains:
+        return 0
+
+    removed = 0
+    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+        if not pdf_path.is_file() or not txt_path.is_file():
+            continue
+        if not txt_is_current(pdf_path, txt_path):
+            continue
+        txt_content = txt_path.read_text(encoding="utf-8")
+        if statement_text_eligible(
+            txt_content,
+            text_contains=text_contains,
+            text_not_contains=text_not_contains,
+            is_manual=False,
+        ):
+            continue
+        _ = pdf_path.unlink()
+        _ = txt_path.unlink()
+        logger.debug(
+            "removed (text_not_contains): canonical outputs %s + %s",
+            pdf_path,
+            txt_path,
+        )
+        removed += 1
+    return removed
+
+
+def _select_keeper(
+    unique: list[Path],
+    *,
+    sanitized_by_path: dict[Path, str],
+    path_period_source: dict[Path, PeriodSource],
+    path_hash: dict[Path, str],
+    text_contains: list[str],
+    manual_candidates: list[Path],
+) -> tuple[Path | None, bool]:
+    if manual_candidates:
+        return manual_candidates[-1], False
+    if not text_contains:
+        return (unique[-1] if unique else None), False
+
+    matching = [
+        path
+        for path in unique
+        if text_contains_present(sanitized_by_path[path], text_contains)
+    ]
+    if not matching:
+        return None, False
+
+    matching_sorted = sorted(
+        matching,
+        key=lambda path: (
+            _period_source_rank(path_period_source.get(path, "unknown")),
+            path.as_posix(),
+        ),
+    )
+    best_rank = _period_source_rank(
+        path_period_source.get(matching_sorted[0], "unknown")
+    )
+    best = [
+        path
+        for path in matching_sorted
+        if _period_source_rank(path_period_source.get(path, "unknown")) == best_rank
+    ]
+    if len(best) == 1:
+        return best[0], False
+
+    digests = {path_hash.get(path) or _file_hash(path) for path in best}
+    if len(digests) == 1:
+        return best[-1], False
+    return None, True
+
+
 def prepare_month(
     staging_dir: Path,
     download_path: Path,
@@ -232,6 +371,7 @@ def prepare_month(
     raw_by_path: dict[Path, str] | None = None,
     path_month: dict[Path, str] | None = None,
     path_hash: dict[Path, str] | None = None,
+    path_period_source: dict[Path, PeriodSource] | None = None,
     alerts: AlertService | None = None,
 ) -> tuple[int, int]:
     """Resolve one statement month. Returns (prepared, rejected) counts."""
@@ -247,26 +387,73 @@ def prepare_month(
     sanitized_by_path = {
         path: _sanitized_text(raw_by_path[path], account) for path in unique
     }
+    period_source_lookup = path_period_source or {}
+    hash_lookup = path_hash or {}
     label = account_label(account)
     pdf_out = statement_pdf_path(download_path, account, month)
     canonical = pdf_out if pdf_out.is_file() else None
     text_contains = account.statement.text_contains
+    text_not_contains = account.statement.text_not_contains
 
-    keeper = None
     manual_candidates = [
-        path for path in unique if month_stem_from_manual_upload(path.name)
+        path for path in unique if period_from_manual_upload(path.name)
     ]
-    if manual_candidates:
-        keeper = manual_candidates[-1]
-    elif text_contains:
-        for path in unique:
-            if text_contains_present(sanitized_by_path[path], text_contains):
-                keeper = path
-    elif unique:
-        keeper = unique[-1]
+    manual_paths = frozenset(manual_candidates)
+    for path in unique:
+        if path in manual_paths:
+            continue
+        if text_not_contains_violated(sanitized_by_path[path], text_not_contains):
+            if path.is_file():
+                _ = path.unlink()
+                logger.debug("removed (text_not_contains): %s", path)
+
+    eligible = [
+        path
+        for path in unique
+        if path.is_file()
+        and (
+            path in manual_paths
+            or not text_not_contains_violated(
+                sanitized_by_path[path], text_not_contains
+            )
+        )
+    ]
+    if not eligible:
+        return 0, 1
+
+    keeper, ambiguous = _select_keeper(
+        eligible,
+        sanitized_by_path=sanitized_by_path,
+        path_period_source=period_source_lookup,
+        path_hash=hash_lookup,
+        text_contains=text_contains,
+        manual_candidates=[path for path in manual_candidates if path in eligible],
+    )
+
+    if ambiguous:
+        logger.warning(
+            "ambiguous statement period for %s: multiple matching PDFs with "
+            "same confidence for month %s; leaving files in staging",
+            label,
+            month,
+        )
+        if alerts is not None:
+            alerts.emit(
+                Alert(
+                    kind=AlertKind.AMBIGUOUS_STATEMENT_PERIOD,
+                    message=(
+                        f"multiple matching PDFs with same period confidence "
+                        f"for {month}; manual review required"
+                    ),
+                    account=label,
+                    source_file=month,
+                    text_contains=list(text_contains),
+                )
+            )
+        return 0, 1
 
     if keeper is None:
-        for path in unique:
+        for path in eligible:
             if canonical is not None and path.resolve() == canonical.resolve():
                 continue
             if text_contains:
@@ -280,16 +467,20 @@ def prepare_month(
         return 0, 1
 
     raw = raw_by_path[keeper]
-    keeper_is_manual = keeper in manual_candidates
+    keeper_is_manual = keeper in manual_paths
+    keeper_rank = _period_source_rank(
+        _period_source_for_path(keeper, period_source_lookup)
+    )
+    keeper_digest = hash_lookup.get(keeper) or _file_hash(keeper)
     preserve: frozenset[Path] = frozenset()
     if text_contains and not keeper_is_manual:
         preserve = frozenset(
             path
-            for path in unique
+            for path in eligible
             if path != keeper
             and not text_contains_present(sanitized_by_path[path], text_contains)
         )
-    for path in unique:
+    for path in eligible:
         if path == keeper:
             continue
         if keeper_is_manual or not text_contains_present(
@@ -303,15 +494,27 @@ def prepare_month(
                     account_label=label,
                     alerts=alerts,
                 )
-        elif path.is_file():
-            _ = path.unlink()
-            logger.debug("removed (duplicate month): %s", path)
+            continue
+        path_rank = _period_source_rank(
+            _period_source_for_path(path, period_source_lookup)
+        )
+        path_digest = hash_lookup.get(path) or _file_hash(path)
+        if path_digest == keeper_digest or path_rank > keeper_rank:
+            if path.is_file():
+                _ = path.unlink()
+                logger.debug("removed (duplicate month): %s", path)
 
     dedupe_lookup = (
         path_month if path_month is not None else {path: month for path in existing}
     )
     _ = _delete_staging_duplicates_for_month(
-        staging_dir, month, dedupe_lookup, keep=keeper, preserve=preserve
+        staging_dir,
+        month,
+        dedupe_lookup,
+        keep=keeper,
+        preserve=preserve,
+        path_hash=hash_lookup,
+        path_period_source=period_source_lookup,
     )
     _write_statement_pair(staging_dir, download_path, month, keeper, raw, account)
     return 1, 0
@@ -378,6 +581,7 @@ def run(
         account,
         paths=staging_paths,
     )
+    _ = _remove_ineligible_canonical_outputs(download_path, account)
 
     for month, candidates in sorted(collected.groups.items()):
         if month == "unknown-month":
@@ -404,10 +608,19 @@ def run(
                 and txt_is_current(pdf_out, txt_out)
             ):
                 txt_content = txt_out.read_text(encoding="utf-8")
-                if not account.statement.text_contains or text_contains_present(
-                    txt_content, account.statement.text_contains
+                if statement_text_eligible(
+                    txt_content,
+                    text_contains=account.statement.text_contains,
+                    text_not_contains=account.statement.text_not_contains,
+                    is_manual=False,
                 ):
                     continue
+                _ = pdf_out.unlink()
+                _ = txt_out.unlink()
+                logger.debug(
+                    "removed (text_not_contains): canonical outputs for %s",
+                    month,
+                )
 
         month_prepared, month_rejected = prepare_month(
             staging_dir,
@@ -418,6 +631,7 @@ def run(
             raw_by_path=collected.raw_by_path,
             path_month=collected.path_month,
             path_hash=collected.path_hash,
+            path_period_source=collected.path_period_source,
             alerts=alerts,
         )
         prepared += month_prepared

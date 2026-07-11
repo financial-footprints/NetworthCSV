@@ -8,12 +8,12 @@ from datetime import date
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_date,
     extract_statement_period,
-    resolve_month_stem,
+    resolve_month_period,
 )
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.helpers.dates import parse_date_string
-from networthcsv.utils.month_stem import month_stem_from_filename
+from networthcsv.utils.statement_period import month_period_from_filename
 
 
 def _account(
@@ -47,27 +47,27 @@ class ParseDateStringTests(unittest.TestCase):
         self.assertIsNone(parse_date_string("not a date"))
 
 
-class MonthStemFromNameTests(unittest.TestCase):
+class MonthPeriodFromNameTests(unittest.TestCase):
     def test_yyyy_mm_dd(self) -> None:
         self.assertEqual(
-            month_stem_from_filename("All Mail__2023-04-18.pdf"), "2023-04"
+            month_period_from_filename("All Mail__2023-04-18.pdf"), "2023-04"
         )
 
     def test_yyyy_mm_only(self) -> None:
-        self.assertEqual(month_stem_from_filename("statement_2024-01.pdf"), "2024-01")
+        self.assertEqual(month_period_from_filename("statement_2024-01.pdf"), "2024-01")
 
     def test_unknown_when_missing(self) -> None:
-        self.assertEqual(month_stem_from_filename("attachment.pdf"), "unknown-month")
+        self.assertEqual(month_period_from_filename("attachment.pdf"), "unknown-month")
 
 
-class ResolveMonthStemTests(unittest.TestCase):
+class ResolveMonthPeriodTests(unittest.TestCase):
     def test_content_wins_over_filename(self) -> None:
         text = (
             "Credit Card Monthly Statement\n"
             "Statement Date : 16/04/2023 | Statement Period : 17 Mar, 2023 to 16 Apr, 2023\n"
         )
         self.assertEqual(
-            resolve_month_stem(
+            resolve_month_period(
                 text, "All Mail__2023-05-20.pdf", account=_account(bank="bob")
             ),
             "2023-04",
@@ -76,7 +76,7 @@ class ResolveMonthStemTests(unittest.TestCase):
     def test_filename_fallback_when_no_date_in_text(self) -> None:
         text = "bob card ending 5678"
         self.assertEqual(
-            resolve_month_stem(
+            resolve_month_period(
                 text, "All Mail__2023-04-18.pdf", account=_account(bank="bob")
             ),
             "2023-04",
@@ -85,7 +85,7 @@ class ResolveMonthStemTests(unittest.TestCase):
     def test_unknown_month_when_neither_works(self) -> None:
         text = "no dates here"
         self.assertEqual(
-            resolve_month_stem(text, "attachment.pdf", account=_account(bank="bob")),
+            resolve_month_period(text, "attachment.pdf", account=_account(bank="bob")),
             "unknown-month",
         )
 

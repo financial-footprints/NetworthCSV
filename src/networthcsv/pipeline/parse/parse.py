@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import logging
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -13,19 +15,34 @@ from networthcsv.pipeline.results import (
     ParseFyResult,
     ParseStatementResult,
 )
+from networthcsv.pipeline.parse.statement import parse_statement_text
+from networthcsv.settings import (
+    ResolvedAccount,
+    account_download_path,
+    parse_account_date,
+)
 from networthcsv.utils.path import (
     discover_account_fy_dirs,
-    iter_pdfs,
+    fy_folder_name,
+    iter_statement_pairs,
     resolve_fy_limit,
-    txt_path_for_pdf,
 )
 from networthcsv.utils.transactions import Transaction
-from networthcsv.pipeline.parse.statement import parse_statement_text
-from networthcsv.settings import ResolvedAccount, account_download_path
+from networthcsv.utils.statement_period import is_yearly_period
 
 logger = logging.getLogger(__name__)
 
 _CSV_COLUMNS = ("Date", "Description", "Ref", "Credited", "Debited", "File")
+
+
+@dataclass(frozen=True)
+class _StatementSource:
+    pdf_path: Path
+    txt_path: Path
+    statement_period: str
+    is_yearly: bool
+    period_start: date | None
+    period_end: date | None
 
 
 def _format_amount(value: Decimal) -> str:
@@ -63,14 +80,134 @@ def _should_parse_txt(pdf_path: Path, txt_path: Path) -> bool:
     return True
 
 
+def _parse_period_dates(
+    text: str,
+    *,
+    account: ResolvedAccount,
+) -> tuple[date | None, date | None]:
+    from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
+
+    period_start, period_end, _approximate = _resolve_statement_period(
+        text,
+        account=account,
+    )
+    start = parse_account_date(period_start, "period_start") if period_start else None
+    end = parse_account_date(period_end, "period_end") if period_end else None
+    return start, end
+
+
+def _collect_statement_sources(
+    download_path: Path,
+    account: ResolvedAccount,
+) -> list[_StatementSource]:
+    sources: list[_StatementSource] = []
+    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+        if not _should_parse_txt(pdf_path, txt_path):
+            continue
+        statement_period = pdf_path.stem
+        text = txt_path.read_text(encoding="utf-8")
+        period_start, period_end = _parse_period_dates(text, account=account)
+        sources.append(
+            _StatementSource(
+                pdf_path=pdf_path,
+                txt_path=txt_path,
+                statement_period=statement_period,
+                is_yearly=is_yearly_period(statement_period),
+                period_start=period_start,
+                period_end=period_end,
+            )
+        )
+    return sources
+
+
+def _monthlies_within_yearly(
+    monthly: _StatementSource,
+    yearly: _StatementSource,
+) -> bool:
+    if monthly.period_start is None or monthly.period_end is None:
+        return False
+    if yearly.period_start is None or yearly.period_end is None:
+        return False
+    return (
+        monthly.period_start >= yearly.period_start
+        and monthly.period_end <= yearly.period_end
+    )
+
+
+def _select_sources(sources: list[_StatementSource]) -> list[_StatementSource]:
+    yearly_sources = [source for source in sources if source.is_yearly]
+    monthly_sources = [source for source in sources if not source.is_yearly]
+    selected_monthlies: list[_StatementSource] = []
+    for monthly in monthly_sources:
+        if any(_monthlies_within_yearly(monthly, yearly) for yearly in yearly_sources):
+            logger.debug(
+                "skipping monthly %s; covered by yearly statement",
+                monthly.statement_period,
+            )
+            continue
+        selected_monthlies.append(monthly)
+    return [*yearly_sources, *selected_monthlies]
+
+
+def _fy_name_for_transaction(txn_date: date) -> str:
+    return fy_folder_name(txn_date.strftime("%Y-%m"))
+
+
+def _parse_selected_sources(
+    selected_sources: list[_StatementSource],
+    *,
+    account: ResolvedAccount,
+    download_path: Path,
+) -> tuple[dict[str, list[Transaction]], dict[str, list[ParseStatementResult]]]:
+    transactions_by_fy: dict[str, list[Transaction]] = {}
+    statements_by_fy: dict[str, list[ParseStatementResult]] = {}
+
+    for source in selected_sources:
+        text = source.txt_path.read_text(encoding="utf-8")
+        rows = parse_statement_text(
+            text,
+            account=account,
+            source_file=source.pdf_path.name,
+        )
+        if source.is_yearly:
+            grouped: dict[str, list[Transaction]] = {}
+            for txn in rows:
+                fy_name = _fy_name_for_transaction(txn.date)
+                grouped.setdefault(fy_name, []).append(txn)
+            for fy_name, fy_rows in grouped.items():
+                transactions_by_fy.setdefault(fy_name, []).extend(fy_rows)
+                statements_by_fy.setdefault(fy_name, []).append(
+                    ParseStatementResult(
+                        txt_name=source.txt_path.name,
+                        transaction_count=len(fy_rows),
+                    )
+                )
+            continue
+
+        fy_name = source.pdf_path.parent.parent.parent.name
+        transactions_by_fy.setdefault(fy_name, []).extend(rows)
+        statements_by_fy.setdefault(fy_name, []).append(
+            ParseStatementResult(
+                txt_name=source.txt_path.name,
+                transaction_count=len(rows),
+            )
+        )
+
+    return transactions_by_fy, statements_by_fy
+
+
 def process_fy_folder(
     account_fy_dir: Path,
     account: ResolvedAccount,
     ctx: RunContext,
+    *,
+    transactions_by_fy: dict[str, list[Transaction]],
+    statements_by_fy: dict[str, list[ParseStatementResult]],
 ) -> ParseFyResult:
     fy_name = account_fy_dir.parent.parent.name
-    pdfs = list(iter_pdfs(account_fy_dir))
-    if not pdfs:
+    transactions = transactions_by_fy.get(fy_name, [])
+    statements = statements_by_fy.get(fy_name, [])
+    if not transactions and not statements:
         ctx.reporter.parse_fy_skipped(fy_name)
         return ParseFyResult(
             fy_name=fy_name,
@@ -80,22 +217,8 @@ def process_fy_folder(
             skipped=True,
         )
 
-    transactions: list[Transaction] = []
-    statements: list[ParseStatementResult] = []
-    for pdf_path in pdfs:
-        txt_path = txt_path_for_pdf(pdf_path)
-        if not _should_parse_txt(pdf_path, txt_path):
-            continue
-        text = txt_path.read_text(encoding="utf-8")
-        rows = parse_statement_text(text, account=account, source_file=pdf_path.name)
-        transactions.extend(rows)
-        statements.append(
-            ParseStatementResult(
-                txt_name=txt_path.name,
-                transaction_count=len(rows),
-            )
-        )
-        ctx.reporter.parse_statement(txt_path.name, len(rows))
+    for statement in statements:
+        ctx.reporter.parse_statement(statement.txt_name, statement.transaction_count)
 
     output = account_fy_dir / "transactions.csv"
     _write_csv(output, transactions)
@@ -129,6 +252,13 @@ def run(
         )
 
     ctx.reporter.parse_started(account.bank, staging_dir)
+    all_sources = _collect_statement_sources(ctx.settings.download_path, account)
+    selected_sources = _select_sources(all_sources)
+    transactions_by_fy, statements_by_fy = _parse_selected_sources(
+        selected_sources,
+        account=account,
+        download_path=ctx.settings.download_path,
+    )
 
     total_txts = 0
     all_transactions = 0
@@ -137,7 +267,13 @@ def run(
     for account_fy_dir in account_fy_dirs:
         fy_name = account_fy_dir.parent.parent.name
         ctx.reporter.parse_fy_started(fy_name)
-        fy_result = process_fy_folder(account_fy_dir, account, ctx)
+        fy_result = process_fy_folder(
+            account_fy_dir,
+            account,
+            ctx,
+            transactions_by_fy=transactions_by_fy,
+            statements_by_fy=statements_by_fy,
+        )
         fy_results.append(fy_result)
         total_txts += len(fy_result.statements)
         all_transactions += fy_result.transaction_count

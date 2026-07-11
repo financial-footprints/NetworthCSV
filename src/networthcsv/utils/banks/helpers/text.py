@@ -147,6 +147,24 @@ def text_contains_present(text: str, text_contains: list[str]) -> bool:
     return any(marker in text for marker in text_contains if marker)
 
 
+def text_not_contains_violated(text: str, text_not_contains: list[str]) -> bool:
+    return any(marker in text for marker in text_not_contains if marker)
+
+
+def statement_text_eligible(
+    text: str,
+    *,
+    text_contains: list[str],
+    text_not_contains: list[str],
+    is_manual: bool,
+) -> bool:
+    if not is_manual and text_not_contains_violated(text, text_not_contains):
+        return False
+    if text_contains and not text_contains_present(text, text_contains):
+        return False
+    return True
+
+
 def check_text_contains(
     text: str,
     *,

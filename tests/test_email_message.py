@@ -12,6 +12,7 @@ from networthcsv.utils.email.email_message import (
     body_matches,
     from_matches,
     is_pdf_attachment_part,
+    is_yearly_email,
     message_in_date_range,
     message_matches_account,
     save_attachments,
@@ -300,6 +301,53 @@ class PdfAttachmentFilterTests(unittest.TestCase):
             files = list(download_dir.glob("*.pdf"))
             self.assertEqual(len(files), 1)
             self.assertFalse(list(download_dir.glob("*.csv")))
+
+
+class YearlyEmailAttachmentTests(unittest.TestCase):
+    def _hdfc_account(self) -> ResolvedAccount:
+        return ResolvedAccount.model_validate(
+            {
+                "bank": "hdfc",
+                "variant": "default",
+                "account_number": "1234",
+                "passwords": ["secret"],
+                "mail": {
+                    "subjects": [
+                        "HDFC Bank Credit Card Statement",
+                        "Year End Statement Summary",
+                    ],
+                    "body_contains": [],
+                    "from": [],
+                },
+                "statement": {"text_contains": []},
+            }
+        )
+
+    def test_is_yearly_email(self) -> None:
+        msg = EmailMessage()
+        msg["Subject"] = "HDFC BANK Credit Card Year End Statement Summary"
+        self.assertTrue(is_yearly_email(msg))
+
+    def test_octet_stream_pdf_matches_for_yearly_email(self) -> None:
+        msg = EmailMessage()
+        msg["Subject"] = "HDFC BANK Credit Card Year End Statement Summary"
+        msg["From"] = "emailstatements.cards@hdfcbank.bank.in"
+        msg["Date"] = "Mon, 15 Apr 2025 10:00:00 +0000"
+        msg.set_content("summary of your Year End statement")
+        msg.add_attachment(
+            b"%PDF-1.4 synthetic",
+            maintype="application",
+            subtype="octet-stream",
+            filename="1234567890_",
+        )
+        account = self._hdfc_account()
+        self.assertTrue(message_matches_account(msg, account, None))
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            saved = save_attachments(msg, download_dir, "INBOX")
+            self.assertEqual(saved, 1)
+            files = list(download_dir.glob("*.pdf"))
+            self.assertEqual(len(files), 1)
 
 
 if __name__ == "__main__":

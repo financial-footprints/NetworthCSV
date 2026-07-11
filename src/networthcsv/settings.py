@@ -175,6 +175,10 @@ def normalize_text_contains(value: object) -> list[str]:
     return normalize_string_list(value, field_name="text_contains")
 
 
+def normalize_text_not_contains(value: object) -> list[str]:
+    return normalize_string_list(value, field_name="text_not_contains")
+
+
 def normalize_passwords(value: object) -> list[str]:
     return normalize_string_list(
         value,
@@ -250,6 +254,10 @@ TextContains = Annotated[list[str], BeforeValidator(normalize_text_contains)]
 OptionalTextContains = Annotated[
     list[str] | None, BeforeValidator(_optional(normalize_text_contains))
 ]
+TextNotContains = Annotated[list[str], BeforeValidator(normalize_text_not_contains)]
+OptionalTextNotContains = Annotated[
+    list[str] | None, BeforeValidator(_optional(normalize_text_not_contains))
+]
 Passwords = Annotated[list[str], BeforeValidator(normalize_passwords)]
 
 
@@ -303,10 +311,12 @@ class MailMatchOverride(MatchingFieldsCore):
 
 class StatementCleanupConfig(MatchingFieldsCore):
     text_contains: TextContains = []
+    text_not_contains: TextNotContains = []
 
 
 class StatementCleanupOverride(MatchingFieldsCore):
     text_contains: OptionalTextContains = None
+    text_not_contains: OptionalTextNotContains = None
 
 
 class MatchingFields(MatchingFieldsCore):

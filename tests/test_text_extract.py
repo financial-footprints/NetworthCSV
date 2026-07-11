@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from networthcsv.utils.banks.helpers.text import (
     check_text_contains,
     text_contains_present,
+    text_not_contains_violated,
     purge_drop_sections,
     sanitize_statement_text,
     trim_by_markers,
@@ -183,6 +184,15 @@ class TextContainsValidationTests(unittest.TestCase):
         self.assertFalse(
             text_contains_present("Card ending in 9999", ["1234", "XXXX5678"])
         )
+
+    def test_text_not_contains_violated(self) -> None:
+        self.assertTrue(
+            text_not_contains_violated("Card for Anotherthing", ["Anotherthing"])
+        )
+        self.assertFalse(
+            text_not_contains_violated("Card ending in 5678", ["Anotherthing"])
+        )
+        self.assertFalse(text_not_contains_violated("any text", []))
 
     @patch("networthcsv.utils.banks.helpers.text.logger.debug")
     def test_text_contains_found(self, mock_debug: MagicMock) -> None:

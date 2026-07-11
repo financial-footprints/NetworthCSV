@@ -9,7 +9,7 @@ from pathlib import Path
 from networthcsv.pipeline.metadata.metadata import build_account_metadata
 from networthcsv.pipeline.upload import (
     StatementFileExistsError,
-    month_stem_from_manual_upload,
+    period_from_manual_upload,
     save_uploaded_csv,
     save_uploaded_pdf,
 )
@@ -50,13 +50,13 @@ def _settings(download_path: Path) -> Settings:
 
 
 class UploadHelperTests(unittest.TestCase):
-    def test_month_stem_from_manual_upload(self) -> None:
+    def test_period_from_manual_upload(self) -> None:
         self.assertEqual(
-            month_stem_from_manual_upload("manual__2024-02.pdf"),
+            period_from_manual_upload("manual__2024-02.pdf"),
             "2024-02",
         )
-        self.assertIsNone(month_stem_from_manual_upload("INBOX__2024-01-21.pdf"))
-        self.assertIsNone(month_stem_from_manual_upload("manual__bad-name.pdf"))
+        self.assertIsNone(period_from_manual_upload("INBOX__2024-01-21.pdf"))
+        self.assertIsNone(period_from_manual_upload("manual__bad-name.pdf"))
 
     def test_save_uploaded_pdf_writes_staging_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

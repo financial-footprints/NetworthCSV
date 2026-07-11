@@ -1,0 +1,35 @@
+Account Summary for the period from APRIL-24 to MARCH-25
+Card Number Number of Add-on
+Cards
+Purchases &
+Debits
+Payments &
+Credits Credit Limit Monthly Statement
+Date
+000123456XXXXXX7890 	0 	1,200.00 	1,500.00 	100,000.00 	20
+Monthly 	Statement wise Summary of your Card
+Primary Card Holder Name : SAMPLE CARDHOLDER
+Month 	Card Number
+Debits 	Minimum
+Amount
+Dues
+Total
+Amount
+Dues
+Purchases
+& Debits
+Payments &
+Credits
+Finance
+charges	Domestic 	International 	Cash Withdrawal
+MAY-2024 	000123456XXXXXX7890 	100.00 	0.00 	0.00 	0.00 	50.00 	100.00 	50.00 	0.00
+JUN-2024 	000123456XXXXXX7890 	200.00 	0.00 	0.00 	0.00 	100.00 	200.00 	150.00 	0.00
+Transaction Details - 	Primary Card Holder Name: SAMPLE CARDHOLDER
+Date 	Transaction Description 	Amount 	DR/CR 	Card Number
+16-May-2024 	SAMPLE MERCHANT ONE 	100.00 	DR 	123456XXXXXX7890
+22-May-2024 	PAYMENT RECEIVED 	50.00 	CR 	123456XXXXXX7890
+05-Jun-2024 	SAMPLE MERCHANT TWO 	200.00 	DR 	123456XXXXXX7890
+10-Jun-2024 	PAYMENT RECEIVED 	150.00 	CR 	123456XXXXXX7890
+Year End Statement & SummaryAPRIL-24
+MARCH-25
+HDFC Bank Credit Cards GSTIN : 00AAAAA0000A0Z0 	HSN Code : 9971

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_period,
-    resolve_month_stem,
+    resolve_month_period,
 )
 from networthcsv.pipeline.metadata.metadata import (
     StatementMetadata,
@@ -174,7 +174,7 @@ class PnbStatementDateTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertEqual(
-            resolve_month_stem(text, "attachment.pdf", account=self.account),
+            resolve_month_period(text, "attachment.pdf", account=self.account),
             "2024-03",
         )
 
@@ -183,7 +183,7 @@ class PnbStatementDateTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertEqual(
-            resolve_month_stem(text, "attachment.pdf", account=self.account),
+            resolve_month_period(text, "attachment.pdf", account=self.account),
             "2024-02",
         )
 

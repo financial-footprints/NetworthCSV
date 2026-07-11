@@ -88,16 +88,18 @@ def _run_context(download_path: Path) -> RunContext:
 def _write_statement(
     download_path: Path,
     account: ResolvedAccount,
-    month_stem: str,
+    statement_period: str,
     *,
     with_txt: bool = True,
 ) -> None:
-    fy_dir = account_fy_dir(download_path, account, fy_folder_name(month_stem))
+    fy_dir = account_fy_dir(download_path, account, fy_folder_name(statement_period))
     _ = fy_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = fy_dir / f"{month_stem}.pdf"
+    pdf_path = fy_dir / f"{statement_period}.pdf"
     _ = pdf_path.write_bytes(b"%PDF-1.4")
     if with_txt:
-        _ = (fy_dir / f"{month_stem}.txt").write_text("statement", encoding="utf-8")
+        _ = (fy_dir / f"{statement_period}.txt").write_text(
+            "statement", encoding="utf-8"
+        )
 
 
 class CoveredMonthTests(unittest.TestCase):

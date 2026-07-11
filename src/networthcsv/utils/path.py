@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from networthcsv.errors import StageError
+from networthcsv.utils.statement_period import is_yearly_period, yearly_period_end_month
 
 if TYPE_CHECKING:
     from networthcsv.settings import ResolvedAccount
@@ -45,10 +46,12 @@ def unique_path(directory: Path, filename: str) -> Path:
         n += 1
 
 
-def fy_folder_name(month_stem: str) -> str:
-    if month_stem == "unknown-month":
+def fy_folder_name(statement_period: str) -> str:
+    if statement_period == "unknown-month":
         return "unknown-month"
-    year_str, month_str = month_stem.split("-", 1)
+    if is_yearly_period(statement_period):
+        statement_period = yearly_period_end_month(statement_period)
+    year_str, month_str = statement_period.split("-", 1)
     year = int(year_str)
     month = int(month_str)
     fy_start, fy_end = (year, year + 1) if month >= 4 else (year - 1, year)
@@ -66,22 +69,22 @@ def account_metadata_path(download_path: Path, account: ResolvedAccount) -> Path
 
 
 def statement_pdf_path(
-    download_path: Path, account: ResolvedAccount, month_stem: str
+    download_path: Path, account: ResolvedAccount, statement_period: str
 ) -> Path:
-    return account_fy_dir(download_path, account, fy_folder_name(month_stem)) / (
-        f"{month_stem}.pdf"
+    return account_fy_dir(download_path, account, fy_folder_name(statement_period)) / (
+        f"{statement_period}.pdf"
     )
 
 
 def statement_csv_path(
-    download_path: Path, account: ResolvedAccount, month_stem: str
+    download_path: Path, account: ResolvedAccount, statement_period: str
 ) -> Path:
-    return account_fy_dir(download_path, account, fy_folder_name(month_stem)) / (
-        f"{month_stem}.csv"
+    return account_fy_dir(download_path, account, fy_folder_name(statement_period)) / (
+        f"{statement_period}.csv"
     )
 
 
-_MONTH_STEM_GLOB = "????-??"
+_MONTH_PERIOD_GLOB = "????-??"
 _STATEMENT_CSV_SUFFIX = ".csv"
 _TRANSACTIONS_CSV = "transactions.csv"
 
@@ -143,7 +146,7 @@ def iter_statement_csvs(
 ) -> Iterator[Path]:
     """Yield per-month statement CSV paths (excludes transactions.csv)."""
     for folder in discover_account_fy_dirs(download_path, account, fy_limit):
-        for path in sorted(folder.glob(f"{_MONTH_STEM_GLOB}{_STATEMENT_CSV_SUFFIX}")):
+        for path in sorted(folder.glob(f"{_MONTH_PERIOD_GLOB}{_STATEMENT_CSV_SUFFIX}")):
             if path.is_file() and path.name != _TRANSACTIONS_CSV:
                 yield path
 

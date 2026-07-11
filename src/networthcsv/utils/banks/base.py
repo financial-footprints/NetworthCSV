@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from networthcsv.settings import (
     MailMatchConfig,
@@ -53,14 +54,34 @@ class BankHandler(ABC):
     def period_start_day(self) -> int | None:
         return None
 
+    def year_display(self) -> Literal["fiscal_year", "calendar_year"]:
+        return "calendar_year"
+
+    def yearly_mail_subjects(self) -> list[str]:
+        return []
+
+    def yearly_mail_body_contains(self) -> list[str]:
+        return []
+
+    def is_yearly_statement(self, text: str) -> bool:
+        return False
+
+    def get_yearly_period(self, text: str) -> tuple[date, date] | None:
+        return None
+
     def matching_defaults(self) -> MatchingFields:
+        subjects = [*self.mail_subjects(), *self.yearly_mail_subjects()]
+        body_contains = [
+            *self.mail_body_contains(),
+            *self.yearly_mail_body_contains(),
+        ]
         return MatchingFields.model_validate(
             {
                 "type": self.account_type(),
                 "mail": MailMatchConfig.model_validate(
                     {
-                        "subjects": self.mail_subjects(),
-                        "body_contains": self.mail_body_contains(),
+                        "subjects": subjects,
+                        "body_contains": body_contains,
                         "from": self.mail_from_addresses(),
                     }
                 ).model_dump(by_alias=True),

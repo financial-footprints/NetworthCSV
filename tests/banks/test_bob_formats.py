@@ -5,13 +5,13 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
+from networthcsv.pipeline.cleanup.statement_date import resolve_month_period
 from networthcsv.utils.banks.helpers.text import trim_by_markers
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.base import CreditCardHandler
 
-_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "bob" / "easy"
+_FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "bob" / "easy"
 
 
 def _account(*, bank: str = "bob", variant: str | None = "easy") -> ResolvedAccount:
@@ -42,7 +42,7 @@ class BobFormatFixtureTests(unittest.TestCase):
 
     def test_format2_month_from_content_not_filename(self) -> None:
         self.assertEqual(
-            resolve_month_stem(
+            resolve_month_period(
                 self.format2,
                 "attachment__2025-08-20.pdf",
                 account=self.account,
@@ -52,7 +52,7 @@ class BobFormatFixtureTests(unittest.TestCase):
 
     def test_format1_month_from_labels(self) -> None:
         self.assertEqual(
-            resolve_month_stem(
+            resolve_month_period(
                 self.format1,
                 "attachment__2025-01-01.pdf",
                 account=self.account,

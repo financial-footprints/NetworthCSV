@@ -12,7 +12,10 @@ from networthcsv.utils.banks.icici.default import (
 @register("icici", "amazon")
 class IciciAmazonHandler(IciciDefaultHandler):
     def mail_subjects(self) -> list[str]:
-        return ["Amazon Pay ICICI Bank Credit Card Statement for the period"]
+        return [
+            "Amazon Pay ICICI Bank Credit Card Statement for the period",
+            "ICICI Bank Credit Card Statement for the period",
+        ]
 
     def drop_sections(self) -> list[str]:
         return [*_ICICI_DROP_SECTIONS, "EARNINGS"]

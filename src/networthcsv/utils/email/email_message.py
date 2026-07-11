@@ -175,7 +175,19 @@ def iter_attachment_parts(msg: Message):
             yield part
 
 
-def is_pdf_attachment_part(part: Message) -> bool:
+_PDF_MAGIC = b"%PDF"
+
+
+def is_yearly_email(msg: Message) -> bool:
+    decoded = decode_mime_header(msg.get("Subject"))
+    return "year end" in decoded.lower()
+
+
+def _payload_is_pdf(payload: bytes | bytearray) -> bool:
+    return bytes(payload).startswith(_PDF_MAGIC)
+
+
+def is_pdf_attachment_part(part: Message, *, allow_octet_stream: bool = False) -> bool:
     if not is_attachment_part(part):
         return False
     filename = part.get_filename()
@@ -185,12 +197,26 @@ def is_pdf_attachment_part(part: Message) -> bool:
     if "/" not in content_type:
         return False
     maintype, subtype = content_type.split("/", 1)
-    return maintype == "application" and subtype.lower() == "pdf"
+    if maintype == "application" and subtype.lower() == "pdf":
+        return True
+    if (
+        allow_octet_stream
+        and maintype == "application"
+        and subtype.lower()
+        in {
+            "octet-stream",
+            "x-download",
+        }
+    ):
+        payload = part.get_payload(decode=True)
+        return isinstance(payload, (bytes, bytearray)) and _payload_is_pdf(payload)
+    return False
 
 
 def iter_pdf_attachment_parts(msg: Message):
+    yearly = is_yearly_email(msg)
     for part in iter_attachment_parts(msg):
-        if is_pdf_attachment_part(part):
+        if is_pdf_attachment_part(part, allow_octet_stream=yearly):
             yield part
 
 
@@ -211,6 +237,8 @@ def download_filename_for_attachment(msg: Message, attachment_filename: str) -> 
         stem = dt.strftime("%Y-%m-%d")
     else:
         stem = "unknown-date"
+    if not suffix and is_yearly_email(msg):
+        suffix = ".pdf"
     return f"{stem}{suffix}" if suffix else stem
 
 

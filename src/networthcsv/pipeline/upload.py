@@ -13,9 +13,18 @@ from networthcsv.utils.path import (
     statement_pdf_path,
 )
 
+from networthcsv.utils.statement_period import (
+    is_yearly_period,
+    parse_month_period,
+)
+
 _UPLOAD_PDF_PREFIX = "manual__"
 _MANUAL_UPLOAD_PATTERN = re.compile(
     rf"^{re.escape(_UPLOAD_PDF_PREFIX)}(\d{{4}}-\d{{2}})\.pdf$",
+    re.IGNORECASE,
+)
+_MANUAL_YEARLY_UPLOAD_PATTERN = re.compile(
+    rf"^{re.escape(_UPLOAD_PDF_PREFIX)}(yearly-\d{{4}}-\d{{2}}_\d{{4}}-\d{{2}})\.pdf$",
     re.IGNORECASE,
 )
 
@@ -24,12 +33,20 @@ class StatementFileExistsError(FileExistsError):
     """Raised when the canonical statement file already exists."""
 
 
-def month_stem_from_manual_upload(filename: str) -> str | None:
-    """Return YYYY-MM from a manual upload staging PDF name, if it matches."""
-    match = _MANUAL_UPLOAD_PATTERN.match(Path(filename).name)
+def period_from_manual_upload(filename: str) -> str | None:
+    """Return YYYY-MM or yearly period from a manual upload staging PDF name."""
+    name = Path(filename).name
+    yearly_match = _MANUAL_YEARLY_UPLOAD_PATTERN.match(name)
+    if yearly_match is not None:
+        return yearly_match.group(1)
+    match = _MANUAL_UPLOAD_PATTERN.match(name)
     if match is None:
         return None
     return match.group(1)
+
+
+def is_valid_statement_period(period: str) -> bool:
+    return parse_month_period(period) is not None or is_yearly_period(period)
 
 
 def manual_upload_pdf_path(staging_dir: Path, statement_date: str) -> Path:

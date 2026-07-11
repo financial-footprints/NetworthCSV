@@ -30,9 +30,19 @@ from networthcsv.utils.path import (
     txt_path_for_pdf,
 )
 
-from networthcsv.utils.month_stem import month_stem_from_stem
+from networthcsv.utils.statement_period import (
+    YearDisplay,
+    covered_months_between,
+    is_yearly_period,
+    parse_month_period,
+    year_key_for_period,
+    year_key_label,
+    yearly_period_bounds,
+)
 
 logger = logging.getLogger(__name__)
+
+StatementGranularity = Literal["monthly", "yearly"]
 
 
 @dataclass(frozen=True)
@@ -44,6 +54,19 @@ class StatementMetadata:
     period_start: str | None = None
     period_end: str | None = None
     period_approximate: bool = False
+    granularity: StatementGranularity = "monthly"
+    covered_months: tuple[str, ...] = ()
+    year_key: str | None = None
+
+
+@dataclass(frozen=True)
+class YearlyStatementSummary:
+    year_key: str
+    statement_date: str
+    label: str
+    period_start: str
+    period_end: str
+    formats: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -97,6 +120,11 @@ class AccountMetadata:
 
 
 def covered_month(statement_date: str) -> str:
+    if is_yearly_period(statement_date):
+        bounds = yearly_period_bounds(statement_date)
+        if bounds is None:
+            return statement_date
+        return bounds[0]
     year_str, month_str = statement_date.split("-", 1)
     year = int(year_str)
     month = int(month_str)
@@ -136,11 +164,19 @@ def compute_balance_gaps(
     tolerance: Decimal | None = None,
 ) -> tuple[BalanceGap, ...]:
     """Mark gap months and adjacent-statement balance discontinuities."""
-    if len(statements) < 2:
+    yearly_covered: set[str] = set()
+    for statement in statements:
+        if statement.granularity == "yearly":
+            yearly_covered.update(statement.covered_months)
+
+    monthly_statements = tuple(
+        statement for statement in statements if statement.granularity == "monthly"
+    )
+    if len(monthly_statements) < 2:
         return ()
 
     sorted_statements = sorted(
-        statements,
+        monthly_statements,
         key=lambda item: covered_month(item.statement_date),
     )
     gaps: list[BalanceGap] = []
@@ -162,7 +198,11 @@ def compute_balance_gaps(
                 if balances_match(closing, opening, tolerance=tolerance)
                 else "mismatched"
             )
-            gaps.extend(BalanceGap(month=month, status=status) for month in between)
+            gaps.extend(
+                BalanceGap(month=month, status=status)
+                for month in between
+                if month not in yearly_covered
+            )
             continue
 
         if following_covered == _next_month_key(
@@ -206,8 +246,13 @@ def _coverage_gap_balances_match(
     return balances_match(closing, opening, tolerance=tolerance)
 
 
-def _month_stem_from_path(path: Path) -> str | None:
-    return month_stem_from_stem(path.stem)
+def _statement_period_from_path(path: Path) -> str | None:
+    period_id = path.stem
+    if parse_month_period(period_id) is not None:
+        return period_id
+    if is_yearly_period(period_id):
+        return period_id
+    return None
 
 
 def _statement_formats(
@@ -294,7 +339,21 @@ def _build_period_covered(
     tolerance: Decimal | None = None,
 ) -> PeriodCovered:
     months = tuple(
-        sorted({covered_month(statement.statement_date) for statement in statements})
+        sorted(
+            {
+                *(
+                    covered_month(statement.statement_date)
+                    for statement in statements
+                    if statement.granularity == "monthly"
+                ),
+                *(
+                    month
+                    for statement in statements
+                    if statement.granularity == "yearly"
+                    for month in statement.covered_months
+                ),
+            }
+        )
     )
     periods: list[tuple[date, date, bool]] = []
     approximate_statement_count = 0
@@ -366,6 +425,37 @@ def _extract_statement_balances(
     return handler.get_opening_balance(text), handler.get_closing_balance(text)
 
 
+def build_yearly_statement_summaries(
+    statements: tuple[StatementMetadata, ...],
+    *,
+    year_display: YearDisplay,
+) -> tuple[YearlyStatementSummary, ...]:
+    summaries: list[YearlyStatementSummary] = []
+    for statement in statements:
+        if statement.granularity != "yearly":
+            continue
+        if (
+            statement.year_key is None
+            or statement.period_start is None
+            or statement.period_end is None
+        ):
+            continue
+        summaries.append(
+            YearlyStatementSummary(
+                year_key=statement.year_key,
+                statement_date=statement.statement_date,
+                label=year_key_label(
+                    statement.year_key,
+                    year_display=year_display,
+                ),
+                period_start=statement.period_start,
+                period_end=statement.period_end,
+                formats=statement.formats,
+            )
+        )
+    return tuple(summaries)
+
+
 def build_account_metadata(
     download_path: Path,
     account: ResolvedAccount,
@@ -373,14 +463,14 @@ def build_account_metadata(
     statements_by_date: dict[str, tuple[Path | None, Path | None, Path | None]] = {}
 
     for pdf_path, txt_path in iter_statement_pairs(download_path, account):
-        statement_date = _month_stem_from_path(pdf_path)
+        statement_date = _statement_period_from_path(pdf_path)
         if statement_date is None:
             continue
         existing = statements_by_date.get(statement_date, (None, None, None))
         statements_by_date[statement_date] = (pdf_path, txt_path, existing[2])
 
     for csv_path in iter_statement_csvs(download_path, account):
-        statement_date = _month_stem_from_path(csv_path)
+        statement_date = _statement_period_from_path(csv_path)
         if statement_date is None:
             continue
         existing = statements_by_date.get(statement_date, (None, None, None))
@@ -412,6 +502,23 @@ def build_account_metadata(
         else:
             opening_balance, closing_balance = None, None
             period_start, period_end, period_approximate = None, None, False
+
+        granularity: StatementGranularity = (
+            "yearly" if is_yearly_period(statement_date) else "monthly"
+        )
+        statement_covered_months: tuple[str, ...] = ()
+        year_key: str | None = None
+        if granularity == "yearly" and period_start and period_end:
+            start_date = _parse_account_date(period_start)
+            end_date = _parse_account_date(period_end)
+            handler = get_handler(account.bank, account.variant)
+            statement_covered_months = covered_months_between(start_date, end_date)
+            year_key = year_key_for_period(
+                start_date,
+                end_date,
+                year_display=handler.year_display(),
+            )
+
         statements.append(
             StatementMetadata(
                 statement_date=statement_date,
@@ -421,6 +528,9 @@ def build_account_metadata(
                 period_start=period_start,
                 period_end=period_end,
                 period_approximate=period_approximate,
+                granularity=granularity,
+                covered_months=statement_covered_months,
+                year_key=year_key,
             )
         )
 
@@ -463,6 +573,9 @@ def _metadata_to_dict(metadata: AccountMetadata) -> dict[str, object]:
             "period_start": item.period_start,
             "period_end": item.period_end,
             "period_approximate": item.period_approximate,
+            "granularity": item.granularity,
+            "covered_months": list(item.covered_months),
+            "year_key": item.year_key,
         }
         for item in metadata.statements
     ]
@@ -507,6 +620,9 @@ def _metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
             period_start=_cast_optional_str(item.get("period_start")),
             period_end=_cast_optional_str(item.get("period_end")),
             period_approximate=_cast_bool(item.get("period_approximate"), False),
+            granularity=_require_granularity(item["granularity"]),
+            covered_months=_require_month_tuple(item["covered_months"]),
+            year_key=_cast_optional_str(item.get("year_key")),
         )
         for item in statements_raw
         if isinstance(item, dict)
@@ -587,6 +703,18 @@ def _metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
         statement_count=_cast_int(payload.get("statement_count"), len(statement_dates)),
         period_covered=period_covered,
     )
+
+
+def _require_granularity(value: object) -> StatementGranularity:
+    if value not in ("monthly", "yearly"):
+        raise ValueError(f"invalid statement granularity: {value!r}")
+    return value
+
+
+def _require_month_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ValueError("covered_months must be a list")
+    return tuple(str(month) for month in value)
 
 
 def _cast_optional_str(value: object) -> str | None:

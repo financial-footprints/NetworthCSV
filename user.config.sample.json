@@ -23,6 +23,9 @@
       "statement": {
         "text_contains": [
           "5678"
+        ],
+        "text_not_contains": [
+          "7892"
         ]
       },
       "opening_date": "01-08-2021",

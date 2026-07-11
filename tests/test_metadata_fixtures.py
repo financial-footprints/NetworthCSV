@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
+from networthcsv.pipeline.cleanup.statement_date import resolve_month_period
 from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
 from networthcsv.utils.banks.helpers.amounts import balances_match
 from networthcsv.settings import ResolvedAccount
@@ -85,7 +85,7 @@ class MetadataFixtureGoldenTests(unittest.TestCase):
 
             expected_month = expected.get("statement_month")
             if expected_month:
-                actual_month = resolve_month_stem(
+                actual_month = resolve_month_period(
                     text, _DUMMY_FILENAME, account=account
                 )
                 if actual_month != expected_month:

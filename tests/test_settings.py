@@ -43,6 +43,7 @@ from networthcsv.settings import (
     normalize_from,
     normalize_account_number,
     normalize_text_contains,
+    normalize_text_not_contains,
     normalize_variant,
     resolve_config_path,
 )
@@ -316,6 +317,15 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(normalize_text_contains(""), [])
         self.assertEqual(normalize_text_contains(None), [])
         self.assertEqual(normalize_text_contains([]), [])
+
+        self.assertEqual(normalize_text_not_contains("Anotherthing"), ["Anotherthing"])
+        self.assertEqual(
+            normalize_text_not_contains(["A", " B "]),
+            ["A", "B"],
+        )
+        self.assertEqual(normalize_text_not_contains(""), [])
+        self.assertEqual(normalize_text_not_contains(None), [])
+        self.assertEqual(normalize_text_not_contains([]), [])
 
         self.assertEqual(normalize_body_contains(["A", "a", " B "]), ["A", "B"])
         self.assertEqual(normalize_body_contains(None), [])

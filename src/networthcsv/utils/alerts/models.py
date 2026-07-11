@@ -11,6 +11,7 @@ DeliverMode = Literal["immediate", "batch"]
 
 class AlertKind(StrEnum):
     TEXT_CONTAINS_MISSING = "text_contains_missing"
+    AMBIGUOUS_STATEMENT_PERIOD = "ambiguous_statement_period"
 
 
 @dataclass(frozen=True)

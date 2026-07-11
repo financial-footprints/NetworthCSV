@@ -6,8 +6,8 @@ import re
 from decimal import Decimal, InvalidOperation
 
 from networthcsv.pipeline.cleanup.statement_date import (
-    _find_label,
-    _label_regex,
+    find_label,
+    label_regex,
 )
 from networthcsv.settings import (
     BalanceMarker,
@@ -58,7 +58,7 @@ _DATE_IN_LINE = re.compile(
 )
 
 _TABLE_SECTION_BOUNDARY = re.compile(
-    r"Bonus/Reward|Transaction Details|Reward Summary",
+    r"Bonus/Reward|Transaction Date|Transaction Details|Reward Summary",
     re.IGNORECASE,
 )
 
@@ -164,7 +164,7 @@ def _summary_table_header_seen(header_lines: list[str]) -> bool:
 
 def _label_position_in_headers(header_lines: list[str], column: str) -> int | None:
     for line in header_lines:
-        match = _label_regex(column).search(line)
+        match = label_regex(column).search(line)
         if match is not None:
             return match.start()
 
@@ -175,10 +175,10 @@ def _label_position_in_headers(header_lines: list[str], column: str) -> int | No
         last_pos: int | None = None
         first_pos: int | None = None
         for line in header_lines:
-            match = _label_regex(words[-1]).search(line)
+            match = label_regex(words[-1]).search(line)
             if match is not None:
                 last_pos = match.start()
-            match = _label_regex(words[0]).search(line)
+            match = label_regex(words[0]).search(line)
             if match is not None and first_pos is None:
                 first_pos = match.start()
         if last_pos is not None:
@@ -188,19 +188,23 @@ def _label_position_in_headers(header_lines: list[str], column: str) -> int | No
         return None
 
     for line in header_lines:
-        match = _label_regex(words[0]).search(line)
+        match = label_regex(words[0]).search(line)
         if match is not None:
             return match.start()
     return None
 
 
 def _summary_row_amounts(line: str) -> tuple[list[tuple[str, int]], bool]:
-    currency_amounts = _amounts_with_positions(line, currency_only=True)
-    if len(currency_amounts) >= 2:
-        return currency_amounts, True
     all_amounts = _amounts_with_positions(line, currency_only=False)
+    if len(all_amounts) >= 3:
+        return all_amounts, False
+    currency_amounts = _amounts_with_positions(line, currency_only=True)
+    if len(currency_amounts) >= 3:
+        return currency_amounts, True
     if len(all_amounts) >= 2:
         return all_amounts, False
+    if len(currency_amounts) >= 2:
+        return currency_amounts, True
     return [], True
 
 
@@ -228,7 +232,7 @@ def _column_index_for_label(
 
 
 def _apply_label_single(text: str, marker: LabelSingleMarker) -> str | None:
-    match = _find_label(text, marker.label)
+    match = find_label(text, marker.label)
     if match is None:
         return None
     window_end = min(len(text), match.end() + 400)
@@ -236,7 +240,7 @@ def _apply_label_single(text: str, marker: LabelSingleMarker) -> str | None:
 
 
 def _apply_label_next_line(text: str, marker: LabelNextLineMarker) -> str | None:
-    match = _find_label(text, marker.label)
+    match = find_label(text, marker.label)
     if match is None:
         return None
     tail = text[match.end() : match.end() + 400]
@@ -260,7 +264,7 @@ def _apply_summary_table_column(
     text: str,
     marker: SummaryTableColumnMarker,
 ) -> str | None:
-    ctx_match = _label_regex(marker.context).search(text)
+    ctx_match = label_regex(marker.context).search(text)
     if ctx_match is None:
         return None
     window = text[ctx_match.start() : ctx_match.start() + marker.search_chars]
@@ -323,7 +327,7 @@ def _apply_single_amount_after(
     text: str,
     marker: SingleAmountAfterMarker,
 ) -> str | None:
-    match = _find_label(text, marker.anchor)
+    match = find_label(text, marker.anchor)
     if match is None:
         return None
     window = text[match.end() : match.end() + 500]
@@ -341,7 +345,7 @@ def _apply_equation_first_after(
     text: str,
     marker: EquationFirstAfterMarker,
 ) -> str | None:
-    match = _find_label(text, marker.anchor)
+    match = find_label(text, marker.anchor)
     if match is None:
         return None
     window = text[match.end() : match.end() + 600]
@@ -358,7 +362,7 @@ def _apply_summary_table_row(
     text: str,
     marker: SummaryTableRowMarker,
 ) -> str | None:
-    anchor = _find_label(text, marker.after)
+    anchor = find_label(text, marker.after)
     if anchor is None:
         return None
     tail = text[anchor.end() : anchor.end() + 1200]

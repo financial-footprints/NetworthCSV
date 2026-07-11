@@ -16,9 +16,9 @@ from networthcsv.settings import (
     TopRangeMarker,
 )
 
-logger = logging.getLogger(__name__)
+from networthcsv.utils.month_stem import month_stem_from_filename
 
-_DATE_IN_NAME = re.compile(r"(\d{4}-\d{2})(?:-\d{2})?")
+logger = logging.getLogger(__name__)
 
 _DATE_FORMATS = (
     "%d/%m/%Y",
@@ -48,10 +48,7 @@ _DATE_CANDIDATE = re.compile(
 
 
 def month_stem_from_name(filename: str) -> str:
-    match = _DATE_IN_NAME.search(filename)
-    if match:
-        return match.group(1)
-    return "unknown-month"
+    return month_stem_from_filename(filename)
 
 
 def parse_date_string(value: str) -> date | None:
@@ -75,7 +72,7 @@ def _word_pattern(word: str) -> str:
     return re.escape(word)
 
 
-def _label_regex(label: str) -> re.Pattern[str]:
+def label_regex(label: str) -> re.Pattern[str]:
     words = label.split()
     body = r"\s+".join(_word_pattern(word) for word in words if word.strip())
     return re.compile(body, re.IGNORECASE)
@@ -98,7 +95,9 @@ def _last_date_in_text(text: str) -> date | None:
     return last
 
 
-def _parse_range_remainder(remainder: str, *, joiners: tuple[str, ...]) -> date | None:
+def _parse_range_bounds(
+    remainder: str, *, joiners: tuple[str, ...]
+) -> tuple[date | None, date | None]:
     for joiner in joiners:
         if joiner not in remainder:
             continue
@@ -106,8 +105,14 @@ def _parse_range_remainder(remainder: str, *, joiners: tuple[str, ...]) -> date 
         left_date = _last_date_in_text(left)
         right_date = _first_date_in_text(right)
         if left_date is not None and right_date is not None:
-            return right_date
-    return _first_date_in_text(remainder)
+            return left_date, right_date
+    single = _first_date_in_text(remainder)
+    return None, single
+
+
+def _parse_range_remainder(remainder: str, *, joiners: tuple[str, ...]) -> date | None:
+    _, end = _parse_range_bounds(remainder, joiners=joiners)
+    return end
 
 
 def _take_from_range(left: str, right: str, *, take: str) -> date | None:
@@ -120,12 +125,12 @@ def _take_from_range(left: str, right: str, *, take: str) -> date | None:
     return right_date
 
 
-def _find_label(text: str, label: str, *, limit: int = 4000) -> re.Match[str] | None:
-    return _label_regex(label).search(text[:limit])
+def find_label(text: str, label: str, *, limit: int = 4000) -> re.Match[str] | None:
+    return label_regex(label).search(text[:limit])
 
 
 def _line_after_label(text: str, label: str, *, limit: int = 4000) -> str | None:
-    match = _find_label(text, label, limit=limit)
+    match = find_label(text, label, limit=limit)
     if match is None:
         return None
     start = match.end()
@@ -142,8 +147,8 @@ def _line_after_label(text: str, label: str, *, limit: int = 4000) -> str | None
     return None
 
 
-def _apply_label_single(text: str, marker: LabelSingleMarker) -> date | None:
-    match = _find_label(text, marker.label)
+def _line_remainder_after_label(text: str, label: str) -> str | None:
+    match = find_label(text, label)
     if match is None:
         return None
     line_start = text.rfind("\n", 0, match.start()) + 1
@@ -152,19 +157,117 @@ def _apply_label_single(text: str, marker: LabelSingleMarker) -> date | None:
         line_end = len(text)
     line = text[line_start:line_end]
     label_end_in_line = match.end() - line_start
-    remainder = line[label_end_in_line:]
-    return _parse_range_remainder(remainder, joiners=_RANGE_JOINERS)
+    return line[label_end_in_line:]
+
+
+def _bounds_from_joiner(left: str, right: str) -> tuple[date | None, date | None]:
+    return (
+        _take_from_range(left, right, take="start"),
+        _take_from_range(left, right, take="end"),
+    )
+
+
+def _apply_label_single_period(
+    text: str, marker: LabelSingleMarker
+) -> tuple[date | None, date | None]:
+    remainder = _line_remainder_after_label(text, marker.label)
+    if remainder is None:
+        return None, None
+    return _parse_range_bounds(remainder, joiners=_RANGE_JOINERS)
+
+
+def _date_after_label(text: str, label: str, *, limit: int = 4000) -> date | None:
+    match = find_label(text, label, limit=limit)
+    if match is None:
+        return None
+    remainder = _line_remainder_after_label(text, label)
+    if remainder is not None and remainder.strip():
+        _, end = _parse_range_bounds(remainder, joiners=_RANGE_JOINERS)
+        if end is not None:
+            return end
+    start = match.end()
+    slice_end = min(len(text), start + limit)
+    tail = text[start:slice_end]
+    line_break = tail.find("\n")
+    search_text = tail if line_break == -1 else tail[line_break + 1 :]
+    for line in search_text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parsed = _first_date_in_text(stripped)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _apply_label_next_line_period(
+    text: str, marker: LabelNextLineMarker
+) -> tuple[date | None, date | None]:
+    parsed = _date_after_label(text, marker.label)
+    if parsed is None:
+        return None, None
+    return None, parsed
+
+
+def _apply_label_range_period(
+    text: str, marker: LabelRangeMarker
+) -> tuple[date | None, date | None]:
+    match = find_label(text, marker.label)
+    if match is None:
+        return None, None
+    remainder = text[match.end() : match.end() + 300]
+    if marker.joiner not in remainder:
+        return None, None
+    left, _, right = remainder.partition(marker.joiner)
+    return _bounds_from_joiner(left, right)
+
+
+def _apply_context_range_period(
+    text: str, marker: ContextRangeMarker
+) -> tuple[date | None, date | None]:
+    context_pattern = re.compile(re.escape(marker.context), re.IGNORECASE)
+    for context_match in context_pattern.finditer(text[:4000]):
+        start = max(0, context_match.start() - 250)
+        end = min(len(text), context_match.end() + 500)
+        window = text[start:end]
+        joiner_pattern = re.compile(re.escape(marker.joiner), re.IGNORECASE)
+        for joiner_match in joiner_pattern.finditer(window):
+            left = window[max(0, joiner_match.start() - 80) : joiner_match.start()]
+            right = window[joiner_match.end() : joiner_match.end() + 80]
+            period_start, period_end = _bounds_from_joiner(left, right)
+            if period_start is not None and period_end is not None:
+                return period_start, period_end
+    return None, None
+
+
+def _apply_top_range_period(
+    text: str, marker: TopRangeMarker
+) -> tuple[date | None, date | None]:
+    haystack = text[: marker.search_chars]
+    joiner_pattern = re.compile(re.escape(marker.joiner))
+    for joiner_match in joiner_pattern.finditer(haystack):
+        left = haystack[max(0, joiner_match.start() - 80) : joiner_match.start()]
+        right = haystack[joiner_match.end() : joiner_match.end() + 80]
+        period_start, period_end = _bounds_from_joiner(left, right)
+        if period_start is not None and period_end is not None:
+            return period_start, period_end
+    return None, None
+
+
+def _apply_label_single(text: str, marker: LabelSingleMarker) -> date | None:
+    _, end = _apply_label_single_period(text, marker)
+    return end
 
 
 def _apply_label_next_line(text: str, marker: LabelNextLineMarker) -> date | None:
-    next_line = _line_after_label(text, marker.label)
-    if next_line is None:
-        return None
-    return _parse_range_remainder(next_line, joiners=_RANGE_JOINERS)
+    return _date_after_label(text, marker.label)
 
 
 def _apply_label_range(text: str, marker: LabelRangeMarker) -> date | None:
-    match = _find_label(text, marker.label)
+    _, end = _apply_label_range_period(text, marker)
+    if end is not None:
+        return end
+    match = find_label(text, marker.label)
     if match is None:
         return None
     remainder = text[match.end() : match.end() + 300]
@@ -175,11 +278,14 @@ def _apply_label_range(text: str, marker: LabelRangeMarker) -> date | None:
 
 
 def _apply_context_range(text: str, marker: ContextRangeMarker) -> date | None:
+    _, end = _apply_context_range_period(text, marker)
+    if end is not None:
+        return end
     context_pattern = re.compile(re.escape(marker.context), re.IGNORECASE)
     for context_match in context_pattern.finditer(text[:4000]):
         start = max(0, context_match.start() - 250)
-        end = min(len(text), context_match.end() + 500)
-        window = text[start:end]
+        end_pos = min(len(text), context_match.end() + 500)
+        window = text[start:end_pos]
         joiner_pattern = re.compile(re.escape(marker.joiner), re.IGNORECASE)
         for joiner_match in joiner_pattern.finditer(window):
             left = window[max(0, joiner_match.start() - 80) : joiner_match.start()]
@@ -191,6 +297,9 @@ def _apply_context_range(text: str, marker: ContextRangeMarker) -> date | None:
 
 
 def _apply_top_range(text: str, marker: TopRangeMarker) -> date | None:
+    _, end = _apply_top_range_period(text, marker)
+    if end is not None:
+        return end
     haystack = text[: marker.search_chars]
     joiner_pattern = re.compile(re.escape(marker.joiner))
     for joiner_match in joiner_pattern.finditer(haystack):
@@ -200,6 +309,22 @@ def _apply_top_range(text: str, marker: TopRangeMarker) -> date | None:
         if parsed is not None:
             return parsed
     return None
+
+
+def _apply_marker_period(
+    text: str, marker: StatementDateMarker
+) -> tuple[date | None, date | None]:
+    if isinstance(marker, LabelSingleMarker):
+        return _apply_label_single_period(text, marker)
+    if isinstance(marker, LabelNextLineMarker):
+        return _apply_label_next_line_period(text, marker)
+    if isinstance(marker, LabelRangeMarker):
+        return _apply_label_range_period(text, marker)
+    if isinstance(marker, ContextRangeMarker):
+        return _apply_context_range_period(text, marker)
+    if isinstance(marker, TopRangeMarker):
+        return _apply_top_range_period(text, marker)
+    return None, None
 
 
 def _apply_marker(text: str, marker: StatementDateMarker) -> date | None:
@@ -222,6 +347,19 @@ def extract_statement_date(text: str, *, account: ResolvedAccount) -> date | Non
         if parsed is not None:
             return parsed
     return None
+
+
+def extract_statement_period(
+    text: str, *, account: ResolvedAccount
+) -> tuple[date | None, date | None]:
+    for marker in account.metadata.statement_date:
+        period_start, period_end = _apply_marker_period(text, marker)
+        if period_start is not None and period_end is not None:
+            return period_start, period_end
+    end = extract_statement_date(text, account=account)
+    if end is not None:
+        return None, end
+    return None, None
 
 
 def resolve_month_stem(text: str, filename: str, *, account: ResolvedAccount) -> str:

@@ -8,6 +8,7 @@ from datetime import date
 
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_date,
+    extract_statement_period,
     month_stem_from_name,
     parse_date_string,
     resolve_month_stem,
@@ -172,6 +173,54 @@ class ExtractStatementDateTests(unittest.TestCase):
         self.assertIsNotNone(parsed)
         assert parsed is not None
         self.assertEqual(parsed, date(2023, 6, 17))
+
+
+class ExtractStatementPeriodTests(unittest.TestCase):
+    def test_bob_statement_period_range(self) -> None:
+        text = (
+            "Credit Card Monthly Statement\n"
+            "Statement Date : 16/04/2023 | Statement Period : 17 Mar, 2023 to 16 Apr, 2023\n"
+        )
+        period_start, period_end = extract_statement_period(
+            text, account=_account(bank="bob")
+        )
+        self.assertEqual(period_start, date(2023, 3, 17))
+        self.assertEqual(period_end, date(2023, 4, 16))
+
+    def test_indusind_statement_period_bounds(self) -> None:
+        text = "Statement Period\n16/01/2024 To 15/02/2024\nStatement Date\n15/02/2024"
+        period_start, period_end = extract_statement_period(
+            text, account=_account(bank="indusind")
+        )
+        self.assertEqual(period_start, date(2024, 1, 16))
+        self.assertEqual(period_end, date(2024, 2, 15))
+
+    def test_yes_statement_period_bounds(self) -> None:
+        text = (
+            "Statement Period:          Credit Limit:\n"
+            "17/01/2021 To 16/02/2021     Rs. 3,00,000.00\n"
+        )
+        period_start, period_end = extract_statement_period(
+            text, account=_account(bank="yes", variant="ace")
+        )
+        self.assertEqual(period_start, date(2021, 1, 17))
+        self.assertEqual(period_end, date(2021, 2, 16))
+
+    def test_federal_signet_statement_period_bounds(self) -> None:
+        text = "Statement Period\n22-03-2021 to 21-04-2021"
+        period_start, period_end = extract_statement_period(
+            text, account=_account(bank="federal", variant="signet")
+        )
+        self.assertEqual(period_start, date(2021, 3, 22))
+        self.assertEqual(period_end, date(2021, 4, 21))
+
+    def test_fallback_to_statement_date_end_only(self) -> None:
+        text = "Statement Date 17/01/2024"
+        period_start, period_end = extract_statement_period(
+            text, account=_account(bank="idfc", variant="wow")
+        )
+        self.assertIsNone(period_start)
+        self.assertEqual(period_end, date(2024, 1, 17))
 
 
 if __name__ == "__main__":

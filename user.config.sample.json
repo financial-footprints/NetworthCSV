@@ -25,7 +25,7 @@
           "5678"
         ]
       },
-      "opening_date": "08-2021",
+      "opening_date": "01-08-2021",
       "closing_date": null,
       "passwords": [
         "bob-password"
@@ -40,7 +40,7 @@
           "7777"
         ]
       },
-      "opening_date": "11-2024",
+      "opening_date": "01-11-2024",
       "closing_date": null,
       "passwords": [
         "your-csb-edge-password"
@@ -55,8 +55,8 @@
           "1234"
         ]
       },
-      "opening_date": "02-2020",
-      "closing_date": "05-2023",
+      "opening_date": "01-02-2020",
+      "closing_date": "01-05-2023",
       "passwords": [
         "federal-signet-password"
       ]
@@ -70,7 +70,7 @@
           "2222"
         ]
       },
-      "opening_date": "06-2023",
+      "opening_date": "01-06-2023",
       "closing_date": null,
       "passwords": [
         "your-hdfc-swiggy-password"
@@ -84,8 +84,8 @@
           "7890"
         ]
       },
-      "opening_date": "09-2019",
-      "closing_date": "10-2022",
+      "opening_date": "01-09-2019",
+      "closing_date": "01-10-2022",
       "passwords": [
         "your-icici-password"
       ]
@@ -100,7 +100,7 @@
           "WOW"
         ]
       },
-      "opening_date": "12-2022",
+      "opening_date": "01-12-2022",
       "closing_date": null,
       "passwords": [
         "password-option-1",
@@ -116,7 +116,7 @@
           "VaLUE"
         ]
       },
-      "opening_date": "03-2025",
+      "opening_date": "01-03-2025",
       "passwords": [
         "your-indusind-password"
       ]
@@ -130,8 +130,8 @@
           "543212XXXXXX1234"
         ]
       },
-      "opening_date": "07-2018",
-      "closing_date": "02-2024",
+      "opening_date": "01-07-2018",
+      "closing_date": "01-02-2024",
       "passwords": [
         "pnb-password-1",
         "pnb-password-2"
@@ -144,7 +144,7 @@
       "statement": {
         "text_contains": []
       },
-      "opening_date": "10-2020",
+      "opening_date": "01-10-2020",
       "closing_date": null,
       "passwords": [
         "your-yes-ace-password"

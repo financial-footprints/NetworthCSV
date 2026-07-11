@@ -5,23 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pdfplumber
-from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from networthcsv.errors import StageError
-
-
-def open_pdf_reader(path: Path, passwords: list[str]) -> PdfReader:
-    reader = PdfReader(str(path))
-    if not reader.is_encrypted:
-        return reader
-    if not passwords:
-        raise StageError(f"encrypted PDF requires password: {path}")
-    for password in passwords:
-        trial = PdfReader(str(path))
-        if trial.decrypt(password) != 0:
-            return trial
-    raise StageError(f"none of {len(passwords)} password(s) worked for {path}")
 
 
 def extract_pdf_text_plumber(path: Path, passwords: list[str]) -> str:

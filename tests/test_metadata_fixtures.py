@@ -6,6 +6,7 @@ import json
 import unittest
 
 from networthcsv.pipeline.cleanup.statement_date import resolve_month_stem
+from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
 from networthcsv.pipeline.metadata.statement_balance import (
     balances_match,
     extract_closing_balance,
@@ -128,6 +129,24 @@ class MetadataFixtureGoldenTests(unittest.TestCase):
                 failures.append(
                     f"{rel}: closing expected {expected_closing!r}, got {closing!r}",
                 )
+
+            expected_period_start = expected.get("period_start")
+            expected_period_end = expected.get("period_end")
+            if expected_period_start and expected_period_end:
+                period_start_iso, period_end_iso, _ = _resolve_statement_period(
+                    text,
+                    account=account,
+                )
+                if period_start_iso != expected_period_start:
+                    failures.append(
+                        f"{rel}: period_start expected {expected_period_start!r}, "
+                        f"got {period_start_iso!r}",
+                    )
+                if period_end_iso != expected_period_end:
+                    failures.append(
+                        f"{rel}: period_end expected {expected_period_end!r}, "
+                        f"got {period_end_iso!r}",
+                    )
 
         self.assertEqual(failures, [])
 

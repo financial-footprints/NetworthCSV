@@ -11,7 +11,6 @@ from networthcsv.pipeline.get_statements.imap import (
 )
 from networthcsv.settings import (
     ResolvedAccount,
-    exclusive_search_end_date,
     resolve_account_search_dates,
 )
 
@@ -88,7 +87,7 @@ class BuildImapSearchTests(unittest.TestCase):
             ("OR", "SUBJECT", "A", "SUBJECT", "B"),
         )
 
-    def test_closed_account_imap_before_uses_month_after_inclusive_end(self) -> None:
+    def test_closed_account_imap_before_uses_day_after_closing(self) -> None:
         account = ResolvedAccount.model_validate(
             {
                 "bank": "bob",
@@ -98,11 +97,10 @@ class BuildImapSearchTests(unittest.TestCase):
                 "closing_date": date(2024, 2, 1),
             }
         )
-        _start, effective_end = resolve_account_search_dates(account, None)
-        if effective_end is None:
+        _start, search_end = resolve_account_search_dates(account, None)
+        if search_end is None:
             self.fail("expected closing-date search end")
-        self.assertEqual(effective_end, date(2024, 3, 1))
-        search_end = exclusive_search_end_date(effective_end)
+        self.assertEqual(search_end, date(2024, 2, 2))
         _charset, criteria = build_imap_search_criteria(
             account.mail.subjects,
             date(2024, 1, 1),
@@ -111,7 +109,7 @@ class BuildImapSearchTests(unittest.TestCase):
         )
         self.assertIn("BEFORE", criteria)
         before_index = criteria.index("BEFORE")
-        self.assertEqual(criteria[before_index + 1], "01-Apr-2024")
+        self.assertEqual(criteria[before_index + 1], "02-Feb-2024")
 
 
 if __name__ == "__main__":

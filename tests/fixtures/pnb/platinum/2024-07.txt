@@ -1,0 +1,13 @@
+                                                            CREDIT CARD (ORIGINAL)
+ RAVI KUMAR
+ S/O SAMPLE KUMAR HNO 12 PARK STREET
+ ,PUNE-411001
+ Invoice Date :       16-JUL-2024
+ Payment Due Date :   05-AUG-2024
+ Total Amount Due for Month : 800
+                         Account Summary
+  Previous Balance Purchases and other charges Cash Advances Payments and Other Credits / Shadow Credits Total Amount Due for Month
+    1200    400          0         1200       800
+   Transaction Date Post Date Trnx Details From 17-JUN-2024 to 16-JUL-2024 Amount in Rs.
+   10-JUL-2024 12-JUL-2024 SAMPLE MERCHANT TWO          400.00
+                        ********** End of Statement **********

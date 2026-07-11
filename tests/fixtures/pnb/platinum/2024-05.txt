@@ -1,0 +1,28 @@
+                                                            CREDIT CARD (ORIGINAL)
+ RAVI KUMAR
+ S/O SAMPLE KUMAR HNO 12 PARK STREET
+ ,PUNE-411001
+ 09 Mobile No: 9876501234 GSTIN:
+ Invoice No :
+                      2024CC0100999
+ Card No :
+                      123456XXXXXX9999
+                                          customer service,
+ Invoice Date :
+                      16-MAY-2024
+ Payment Due Date :   05-JUN-2024
+ Total Amount Due :   510.75
+ Total Amount Due for Month : 510.75
+ Minimum Amount Due : 25.54
+                         Account Summary
+  Previous Balance Purchases and other charges Cash Advances Payments and Other Credits / Shadow Credits Total Amount Due for Month
+    -1900.0    2411         0         0          510.75
+   Transaction Date Post Date Trnx Details From 17-APR-2024 to 16-MAY-2024 Amount in Rs.
+   18-APR-2024 20-APR-2024 SAMPLE MERCHANT FIVE         2111.00
+   02-MAY-2024 04-MAY-2024 SAMPLE MERCHANT SIX           300.00
+                   Total Purchase                 510.75
+                   Total Taxable Value              0
+                   Total GST                        0
+                   Total Charges Reversed           0
+                   Total GST Reversed               0
+                        ********** End of Statement **********

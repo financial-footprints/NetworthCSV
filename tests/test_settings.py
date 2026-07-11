@@ -435,7 +435,7 @@ class SettingsTests(unittest.TestCase):
             _ = (root / "statements").mkdir()
             _ = self._write_user_config(
                 root,
-                start_date="2024-06-01",
+                start_date="01-06-2024",
                 accounts=[self._account(bank="bob")],
             )
             app_config_path = self._write_app_config(
@@ -454,7 +454,7 @@ class SettingsTests(unittest.TestCase):
             _ = self._write_user_config(
                 root,
                 accounts=[
-                    self._account(bank="bob", opening_date="04-2023"),
+                    self._account(bank="bob", opening_date="01-04-2023"),
                 ],
             )
             app_config_path = self._write_app_config(
@@ -475,8 +475,8 @@ class SettingsTests(unittest.TestCase):
                 accounts=[
                     self._account(
                         bank="bob",
-                        opening_date="04-2023",
-                        closing_date="08-2024",
+                        opening_date="01-04-2023",
+                        closing_date="01-08-2024",
                     ),
                 ],
             )
@@ -494,7 +494,7 @@ class SettingsTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1234",
                 "passwords": ["x"],
-                "opening_date": "04-2023",
+                "opening_date": "01-04-2023",
             }
         )
         self.assertIsNone(account.closing_date)
@@ -505,7 +505,7 @@ class SettingsTests(unittest.TestCase):
             _ = (root / "statements").mkdir()
             _ = self._write_user_config(
                 root,
-                accounts=[self._account(bank="bob", opening_date="04-2023")],
+                accounts=[self._account(bank="bob", opening_date="01-04-2023")],
             )
             app_config_path = self._write_app_config(
                 root,
@@ -522,8 +522,8 @@ class SettingsTests(unittest.TestCase):
                     "bank": "bob",
                     "account_number": "1234",
                     "passwords": ["x"],
-                    "opening_date": "08-2024",
-                    "closing_date": "04-2023",
+                    "opening_date": "01-08-2024",
+                    "closing_date": "01-04-2023",
                 }
             )
 
@@ -540,13 +540,13 @@ class SettingsTests(unittest.TestCase):
         )
         start, end = resolve_account_search_dates(account, date(2022, 1, 1))
         self.assertEqual(start, date(2023, 4, 1))
-        self.assertEqual(end, date(2024, 9, 1))
+        self.assertEqual(end, date(2024, 8, 2))
 
         start, end = resolve_account_search_dates(account, date(2024, 1, 1))
         self.assertEqual(start, date(2024, 1, 1))
-        self.assertEqual(end, date(2024, 9, 1))
+        self.assertEqual(end, date(2024, 8, 2))
 
-    def test_resolve_account_search_dates_includes_month_after_closing(self) -> None:
+    def test_resolve_account_search_dates_uses_day_after_closing(self) -> None:
         account = ResolvedAccount.model_validate(
             {
                 "bank": "bob",
@@ -557,20 +557,20 @@ class SettingsTests(unittest.TestCase):
             }
         )
         _start, end = resolve_account_search_dates(account, None)
-        self.assertEqual(end, date(2024, 3, 1))
+        self.assertEqual(end, date(2024, 2, 2))
 
     def test_invalid_opening_date_format(self) -> None:
         with self.assertRaises(ValueError):
             _ = parse_opening_date("2023-04")
         with self.assertRaises(ValueError):
-            _ = parse_opening_date("13-2023")
+            _ = parse_opening_date("32-01-2024")
         with self.assertRaises(ValidationError):
             _ = UserAccountConfig.model_validate(
                 {
                     "bank": "bob",
                     "account_number": "1234",
                     "passwords": ["x"],
-                    "opening_date": "2023-04",
+                    "opening_date": "04-2023",
                 }
             )
 
@@ -583,7 +583,7 @@ class SettingsTests(unittest.TestCase):
                     "bank": "bob",
                     "account_number": "1234",
                     "passwords": ["x"],
-                    "closing_date": "2024-08",
+                    "closing_date": "08-2024",
                 }
             )
 

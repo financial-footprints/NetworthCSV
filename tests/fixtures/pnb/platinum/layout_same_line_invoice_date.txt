@@ -1,0 +1,6 @@
+Invoice Date :       16-MAR-2024
+Payment Due Date :   05-APR-2024
+Total Amount Due for Month : 1200
+Account Summary
+  Previous Balance Purchases and other charges Cash Advances Payments and Other Credits / Shadow Credits Total Amount Due for Month
+    5000    800          0         5000       1200

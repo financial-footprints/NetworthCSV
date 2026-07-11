@@ -360,6 +360,9 @@
               "take": "end"
             }
           ],
+          "statement_period": {
+            "start_day": 21
+          },
           "balances": {
             "match_tolerance": "0.99",
             "opening": [
@@ -785,6 +788,10 @@
         "metadata": {
           "statement_date": [
             {
+              "mode": "label_single",
+              "label": "Invoice Date :"
+            },
+            {
               "mode": "label_next_line",
               "label": "Invoice Date :"
             },
@@ -804,6 +811,11 @@
               }
             ],
             "closing": [
+              {
+                "mode": "summary_table_column",
+                "context": "Account Summary",
+                "column": "Total Amount Due for Month"
+              },
               {
                 "mode": "label_single",
                 "label": "Total Amount Due for Month"

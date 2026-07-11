@@ -150,13 +150,18 @@ def collect_month_groups(
     raw_by_path: dict[Path, str] = {}
     path_month: dict[Path, str] = {}
     seen: set[str] = set()
+    hash_to_raw: dict[str, str] = {}
     pdf_paths = paths if paths is not None else list(iter_pdfs(staging_dir))
     for path in sorted(pdf_paths, key=lambda item: item.as_posix()):
         key = path.resolve().as_posix()
         if key in seen:
             continue
         seen.add(key)
-        raw = extract_pdf_text_plumber(path, account.passwords)
+        digest = _file_hash(path)
+        raw = hash_to_raw.get(digest)
+        if raw is None:
+            raw = extract_pdf_text_plumber(path, account.passwords)
+            hash_to_raw[digest] = raw
         raw_by_path[path] = raw
         manual_month = month_stem_from_manual_upload(path.name)
         if manual_month is not None:

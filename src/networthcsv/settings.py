@@ -7,7 +7,7 @@ import os
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
@@ -70,6 +70,12 @@ class TopRangeMarker(StatementDateMarkerBase):
     joiner: str
     take: StatementDateTake = "end"
     search_chars: int = Field(default=2000, ge=1)
+
+
+class StatementPeriodRule(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    start_day: int = Field(ge=1, le=31)
 
 
 StatementDateMarker = Annotated[
@@ -539,11 +545,13 @@ class StatementCleanupOverride(MatchingFieldsCore):
 
 class MetadataExtractConfig(MatchingFieldsCore):
     statement_date: StatementDateRules = []
+    statement_period: StatementPeriodRule | None = None
     balances: BalancesConfig = Field(default_factory=BalanceMarkersConfig)
 
 
 class MetadataExtractOverride(MatchingFieldsCore):
     statement_date: OptionalStatementDateRules = None
+    statement_period: StatementPeriodRule | None = None
     balances: OptionalBalancesConfig = None
 
 
@@ -655,49 +663,47 @@ class AppConfig(BaseModel):
         )
 
 
-_ACCOUNT_MONTH_DATE_PATTERN = re.compile(r"^(\d{2})-(\d{4})$")
+_ACCOUNT_DATE_PATTERN = re.compile(r"^(\d{2})-(\d{2})-(\d{4})$")
 
 
-def parse_account_month_date(value: object, field_name: str) -> date | None:
+def parse_account_date(value: object, field_name: str) -> date | None:
     if value is None or value == "":
         return None
     if isinstance(value, date):
         return value
     if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be an MM-YYYY string or null")
+        raise ValueError(f"{field_name} must be a DD-MM-YYYY string or null")
     stripped = value.strip()
     if not stripped:
         return None
-    match = _ACCOUNT_MONTH_DATE_PATTERN.fullmatch(stripped)
+    match = _ACCOUNT_DATE_PATTERN.fullmatch(stripped)
     if match is None:
-        raise ValueError(f"{field_name} must be in MM-YYYY format")
-    month = int(match.group(1))
-    year = int(match.group(2))
+        raise ValueError(f"{field_name} must be in DD-MM-YYYY format")
+    day = int(match.group(1))
+    month = int(match.group(2))
+    year = int(match.group(3))
     if month < 1 or month > 12:
         raise ValueError(f"{field_name} month must be between 01 and 12")
-    return date(year, month, 1)
+    if day < 1 or day > 31:
+        raise ValueError(f"{field_name} day must be between 01 and 31")
+    try:
+        return date(year, month, day)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} is not a valid calendar date") from exc
 
 
 def parse_opening_date(value: object) -> date | None:
-    return parse_account_month_date(value, "opening_date")
+    return parse_account_date(value, "opening_date")
 
 
 def parse_closing_date(value: object) -> date | None:
-    return parse_account_month_date(value, "closing_date")
+    return parse_account_date(value, "closing_date")
 
 
-def format_account_month_date(value: date | None) -> str | None:
+def format_account_date(value: date | None) -> str | None:
     if value is None:
         return None
-    return value.strftime("%m-%Y")
-
-
-def format_opening_date(value: date | None) -> str | None:
-    return format_account_month_date(value)
-
-
-def _month_start(value: date) -> date:
-    return date(value.year, value.month, 1)
+    return value.strftime("%d-%m-%Y")
 
 
 class UserAccountConfig(MatchingFieldsCore):
@@ -893,16 +899,7 @@ class UserConfig(BaseModel):
     @field_validator("start_date", mode="before")
     @classmethod
     def parse_start_date(cls, value: object) -> date | None:
-        if value is None or value == "":
-            return None
-        if isinstance(value, date):
-            return value
-        if not isinstance(value, str):
-            raise ValueError("start_date must be an ISO date string or null")
-        stripped = value.strip()
-        if not stripped:
-            return None
-        return date.fromisoformat(stripped)
+        return parse_account_date(value, "start_date")
 
     @classmethod
     def from_json(cls, data: dict[str, object], *, config_path: Path) -> UserConfig:
@@ -921,6 +918,16 @@ class ResolvedAccount(MatchingFields):
     opening_date: date | None = None
     closing_date: date | None = None
 
+    @field_validator("opening_date", mode="before")
+    @classmethod
+    def validate_opening_date(cls, value: object) -> date | None:
+        return parse_opening_date(value)
+
+    @field_validator("closing_date", mode="before")
+    @classmethod
+    def validate_closing_date(cls, value: object) -> date | None:
+        return parse_closing_date(value)
+
 
 def resolve_account_search_dates(
     account: ResolvedAccount,
@@ -928,12 +935,12 @@ def resolve_account_search_dates(
 ) -> tuple[date | None, date | None]:
     start_candidates: list[date] = []
     if global_start_date is not None:
-        start_candidates.append(_month_start(global_start_date))
+        start_candidates.append(global_start_date)
     if account.opening_date is not None:
-        start_candidates.append(_month_start(account.opening_date))
+        start_candidates.append(account.opening_date)
     effective_start = max(start_candidates) if start_candidates else None
     effective_end = (
-        exclusive_search_end_date(_month_start(account.closing_date))
+        exclusive_search_end_date(account.closing_date)
         if account.closing_date is not None
         else None
     )
@@ -941,16 +948,8 @@ def resolve_account_search_dates(
 
 
 def exclusive_search_end_date(end_date: date) -> date:
-    """Return the first day of the month after ``end_date``.
-
-    Used as the exclusive IMAP/Gmail ``BEFORE`` bound for an inclusive
-    message-filter end month. Closed-account search sets the inclusive end
-    to closing month + 1 via ``resolve_account_search_dates``, then applies
-    this helper again for the server query upper bound.
-    """
-    if end_date.month == 12:
-        return date(end_date.year + 1, 1, 1)
-    return date(end_date.year, end_date.month + 1, 1)
+    """Return the day after ``end_date`` for an exclusive IMAP/Gmail ``BEFORE`` bound."""
+    return end_date + timedelta(days=1)
 
 
 @dataclass(frozen=True)

@@ -4,19 +4,23 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import asdict, dataclass
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
 from networthcsv.context import RunContext
+from networthcsv.pipeline.cleanup.statement_date import (
+    extract_statement_period,
+)
+from networthcsv.pipeline.cleanup.statement_period import period_start_from_end
 from networthcsv.pipeline.results import MetadataAccountResult
 from networthcsv.settings import (
     ResolvedAccount,
     account_download_path,
-    format_account_month_date,
-    format_opening_date,
+    format_account_date,
+    parse_account_date,
 )
 from networthcsv.pipeline.metadata.statement_balance import (
     balances_match,
@@ -32,9 +36,9 @@ from networthcsv.utils.path import (
     txt_path_for_pdf,
 )
 
-logger = logging.getLogger(__name__)
+from networthcsv.utils.month_stem import month_stem_from_stem
 
-_MONTH_STEM_PATTERN = re.compile(r"^(\d{4}-\d{2})$")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -43,13 +47,33 @@ class StatementMetadata:
     formats: tuple[str, ...]
     opening_balance: str | None = None
     closing_balance: str | None = None
+    period_start: str | None = None
+    period_end: str | None = None
+    period_approximate: bool = False
+
+
+@dataclass(frozen=True)
+class CoverageSegment:
+    start: str
+    end: str
+    approximate: bool = False
+
+
+@dataclass(frozen=True)
+class CoverageGap:
+    start: str
+    end: str
+    balances_match: bool | None = None
 
 
 @dataclass(frozen=True)
 class PeriodCovered:
     start: str | None
     end: str | None
+    segments: tuple[CoverageSegment, ...]
+    gaps: tuple[CoverageGap, ...]
     months: tuple[str, ...]
+    approximate_statement_count: int = 0
 
 
 BalanceGapStatus = Literal["matched", "mismatched", "discontinuity"]
@@ -156,11 +180,40 @@ def compute_balance_gaps(
     return tuple(gaps)
 
 
-def _month_stem_from_path(path: Path) -> str | None:
-    match = _MONTH_STEM_PATTERN.fullmatch(path.stem)
-    if match is None:
+def _coverage_gap_balances_match(
+    statements: tuple[StatementMetadata, ...],
+    *,
+    segment_before_end: str,
+    segment_after_start: str,
+    tolerance: Decimal | None,
+) -> bool | None:
+    previous = next(
+        (
+            statement
+            for statement in statements
+            if statement.period_end == segment_before_end
+        ),
+        None,
+    )
+    following = next(
+        (
+            statement
+            for statement in statements
+            if statement.period_start == segment_after_start
+        ),
+        None,
+    )
+    if previous is None or following is None:
         return None
-    return match.group(1)
+    closing = previous.closing_balance
+    opening = following.opening_balance
+    if closing is None or opening is None:
+        return None
+    return balances_match(closing, opening, tolerance=tolerance)
+
+
+def _month_stem_from_path(path: Path) -> str | None:
+    return month_stem_from_stem(path.stem)
 
 
 def _statement_formats(
@@ -178,13 +231,129 @@ def _statement_formats(
     return tuple(formats)
 
 
-def _build_period_covered(statement_dates: tuple[str, ...]) -> PeriodCovered:
+def _format_account_date(value: date) -> str:
+    formatted = format_account_date(value)
+    if formatted is None:
+        raise ValueError("date value is required")
+    return formatted
+
+
+def _parse_account_date(value: str) -> date:
+    parsed = parse_account_date(value, "date")
+    if parsed is None:
+        raise ValueError(f"invalid account date: {value!r}")
+    return parsed
+
+
+def _resolve_statement_period(
+    text: str,
+    *,
+    account: ResolvedAccount,
+) -> tuple[str | None, str | None, bool]:
+    period_start, period_end = extract_statement_period(text, account=account)
+    if period_start is not None and period_end is not None:
+        if period_start > period_end:
+            period_start, period_end = period_end, period_start
+        return (
+            _format_account_date(period_start),
+            _format_account_date(period_end),
+            False,
+        )
+    if period_end is None:
+        return None, None, False
+    rule = account.metadata.statement_period
+    if rule is None:
+        return None, None, False
+    period_start = period_start_from_end(period_end, rule.start_day)
+    return _format_account_date(period_start), _format_account_date(period_end), False
+
+
+def _merge_coverage_periods(
+    periods: list[tuple[date, date, bool]],
+) -> tuple[list[tuple[date, date, bool]], list[tuple[date, date]]]:
+    if not periods:
+        return [], []
+    sorted_periods = sorted(periods, key=lambda item: item[0])
+    segments: list[tuple[date, date, bool]] = []
+    gaps: list[tuple[date, date]] = []
+    current_start, current_end, current_approximate = sorted_periods[0]
+    for start, end, approximate in sorted_periods[1:]:
+        if start <= current_end + timedelta(days=1):
+            if end > current_end:
+                current_end = end
+            current_approximate = current_approximate or approximate
+            continue
+        segments.append((current_start, current_end, current_approximate))
+        gap_start = current_end + timedelta(days=1)
+        gap_end = start - timedelta(days=1)
+        if gap_start <= gap_end:
+            gaps.append((gap_start, gap_end))
+        current_start, current_end, current_approximate = start, end, approximate
+    segments.append((current_start, current_end, current_approximate))
+    return segments, gaps
+
+
+def _build_period_covered(
+    statements: tuple[StatementMetadata, ...],
+    *,
+    tolerance: Decimal | None = None,
+) -> PeriodCovered:
     months = tuple(
-        sorted({covered_month(statement_date) for statement_date in statement_dates})
+        sorted({covered_month(statement.statement_date) for statement in statements})
     )
-    if not months:
-        return PeriodCovered(start=None, end=None, months=())
-    return PeriodCovered(start=months[0], end=months[-1], months=months)
+    periods: list[tuple[date, date, bool]] = []
+    approximate_statement_count = 0
+    for statement in statements:
+        if statement.period_approximate:
+            approximate_statement_count += 1
+        if statement.period_start is None or statement.period_end is None:
+            continue
+        periods.append(
+            (
+                _parse_account_date(statement.period_start),
+                _parse_account_date(statement.period_end),
+                statement.period_approximate,
+            )
+        )
+    if not periods:
+        return PeriodCovered(
+            start=None,
+            end=None,
+            segments=(),
+            gaps=(),
+            months=months,
+            approximate_statement_count=approximate_statement_count,
+        )
+    merged_segments, merged_gaps = _merge_coverage_periods(periods)
+    segments = tuple(
+        CoverageSegment(
+            start=_format_account_date(start),
+            end=_format_account_date(end),
+            approximate=approximate,
+        )
+        for start, end, approximate in merged_segments
+    )
+    gaps = tuple(
+        CoverageGap(
+            start=_format_account_date(start),
+            end=_format_account_date(end),
+            balances_match=_coverage_gap_balances_match(
+                statements,
+                segment_before_end=_format_account_date(merged_segments[index][1]),
+                segment_after_start=_format_account_date(merged_segments[index + 1][0]),
+                tolerance=tolerance,
+            ),
+        )
+        for index, (start, end) in enumerate(merged_gaps)
+    )
+    return PeriodCovered(
+        start=segments[0].start,
+        end=segments[-1].end,
+        segments=segments,
+        gaps=gaps,
+        months=months,
+        approximate_statement_count=approximate_statement_count,
+    )
 
 
 def _has_transactions_csv(download_path: Path, account: ResolvedAccount) -> bool:
@@ -195,12 +364,9 @@ def _has_transactions_csv(download_path: Path, account: ResolvedAccount) -> bool
 
 
 def _extract_statement_balances(
-    txt_path: Path,
+    text: str,
     account: ResolvedAccount,
 ) -> tuple[str | None, str | None]:
-    if not txt_path.is_file():
-        return None, None
-    text = txt_path.read_text(encoding="utf-8")
     opening_markers = tuple(account.metadata.balances.opening)
     closing_markers = tuple(account.metadata.balances.closing)
     opening = (
@@ -246,18 +412,27 @@ def build_account_metadata(
             continue
         account_formats.update(formats)
         if txt_path is not None and txt_path.is_file():
+            text = txt_path.read_text(encoding="utf-8")
             opening_balance, closing_balance = _extract_statement_balances(
-                txt_path,
+                text,
                 account,
+            )
+            period_start, period_end, period_approximate = _resolve_statement_period(
+                text,
+                account=account,
             )
         else:
             opening_balance, closing_balance = None, None
+            period_start, period_end, period_approximate = None, None, False
         statements.append(
             StatementMetadata(
                 statement_date=statement_date,
                 formats=formats,
                 opening_balance=opening_balance,
                 closing_balance=closing_balance,
+                period_start=period_start,
+                period_end=period_end,
+                period_approximate=period_approximate,
             )
         )
 
@@ -266,15 +441,18 @@ def build_account_metadata(
     if _has_transactions_csv(download_path, account):
         account_formats.add("csv")
 
-    period_covered = _build_period_covered(statement_dates)
+    period_covered = _build_period_covered(
+        tuple(statements),
+        tolerance=account.metadata.balances.match_tolerance,
+    )
 
     return AccountMetadata(
         account_number=account.account_number,
         bank=account.bank,
         variant=account.variant,
         account_type=account.account_type,
-        opening_date=format_opening_date(account.opening_date),
-        closing_date=format_account_month_date(account.closing_date),
+        opening_date=format_account_date(account.opening_date),
+        closing_date=format_account_date(account.closing_date),
         formats=tuple(sorted(account_formats)),
         statements=tuple(statements),
         statement_dates=statement_dates,
@@ -293,6 +471,9 @@ def _metadata_to_dict(metadata: AccountMetadata) -> dict[str, object]:
             "formats": list(item.formats),
             "opening_balance": item.opening_balance,
             "closing_balance": item.closing_balance,
+            "period_start": item.period_start,
+            "period_end": item.period_end,
+            "period_approximate": item.period_approximate,
         }
         for item in metadata.statements
     ]
@@ -302,7 +483,24 @@ def _metadata_to_dict(metadata: AccountMetadata) -> dict[str, object]:
     payload["period_covered"] = {
         "start": period.start,
         "end": period.end,
+        "segments": [
+            {
+                "start": segment.start,
+                "end": segment.end,
+                "approximate": segment.approximate,
+            }
+            for segment in period.segments
+        ],
+        "gaps": [
+            {
+                "start": gap.start,
+                "end": gap.end,
+                "balances_match": gap.balances_match,
+            }
+            for gap in period.gaps
+        ],
         "months": list(period.months),
+        "approximate_statement_count": period.approximate_statement_count,
     }
     return payload
 
@@ -315,8 +513,11 @@ def _metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
         StatementMetadata(
             statement_date=str(item["statement_date"]),
             formats=tuple(str(fmt) for fmt in item["formats"]),
-            opening_balance=cast_optional_str(item.get("opening_balance")),
-            closing_balance=cast_optional_str(item.get("closing_balance")),
+            opening_balance=_cast_optional_str(item.get("opening_balance")),
+            closing_balance=_cast_optional_str(item.get("closing_balance")),
+            period_start=_cast_optional_str(item.get("period_start")),
+            period_end=_cast_optional_str(item.get("period_end")),
+            period_approximate=_cast_bool(item.get("period_approximate"), False),
         )
         for item in statements_raw
         if isinstance(item, dict)
@@ -330,10 +531,47 @@ def _metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
         if isinstance(months_raw, list)
         else ()
     )
+    segments_raw = period_raw.get("segments")
+    segments = (
+        tuple(
+            CoverageSegment(
+                start=str(segment["start"]),
+                end=str(segment["end"]),
+                approximate=_cast_bool(segment.get("approximate"), False),
+            )
+            for segment in segments_raw
+            if isinstance(segment, dict)
+        )
+        if isinstance(segments_raw, list)
+        else ()
+    )
+    gaps_raw = period_raw.get("gaps")
+    gaps = (
+        tuple(
+            CoverageGap(
+                start=str(gap["start"]),
+                end=str(gap["end"]),
+                balances_match=(
+                    bool(gap["balances_match"])
+                    if isinstance(gap.get("balances_match"), bool)
+                    else None
+                ),
+            )
+            for gap in gaps_raw
+            if isinstance(gap, dict)
+        )
+        if isinstance(gaps_raw, list)
+        else ()
+    )
     period_covered = PeriodCovered(
-        start=cast_optional_str(period_raw.get("start")),
-        end=cast_optional_str(period_raw.get("end")),
+        start=_cast_optional_str(period_raw.get("start")),
+        end=_cast_optional_str(period_raw.get("end")),
+        segments=segments,
+        gaps=gaps,
         months=months,
+        approximate_statement_count=_cast_int(
+            period_raw.get("approximate_statement_count"), 0
+        ),
     )
     formats_raw = payload.get("formats")
     formats = (
@@ -348,27 +586,41 @@ def _metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
     return AccountMetadata(
         account_number=str(payload["account_number"]),
         bank=str(payload["bank"]),
-        variant=cast_optional_str(payload.get("variant")),
+        variant=_cast_optional_str(payload.get("variant")),
         account_type=str(payload["account_type"]),
-        opening_date=cast_optional_str(payload.get("opening_date")),
-        closing_date=cast_optional_str(payload.get("closing_date")),
+        opening_date=_cast_optional_str(payload.get("opening_date")),
+        closing_date=_cast_optional_str(payload.get("closing_date")),
         formats=formats,
         statements=statements,
         statement_dates=statement_dates,
-        starting=cast_optional_str(payload.get("starting")),
-        ending=cast_optional_str(payload.get("ending")),
-        statement_count=cast_int(payload.get("statement_count"), len(statement_dates)),
+        starting=_cast_optional_str(payload.get("starting")),
+        ending=_cast_optional_str(payload.get("ending")),
+        statement_count=_cast_int(payload.get("statement_count"), len(statement_dates)),
         period_covered=period_covered,
     )
 
 
-def cast_optional_str(value: object) -> str | None:
+def _cast_optional_str(value: object) -> str | None:
     if value is None:
         return None
     return str(value)
 
 
-def cast_int(value: object, default: int) -> int:
+def _cast_bool(value: object, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes"}:
+            return True
+        if lowered in {"false", "0", "no"}:
+            return False
+    return bool(value)
+
+
+def _cast_int(value: object, default: int) -> int:
     if value is None:
         return default
     if isinstance(value, int):

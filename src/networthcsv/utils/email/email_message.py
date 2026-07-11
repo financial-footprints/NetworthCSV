@@ -253,16 +253,3 @@ def message_matches_account(
     if not body_matches(msg, account.mail.body_contains):
         return False
     return True
-
-
-def process_message(
-    msg: Message,
-    download_dir: Path,
-    folder_prefix: str,
-    account: ResolvedAccount,
-    start_date: date | None,
-    end_date: date | None = None,
-) -> int:
-    if not message_matches_account(msg, account, start_date, end_date):
-        return 0
-    return save_attachments(msg, download_dir, folder_prefix)

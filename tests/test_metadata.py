@@ -21,6 +21,7 @@ from networthcsv.pipeline.metadata.metadata import (
     run_account,
     statement_date_for_covered_month,
     StatementMetadata,
+    _build_period_covered,
 )
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.settings import (
@@ -377,6 +378,170 @@ class ComputeBalanceGapsTests(unittest.TestCase):
         self.assertEqual(compute_balance_gaps(statements), ())
 
 
+class BuildPeriodCoveredTests(unittest.TestCase):
+    def test_touching_periods_merge_into_one_segment(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-05",
+                formats=("pdf",),
+                period_start="16-04-2024",
+                period_end="16-05-2024",
+            ),
+            StatementMetadata(
+                statement_date="2024-06",
+                formats=("pdf",),
+                period_start="16-05-2024",
+                period_end="16-06-2024",
+            ),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(len(period.segments), 1)
+        self.assertEqual(period.segments[0].start, "16-04-2024")
+        self.assertEqual(period.segments[0].end, "16-06-2024")
+        self.assertEqual(period.gaps, ())
+        self.assertEqual(period.start, "16-04-2024")
+        self.assertEqual(period.end, "16-06-2024")
+
+    def test_consecutive_billing_cycles_merge(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-01",
+                formats=("pdf",),
+                period_start="21-12-2023",
+                period_end="20-01-2024",
+            ),
+            StatementMetadata(
+                statement_date="2024-02",
+                formats=("pdf",),
+                period_start="21-01-2024",
+                period_end="20-02-2024",
+            ),
+            StatementMetadata(
+                statement_date="2024-03",
+                formats=("pdf",),
+                period_start="21-02-2024",
+                period_end="20-03-2024",
+            ),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(len(period.segments), 1)
+        self.assertEqual(period.segments[0].start, "21-12-2023")
+        self.assertEqual(period.segments[0].end, "20-03-2024")
+        self.assertEqual(period.gaps, ())
+
+    def test_non_adjacent_periods_create_gap(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-05",
+                formats=("pdf",),
+                period_start="16-04-2024",
+                period_end="16-05-2024",
+            ),
+            StatementMetadata(
+                statement_date="2024-07",
+                formats=("pdf",),
+                period_start="16-06-2024",
+                period_end="16-07-2024",
+            ),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(len(period.segments), 2)
+        self.assertEqual(len(period.gaps), 1)
+        self.assertEqual(period.gaps[0].start, "17-05-2024")
+        self.assertEqual(period.gaps[0].end, "15-06-2024")
+        self.assertIsNone(period.gaps[0].balances_match)
+
+    def test_period_gap_balances_match_when_amounts_align(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-01",
+                formats=("pdf",),
+                period_start="21-12-2023",
+                period_end="20-01-2024",
+                closing_balance="1250.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-05",
+                formats=("pdf",),
+                period_start="21-04-2024",
+                period_end="20-05-2024",
+                opening_balance="1250.00",
+            ),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(len(period.gaps), 1)
+        self.assertEqual(period.gaps[0].start, "21-01-2024")
+        self.assertEqual(period.gaps[0].end, "20-04-2024")
+        self.assertTrue(period.gaps[0].balances_match)
+
+    def test_period_gap_balances_mismatch_when_amounts_differ(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-01",
+                formats=("pdf",),
+                period_start="21-12-2023",
+                period_end="20-01-2024",
+                closing_balance="1250.00",
+            ),
+            StatementMetadata(
+                statement_date="2024-05",
+                formats=("pdf",),
+                period_start="21-04-2024",
+                period_end="20-05-2024",
+                opening_balance="1500.00",
+            ),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(len(period.gaps), 1)
+        self.assertFalse(period.gaps[0].balances_match)
+
+    def test_period_gap_balances_unknown_when_balances_missing(self) -> None:
+        statements = (
+            StatementMetadata(
+                statement_date="2024-01",
+                formats=("pdf",),
+                period_start="21-12-2023",
+                period_end="20-01-2024",
+            ),
+            StatementMetadata(
+                statement_date="2024-05",
+                formats=("pdf",),
+                period_start="21-04-2024",
+                period_end="20-05-2024",
+                opening_balance="1500.00",
+            ),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(len(period.gaps), 1)
+        self.assertIsNone(period.gaps[0].balances_match)
+
+    def test_statements_without_periods_keep_months_only(self) -> None:
+        statements = (
+            StatementMetadata(statement_date="2024-01", formats=("pdf",)),
+            StatementMetadata(statement_date="2024-02", formats=("pdf",)),
+        )
+
+        period = _build_period_covered(statements)
+
+        self.assertEqual(period.segments, ())
+        self.assertEqual(period.gaps, ())
+        self.assertIsNone(period.start)
+        self.assertIsNone(period.end)
+        self.assertEqual(period.months, ("2023-12", "2024-01"))
+
+
 class ReadAccountMetadataTests(unittest.TestCase):
     def test_read_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -526,12 +691,11 @@ class BuildAccountMetadataTests(unittest.TestCase):
 
             metadata = build_account_metadata(download_path, account)
 
-            self.assertEqual(metadata.period_covered.start, "2023-03")
-            self.assertEqual(metadata.period_covered.end, "2023-06")
             self.assertEqual(
                 metadata.period_covered.months,
                 ("2023-03", "2023-04", "2023-05", "2023-06"),
             )
+            self.assertEqual(metadata.period_covered.segments, ())
 
     def test_closing_date_exported_without_filtering_period_covered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -548,8 +712,8 @@ class BuildAccountMetadataTests(unittest.TestCase):
 
             metadata = build_account_metadata(download_path, account)
 
-            self.assertEqual(metadata.opening_date, "04-2023")
-            self.assertEqual(metadata.closing_date, "08-2024")
+            self.assertEqual(metadata.opening_date, "01-04-2023")
+            self.assertEqual(metadata.closing_date, "01-08-2024")
             self.assertEqual(metadata.period_covered.months, ("2023-03", "2023-04"))
 
     def test_csv_detected_in_fy_folder(self) -> None:
@@ -567,6 +731,98 @@ class BuildAccountMetadataTests(unittest.TestCase):
             metadata = build_account_metadata(download_path, account)
 
             self.assertEqual(metadata.formats, ("csv", "pdf", "txt"))
+
+    def test_builds_day_level_period_from_statement_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = _account()
+            fy_dir = account_fy_dir(download_path, account, "FY23-2024")
+            _ = fy_dir.mkdir(parents=True, exist_ok=True)
+            _ = (fy_dir / "2024-10.pdf").write_bytes(b"%PDF")
+            _ = (fy_dir / "2024-10.txt").write_text(
+                "Statement Date : 16/10/2024 | Statement Period : 17 Sep, 2024 to 16 Oct, 2024\n",
+                encoding="utf-8",
+            )
+
+            metadata = build_account_metadata(download_path, account)
+
+            self.assertEqual(metadata.statements[0].period_start, "17-09-2024")
+            self.assertEqual(metadata.statements[0].period_end, "16-10-2024")
+            self.assertFalse(metadata.statements[0].period_approximate)
+            self.assertEqual(len(metadata.period_covered.segments), 1)
+            self.assertEqual(metadata.period_covered.segments[0].start, "17-09-2024")
+            self.assertEqual(metadata.period_covered.segments[0].end, "16-10-2024")
+
+    def test_hdfc_derives_period_from_statement_date_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = ResolvedAccount.model_validate(
+                {
+                    "bank": "hdfc",
+                    "variant": "regalia",
+                    "account_number": "5678",
+                    "passwords": ["secret"],
+                    "mail": {"subjects": ["HDFC"]},
+                    "statement": {"text_contains": ["5678"]},
+                    "metadata": {
+                        "statement_date": [
+                            {"mode": "label_single", "label": "Statement Date"}
+                        ],
+                        "statement_period": {"start_day": 21},
+                    },
+                }
+            )
+            fy_dir = account_fy_dir(download_path, account, "FY21-2022")
+            _ = fy_dir.mkdir(parents=True, exist_ok=True)
+            _ = (fy_dir / "2021-09.pdf").write_bytes(b"%PDF")
+            _ = (fy_dir / "2021-09.txt").write_text(
+                "Statement Date:20/09/2021\n",
+                encoding="utf-8",
+            )
+
+            metadata = build_account_metadata(download_path, account)
+
+            self.assertEqual(metadata.statements[0].period_start, "21-08-2021")
+            self.assertEqual(metadata.statements[0].period_end, "20-09-2021")
+            self.assertFalse(metadata.statements[0].period_approximate)
+
+    def test_extracted_period_range_wins_over_statement_period_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = ResolvedAccount.model_validate(
+                {
+                    "bank": "hdfc",
+                    "variant": "regalia",
+                    "account_number": "5678",
+                    "passwords": ["secret"],
+                    "mail": {"subjects": ["HDFC"]},
+                    "statement": {"text_contains": ["5678"]},
+                    "metadata": {
+                        "statement_date": [
+                            {"mode": "label_single", "label": "Statement Date :"},
+                            {
+                                "mode": "label_range",
+                                "label": "Statement Period :",
+                                "joiner": " to ",
+                                "take": "end",
+                            },
+                        ],
+                        "statement_period": {"start_day": 21},
+                    },
+                }
+            )
+            fy_dir = account_fy_dir(download_path, account, "FY23-2024")
+            _ = fy_dir.mkdir(parents=True, exist_ok=True)
+            _ = (fy_dir / "2024-10.pdf").write_bytes(b"%PDF")
+            _ = (fy_dir / "2024-10.txt").write_text(
+                "Statement Date : 16/10/2024 | Statement Period : 17 Sep, 2024 to 16 Oct, 2024\n",
+                encoding="utf-8",
+            )
+
+            metadata = build_account_metadata(download_path, account)
+
+            self.assertEqual(metadata.statements[0].period_start, "17-09-2024")
+            self.assertEqual(metadata.statements[0].period_end, "16-10-2024")
 
 
 class RefreshAccountMetadataTests(unittest.TestCase):
@@ -590,6 +846,8 @@ class RefreshAccountMetadataTests(unittest.TestCase):
             self.assertIn("opening_balance", payload["statements"][0])
             self.assertIn("closing_balance", payload["statements"][0])
             self.assertEqual(payload["period_covered"]["months"], ["2023-12"])
+            self.assertIn("segments", payload["period_covered"])
+            self.assertIn("gaps", payload["period_covered"])
 
 
 class RunAccountMetadataTests(unittest.TestCase):

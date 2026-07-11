@@ -2,12 +2,16 @@
   "bob/easy/format1.txt": {
     "closing": "192.00",
     "opening": "42.00",
-    "statement_month": "2024-10"
+    "statement_month": "2024-10",
+    "period_start": "17-09-2024",
+    "period_end": "16-10-2024"
   },
   "bob/easy/format2.txt": {
     "closing": "1250.00",
     "opening": "-10.00",
-    "statement_month": "2025-03"
+    "statement_month": "2025-03",
+    "period_start": "17-02-2025",
+    "period_end": "16-03-2025"
   },
   "csb/edge/sample.txt": {
     "closing": "2100.50",
@@ -22,7 +26,9 @@
   "federal/signet/sample.txt": {
     "closing": "0.00",
     "opening": "0.00",
-    "statement_month": "2021-04"
+    "statement_month": "2021-04",
+    "period_start": "22-03-2021",
+    "period_end": "21-04-2021"
   },
   "hdfc/diners/sample.txt": {
     "closing": "-2222.22",
@@ -37,7 +43,9 @@
   "hdfc/regalia/sample.txt": {
     "closing": "12345.67",
     "opening": "0.00",
-    "statement_month": "2021-09"
+    "statement_month": "2021-09",
+    "period_start": "21-08-2021",
+    "period_end": "20-09-2021"
   },
   "hdfc/swiggy/sample.txt": {
     "closing": "850.00",
@@ -52,17 +60,23 @@
   "icici/amazon/sample.txt": {
     "closing": "275.50",
     "opening": "0.00",
-    "statement_month": "2021-10"
+    "statement_month": "2021-10",
+    "period_start": "13-09-2021",
+    "period_end": "12-10-2021"
   },
   "icici/coral/sample.txt": {
     "closing": "-150.00",
     "opening": "-2626.26",
-    "statement_month": "2022-05"
+    "statement_month": "2022-05",
+    "period_start": "03-04-2021",
+    "period_end": "02-05-2022"
   },
   "icici/platinum/sample.txt": {
     "closing": "-1800.00",
     "opening": "-3261.52",
-    "statement_month": "2022-04"
+    "statement_month": "2022-04",
+    "period_start": "15-05-2021",
+    "period_end": "14-04-2022"
   },
   "idfc/wow/sample.txt": {
     "closing": "-350.00",
@@ -72,21 +86,67 @@
   "indusind/amex-epay/sample.txt": {
     "closing": "950.00",
     "opening": "0.00",
-    "statement_month": "2022-02"
+    "statement_month": "2022-02",
+    "period_start": "16-01-2022",
+    "period_end": "15-02-2022"
   },
   "indusind/auraedge/sample.txt": {
     "closing": "-750.00",
     "opening": "0.00",
-    "statement_month": "2021-02"
+    "statement_month": "2021-02",
+    "period_start": "16-01-2021",
+    "period_end": "15-02-2021"
   },
   "pnb/platinum/sample.txt": {
     "closing": "-850",
     "opening": "-750",
     "statement_month": "2021-05"
   },
+  "pnb/platinum/2024-03.txt": {
+    "closing": "-2750.5",
+    "opening": "-4200.5",
+    "statement_month": "2024-03"
+  },
+  "pnb/platinum/2024-04.txt": {
+    "closing": "-1900.0",
+    "opening": "-2750.5",
+    "statement_month": "2024-04"
+  },
+  "pnb/platinum/2024-05.txt": {
+    "closing": "510.75",
+    "opening": "-1900.0",
+    "statement_month": "2024-05"
+  },
+  "pnb/platinum/2024-06.txt": {
+    "closing": "1200",
+    "opening": "5000",
+    "statement_month": "2024-06"
+  },
+  "pnb/platinum/2024-07.txt": {
+    "closing": "800",
+    "opening": "1200",
+    "statement_month": "2024-07"
+  },
+  "pnb/platinum/layout_mixed_integer_decimal.txt": {
+    "closing": "-2750.5",
+    "opening": "-4200.5",
+    "statement_month": "2024-03"
+  },
+  "pnb/platinum/layout_same_line_invoice_date.txt": {
+    "closing": "1200",
+    "opening": "5000",
+    "statement_month": "2024-03"
+  },
+  "pnb/platinum/layout_garbage_line_invoice_date.txt": {
+    "closing": "1200",
+    "opening": "5000",
+    "statement_month": "2024-02"
+  },
   "yes/ace/sample.txt": {
     "closing": "-120.00",
     "opening": "-120.00",
-    "statement_month": "2021-02"
+    "statement_month": "2021-02",
+    "period_start": "17-01-2021",
+    "period_end": "16-02-2021"
   }
 }

@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from networthcsv.pipeline.settings import format_run_settings_lines
 from networthcsv.pipeline.results import (
     CleanupAccountResult,
     ExtractAccountResult,
@@ -14,7 +13,40 @@ from networthcsv.pipeline.results import (
     ParseAccountResult,
     ParseFyResult,
 )
-from networthcsv.settings import ResolvedAccount, account_label
+from networthcsv.settings import ResolvedAccount, account_label, format_account_date
+
+
+def format_run_settings_lines(
+    *,
+    bank: str | None,
+    subjects: list[str],
+    from_filters: list[str],
+    body_contains: list[str],
+    download_dir: Path,
+    start_date: date | None,
+    end_date: date | None = None,
+    extras: tuple[tuple[str, str], ...] = (),
+) -> list[str]:
+    lines = ["settings:"]
+    if bank:
+        lines.append(f"  bank:          {bank}")
+    for label, value in extras:
+        lines.append(f"  {label + ':':14s}{value}")
+    lines.append(f"  subjects:      {subjects!r}")
+    if from_filters:
+        lines.append(f"  from:          {from_filters!r}")
+    if body_contains:
+        lines.append(f"  body_contains: {body_contains!r}")
+    lines.append(f"  download_path: {download_dir}")
+    if start_date is None:
+        lines.append("  start_date:    (all emails)")
+    else:
+        lines.append(f"  start_date:    {format_account_date(start_date)}")
+    if end_date is None:
+        lines.append("  end_date:      (no limit)")
+    else:
+        lines.append(f"  end_date:      {format_account_date(end_date)}")
+    return lines
 
 
 class RunReporter:

@@ -86,7 +86,8 @@ def extract_message_body(msg: Message) -> str:
 def body_matches(msg: Message, body_contains: list[str]) -> bool:
     if not body_contains:
         return True
-    lowered = extract_message_body(msg).lower()
+    haystack_parts = [extract_message_body(msg), *_attachment_filenames(msg)]
+    lowered = "\n".join(haystack_parts).lower()
     return all(body.lower() in lowered for body in body_contains)
 
 
@@ -218,6 +219,15 @@ def iter_pdf_attachment_parts(msg: Message):
     for part in iter_attachment_parts(msg):
         if is_pdf_attachment_part(part, allow_octet_stream=yearly):
             yield part
+
+
+def _attachment_filenames(msg: Message) -> list[str]:
+    names: list[str] = []
+    for part in iter_attachment_parts(msg):
+        raw = part.get_filename()
+        if raw:
+            names.append(decode_mime_header(raw))
+    return names
 
 
 def sanitize_filename(name: str) -> str:

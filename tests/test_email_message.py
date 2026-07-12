@@ -40,12 +40,15 @@ def _account() -> ResolvedAccount:
 
 def _statement_msg_with_attachments(
     attachments: list[tuple[str, bytes, str]],
+    *,
+    body: str = "Statement attached.",
+    subject: str = "ICICI Bank Credit Card Statement for the period",
 ) -> EmailMessage:
     msg = EmailMessage()
-    msg["Subject"] = "ICICI Bank Credit Card Statement for the period"
+    msg["Subject"] = subject
     msg["From"] = "alerts@icicibank.com"
     msg["Date"] = "Mon, 15 Jan 2024 10:00:00 +0000"
-    msg.set_content("Statement attached.")
+    msg.set_content(body)
     for filename, payload, maintype_subtype in attachments:
         maintype, subtype = maintype_subtype.split("/", 1)
         msg.add_attachment(
@@ -152,6 +155,85 @@ class BodyMatchesTests(unittest.TestCase):
             content_type="text/html",
         )
         self.assertTrue(body_matches(msg, ["<title>Signet</title>"]))
+
+    def test_attachment_filename_match(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [
+                (
+                    "4315XXXXXXXX3852_sample_statement.pdf",
+                    b"%PDF-1.4",
+                    "application/pdf",
+                )
+            ]
+        )
+        self.assertTrue(body_matches(msg, ["XX3852"]))
+
+    def test_attachment_filename_no_match(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("statement_9999.pdf", b"%PDF-1.4", "application/pdf")]
+        )
+        self.assertFalse(body_matches(msg, ["XX3852"]))
+
+    def test_excel_attachment_filename_match(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [
+                ("statement.pdf", b"%PDF-1.4", "application/pdf"),
+                (
+                    "4315XXXXXXXX3852_transactions.xlsx",
+                    b"fake",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            ]
+        )
+        self.assertTrue(body_matches(msg, ["XX3852"]))
+
+    def test_terms_split_across_body_and_filename(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [
+                (
+                    "4315XXXXXXXX3852_sample_statement.pdf",
+                    b"%PDF-1.4",
+                    "application/pdf",
+                )
+            ],
+            body="Amazon Pay ICICI Bank Credit Card statement attached.",
+        )
+        self.assertTrue(
+            body_matches(msg, ["Amazon Pay ICICI Bank Credit Card", "XX3852"])
+        )
+        self.assertFalse(
+            body_matches(msg, ["Amazon Pay ICICI Bank Credit Card", "XX9999"])
+        )
+
+    def test_message_matches_account_with_filename_only_marker(self) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "icici",
+                "variant": "amazon",
+                "account_number": "3852",
+                "passwords": ["secret"],
+                "mail": {
+                    "subjects": [
+                        "Amazon Pay ICICI Bank Credit Card Statement for the period"
+                    ],
+                    "body_contains": ["XX3852"],
+                    "from": ["icicibank.com"],
+                },
+                "statement": {"text_contains": ["3852"]},
+            }
+        )
+        msg = _statement_msg_with_attachments(
+            [
+                ("statement.pdf", b"%PDF-1.4", "application/pdf"),
+                (
+                    "4315XXXXXXXX3852_transactions.xlsx",
+                    b"fake",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            ],
+            subject="Amazon Pay ICICI Bank Credit Card Statement for the period",
+        )
+        self.assertTrue(message_matches_account(msg, account, None))
 
 
 class FromMatchesTests(unittest.TestCase):

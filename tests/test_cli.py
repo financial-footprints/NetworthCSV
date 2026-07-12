@@ -35,6 +35,7 @@ class CliTests(unittest.TestCase):
                         "account_number": "1",
                         "statement": {"text_contains": "1"},
                         "passwords": ["x"],
+                        "opening_date": "01-01-2020",
                     }
                 ],
             },

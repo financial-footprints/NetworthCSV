@@ -85,7 +85,7 @@ def process_mbox(
         if not message_matches_account(msg, account, start_date, end_date):
             continue
         messages_matched += 1
-        attachments_saved += save_attachments(msg, download_dir, folder_prefix)
+        attachments_saved += save_attachments(msg, download_dir, folder_prefix, account)
 
     return messages_matched, attachments_saved
 

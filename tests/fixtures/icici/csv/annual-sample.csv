@@ -1,0 +1,22 @@
+"Accountno:","0000000099123456"
+"Customer Name:","MS. SAMPLE USER DELTA"
+"Address:","14 PARK LANE WEST, BLOCK B,.     PUNE MH 411001"
+
+
+"Transaction Details:"
+"Date","Sr.No.","Transaction Details","Reward Point Header","Intl.Amount","Amount(in Rs)","BillingAmountSign"
+"5123 XXXX XXXX 7788"
+"11-APR-24","1","SAMPLE GROCERY MART PUNE IN","35","0.00","1,763.51","1,763.51"
+"12-APR-24","2","UPI Payment Received","0","0.00","-1,045.00","-1,045.00"
+"15-APR-24","3","UPI Payment Received","0","0.00","-1,003.00","-1,003.00"
+"06-MAY-24","4","ONLINE MARKETPLACE BANGALORE IN","111","0.00","5,598.87","5,598.87"
+"07-MAY-24","5","UPI Payment Received","0","0.00","-1,002.00","-1,002.00"
+"08-MAY-24","6","UPI Payment Received","0","0.00","-1,000.00","-1,000.00"
+"09-MAY-24","7","ONLINE MARKETPLACE BANGALORE IN","-6","0.00","-321.11","-321.11"
+"09-MAY-24","8","UPI Payment Received","0","0.00","-4,000.00","-4,000.00"
+"12-MAY-24","9","ONLINE MARKETPLACE BANGALORE IN","-76","0.00","-3,808.01","-3,808.01"
+
+
+"MESSAGE Details:"
+"SRNO,LAST_UPD_DT,MESSAGE"
+"1","2018-07-05 00:00:00.0","Safe Banking Tips - sample message only."

@@ -25,6 +25,7 @@ def _account(*, variant: str | None = "default") -> ResolvedAccount:
             "variant": variant,
             "account_number": "1234",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )
@@ -130,7 +131,6 @@ class IndusindMatchingDefaultsTests(unittest.TestCase):
                 defaults.statement.text_not_contains,
             )
         )
-        self.assertFalse(handler.is_excluded_statement(sanitized))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from networthcsv.pipeline.metadata import (
     StatementMetadata,
     build_account_metadata,
     build_period_covered,
+    build_annual_statement_summaries,
     compute_balance_gaps,
     covered_month,
     load_account_metadata,
@@ -37,6 +38,7 @@ from networthcsv.utils.path import (
     account_fy_dir,
     account_metadata_path,
     fy_folder_name,
+    statement_csv_path,
 )
 
 
@@ -60,10 +62,9 @@ def _account(
         "variant": variant,
         "account_number": account_number,
         "passwords": ["secret"],
+        "opening_date": opening_date or date(2020, 1, 1),
         **payload,
     }
-    if opening_date is not None:
-        resolved["opening_date"] = opening_date
     if closing_date is not None:
         resolved["closing_date"] = closing_date
     return ResolvedAccount.model_validate(resolved)
@@ -533,8 +534,8 @@ class BuildPeriodCoveredTests(unittest.TestCase):
         self.assertEqual(len(period.gaps), 1)
         self.assertIsNone(period.gaps[0].balances_match)
 
-    def test_period_gap_balances_ignore_yearly_opening(self) -> None:
-        """Yearly can bound the gap dates but must not drive balances_match."""
+    def test_period_gap_balances_ignore_annual_opening(self) -> None:
+        """Annual can bound the gap dates but must not drive balances_match."""
         statements = (
             StatementMetadata(
                 statement_date="2024-01",
@@ -544,13 +545,13 @@ class BuildPeriodCoveredTests(unittest.TestCase):
                 closing_balance="-3047.00",
             ),
             StatementMetadata(
-                statement_date="yearly-2024-04_2025-03",
+                statement_date="FY24-2025",
                 formats=("pdf",),
                 period_start="01-04-2024",
                 period_end="31-03-2025",
                 opening_balance="21850.02",
                 closing_balance="800000.00",
-                granularity="yearly",
+                granularity="annual",
                 covered_months=(
                     "2024-04",
                     "2024-05",
@@ -813,6 +814,83 @@ class BuildAccountMetadataTests(unittest.TestCase):
 
             self.assertEqual(metadata.statements[0].period_start, "17-09-2024")
             self.assertEqual(metadata.statements[0].period_end, "16-10-2024")
+
+
+class AnnualCsvYearKeyMetadataTests(unittest.TestCase):
+    _ICICI_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "icici" / "csv"
+
+    def test_four_icici_annual_csvs_map_to_four_fy_chips(self) -> None:
+        account = _account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
+        periods = [
+            "FY22-2023",
+            "FY23-2024",
+            "FY24-2025",
+            "FY25-2026",
+        ]
+        fy22_text = (self._ICICI_FIXTURES / "annual-fy22-sample.csv").read_text(
+            encoding="utf-8",
+        )
+        fy24_text = (self._ICICI_FIXTURES / "annual-sample.csv").read_text(
+            encoding="utf-8",
+        )
+        contents = [fy22_text, fy22_text, fy24_text, fy24_text]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            for period, text in zip(periods, contents, strict=True):
+                target = statement_csv_path(download_path, account, period)
+                _ = target.parent.mkdir(parents=True, exist_ok=True)
+                _ = target.write_text(text, encoding="utf-8")
+
+            metadata = build_account_metadata(download_path, account)
+            handler = get_handler("icici", "default")
+            summaries = build_annual_statement_summaries(
+                metadata.statements,
+                year_display=handler.year_display(),
+            )
+            self.assertEqual(len(summaries), 4)
+            year_keys = {item.year_key for item in summaries}
+            self.assertEqual(
+                year_keys,
+                {"FY22-2023", "FY23-2024", "FY24-2025", "FY25-2026"},
+            )
+            for summary in summaries:
+                self.assertIn("csv", summary.formats)
+
+    def test_fy25_annual_csv_lands_in_fy25_folder(self) -> None:
+        account = _account(
+            bank="icici",
+            variant="default",
+            account_number="6005",
+            opening_date=date(2023, 5, 17),
+        )
+        text = (self._ICICI_FIXTURES / "annual-fy25-sample.csv").read_text(
+            encoding="utf-8",
+        )
+        period = "FY25-2026"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            target = statement_csv_path(download_path, account, period)
+            self.assertIn("FY25-2026", target.as_posix())
+            self.assertTrue(target.name.endswith("fiscal_year.csv"))
+            _ = target.parent.mkdir(parents=True, exist_ok=True)
+            _ = target.write_text(text, encoding="utf-8")
+
+            metadata = build_account_metadata(download_path, account)
+            handler = get_handler("icici", "default")
+            summaries = build_annual_statement_summaries(
+                metadata.statements,
+                year_display=handler.year_display(),
+            )
+            self.assertEqual(len(summaries), 1)
+            self.assertEqual(summaries[0].year_key, "FY25-2026")
+            self.assertIn("csv", summaries[0].formats)
 
 
 class RefreshAccountMetadataTests(unittest.TestCase):

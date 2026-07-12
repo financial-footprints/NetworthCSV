@@ -1,8 +1,9 @@
-"""Duplicate PDF resolution and keeper selection."""
+"""Duplicate PDF/CSV resolution and keeper selection."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from networthcsv.pipeline.cleanup.grouping import file_hash
@@ -10,12 +11,12 @@ from networthcsv.pipeline.cleanup.period_source import (
     period_source_for_path,
     period_source_rank,
 )
-from networthcsv.pipeline.cleanup.staging import is_staging_pdf
+from networthcsv.pipeline.cleanup.staging import is_staging_csv, is_staging_pdf
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.helpers.text import text_contains_present
 from networthcsv.utils.banks.period import PeriodSource
-from networthcsv.utils.path import iter_pdfs
+from networthcsv.utils.path import iter_csvs, iter_pdfs
 from networthcsv.utils.statement_period import email_date_from_staging_filename
 
 logger = logging.getLogger(__name__)
@@ -50,15 +51,18 @@ def format_ambiguous_candidates(
     )
 
 
-def delete_staging_duplicates_for_month(
+def _delete_staging_duplicates_for_month(
     download_dir: Path,
     month: str,
     path_month: dict[Path, str],
     *,
+    iter_paths: Callable[[Path], Iterator[Path]],
+    is_staging_file: Callable[[Path, Path], bool],
     keep: Path | None = None,
     preserve: frozenset[Path] | None = None,
     path_hash: dict[Path, str] | None = None,
     path_period_source: dict[Path, PeriodSource] | None = None,
+    removed_log_label: str = "duplicate month",
 ) -> int:
     removed = 0
     keep_resolved = keep.resolve() if keep is not None else None
@@ -75,8 +79,8 @@ def delete_staging_duplicates_for_month(
         if keep is not None and path_period_source is not None
         else None
     )
-    for path in iter_pdfs(download_dir):
-        if not is_staging_pdf(download_dir, path):
+    for path in iter_paths(download_dir):
+        if not is_staging_file(download_dir, path):
             continue
         if path_month.get(path) != month:
             continue
@@ -94,9 +98,55 @@ def delete_staging_duplicates_for_month(
             if path_digest != keep_digest and path_rank <= keep_rank:
                 continue
         _ = path.unlink()
-        logger.debug("removed (duplicate month): %s", path)
+        logger.debug("removed (%s): %s", removed_log_label, path)
         removed += 1
     return removed
+
+
+def delete_staging_duplicates_for_month(
+    download_dir: Path,
+    month: str,
+    path_month: dict[Path, str],
+    *,
+    keep: Path | None = None,
+    preserve: frozenset[Path] | None = None,
+    path_hash: dict[Path, str] | None = None,
+    path_period_source: dict[Path, PeriodSource] | None = None,
+) -> int:
+    return _delete_staging_duplicates_for_month(
+        download_dir,
+        month,
+        path_month,
+        iter_paths=iter_pdfs,
+        is_staging_file=is_staging_pdf,
+        keep=keep,
+        preserve=preserve,
+        path_hash=path_hash,
+        path_period_source=path_period_source,
+        removed_log_label="duplicate month",
+    )
+
+
+def delete_staging_csv_duplicates_for_month(
+    download_dir: Path,
+    month: str,
+    path_month: dict[Path, str],
+    *,
+    keep: Path | None = None,
+    path_hash: dict[Path, str] | None = None,
+    path_period_source: dict[Path, PeriodSource] | None = None,
+) -> int:
+    return _delete_staging_duplicates_for_month(
+        download_dir,
+        month,
+        path_month,
+        iter_paths=iter_csvs,
+        is_staging_file=is_staging_csv,
+        keep=keep,
+        path_hash=path_hash,
+        path_period_source=path_period_source,
+        removed_log_label="duplicate csv month",
+    )
 
 
 def select_keeper(
@@ -173,3 +223,71 @@ def select_keeper(
         return keeper, []
 
     return best[-1], []
+
+
+def select_csv_keeper(
+    unique: list[Path],
+    *,
+    raw_by_path: dict[Path, str],
+    path_period_source: dict[Path, PeriodSource],
+    path_hash: dict[Path, str],
+    text_contains: list[str],
+) -> tuple[Path | None, list[Path]]:
+    if not unique:
+        return None, []
+    if not text_contains:
+        return unique[-1], []
+
+    matching = [
+        path
+        for path in unique
+        if text_contains_present(raw_by_path[path], text_contains)
+    ]
+    if not matching:
+        return None, []
+
+    matching_sorted = sorted(
+        matching,
+        key=lambda path: (
+            period_source_rank(path_period_source.get(path, "unknown")),
+            path.as_posix(),
+        ),
+    )
+    best_rank = period_source_rank(
+        path_period_source.get(matching_sorted[0], "unknown")
+    )
+    best = [
+        path
+        for path in matching_sorted
+        if period_source_rank(path_period_source.get(path, "unknown")) == best_rank
+    ]
+    if len(best) == 1:
+        return best[0], []
+
+    digests = {path_hash.get(path) or file_hash(path) for path in best}
+    if len(digests) == 1:
+        return best[-1], []
+
+    dated = [(path, email_date_from_staging_filename(path.name)) for path in best]
+    with_dates = [(path, received) for path, received in dated if received is not None]
+    if with_dates:
+        latest_date = max(received for _, received in with_dates)
+        latest_paths = sorted(
+            (path for path, received in with_dates if received == latest_date),
+            key=lambda path: path.as_posix(),
+        )
+        return latest_paths[-1], []
+
+    preferred = sorted(
+        best,
+        key=lambda path: (not path.name.startswith("manual__"), path.as_posix()),
+    )
+    keeper = preferred[-1]
+    ignored = [path for path in best if path != keeper]
+    if ignored:
+        logger.debug(
+            "collapsed ambiguous CSV period: kept %s, ignored %s",
+            keeper.name,
+            ", ".join(path.name for path in ignored),
+        )
+    return keeper, []

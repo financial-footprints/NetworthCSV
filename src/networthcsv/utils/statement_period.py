@@ -1,12 +1,13 @@
-"""Statement period identifiers for monthly and yearly statements.
+"""Statement period identifiers for monthly and annual statements.
 
 Monthly statements use ``YYYY-MM`` (e.g. ``2024-04``).
-Yearly statements use ``yearly-YYYY-MM_YYYY-MM`` (e.g. ``yearly-2024-04_2025-03``).
-Also includes fiscal/calendar year keys for metadata grouping.
+Annual statements use fiscal year keys (e.g. ``FY24-2025``) or calendar years
+(``2024``) depending on bank configuration.
 """
 
 from __future__ import annotations
 
+import calendar
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -18,11 +19,8 @@ YearDisplay = Literal["fiscal_year", "calendar_year"]
 MONTH_PERIOD_PATTERN = re.compile(r"^(\d{4}-\d{2})$")
 FILENAME_MONTH_PATTERN = re.compile(r"(\d{4}-\d{2})(?:-\d{2})?")
 _STAGING_EMAIL_DATE_PATTERN = re.compile(
-    r"__(\d{4}-\d{2}-\d{2})(?:\s+\(\d+\))?\.pdf$",
+    r"__(\d{4}-\d{2}-\d{2})(?:__annual)?(?:\s+\(\d+\))?\.(?:pdf|csv)$",
     re.IGNORECASE,
-)
-YEARLY_PERIOD_PATTERN = re.compile(
-    r"^yearly-(\d{4}-\d{2})_(\d{4}-\d{2})$",
 )
 _FISCAL_YEAR_KEY_PATTERN = re.compile(r"^FY(\d{2})-(\d{4})$")
 _CALENDAR_YEAR_KEY_PATTERN = re.compile(r"^(\d{4})$")
@@ -51,6 +49,21 @@ def parse_month_period(period: str) -> str | None:
     return match.group(1)
 
 
+def is_fy_period(period: str) -> bool:
+    """True when *period* is an Indian fiscal year key such as ``FY24-2025``."""
+    return _FISCAL_YEAR_KEY_PATTERN.fullmatch(period) is not None
+
+
+def is_calendar_year_period(period: str) -> bool:
+    """True when *period* is a four-digit calendar year key."""
+    return _CALENDAR_YEAR_KEY_PATTERN.fullmatch(period) is not None
+
+
+def is_annual_period(period: str) -> bool:
+    """True when *period* identifies an annual (fiscal or calendar year) statement."""
+    return is_fy_period(period) or is_calendar_year_period(period)
+
+
 def month_period_from_filename(filename: str) -> str:
     """Extract ``YYYY-MM`` from a filename, or ``unknown-month`` if not found."""
     match = FILENAME_MONTH_PATTERN.search(filename)
@@ -60,7 +73,7 @@ def month_period_from_filename(filename: str) -> str:
 
 
 def email_date_from_staging_filename(filename: str) -> date | None:
-    """Return the email received date encoded in a staging PDF name, if present."""
+    """Return the email received date encoded in a staging PDF/CSV name, if present."""
     name = Path(filename).name
     match = _STAGING_EMAIL_DATE_PATTERN.search(name)
     if match is None:
@@ -69,26 +82,64 @@ def email_date_from_staging_filename(filename: str) -> date | None:
     return date(year, month, day)
 
 
-def is_yearly_period(period: str) -> bool:
-    return YEARLY_PERIOD_PATTERN.fullmatch(period) is not None
+def staging_filename_is_annual(filename: str) -> bool:
+    """True when staging filename was marked annual at extract time."""
+    name = Path(filename).name.lower()
+    return "__annual." in name or "__annual " in name
 
 
-def yearly_period_from_dates(start: date, end: date) -> str:
-    return f"yearly-{start.strftime('%Y-%m')}_{end.strftime('%Y-%m')}"
+def _last_day_of_month(year: int, month: int) -> int:
+    return calendar.monthrange(year, month)[1]
 
 
-def yearly_period_bounds(period: str) -> tuple[str, str] | None:
-    match = YEARLY_PERIOD_PATTERN.fullmatch(period)
-    if match is None:
-        return None
-    return match.group(1), match.group(2)
+def fy_period_bounds(
+    fy_key: str,
+    *,
+    year_display: YearDisplay = "fiscal_year",
+) -> tuple[date, date]:
+    """Return inclusive Apr–Mar (or calendar-year) bounds for an annual period key."""
+    return period_for_year_key(fy_key, year_display=year_display)
 
 
-def yearly_period_end_month(period: str) -> str:
-    bounds = yearly_period_bounds(period)
-    if bounds is None:
-        return period
-    return bounds[1]
+def calendar_bounds_for_period_key(period: str) -> tuple[date, date] | None:
+    """Return inclusive calendar bounds for a monthly or annual period key."""
+    month_period = parse_month_period(period)
+    if month_period is not None:
+        year_str, month_str = month_period.split("-", 1)
+        year, month = int(year_str), int(month_str)
+        return (
+            date(year, month, 1),
+            date(year, month, _last_day_of_month(year, month)),
+        )
+
+    if is_annual_period(period):
+        try:
+            return fy_period_bounds(period)
+        except ValueError:
+            return None
+    return None
+
+
+def _fiscal_year_key_from_month_key(month_key: str) -> str:
+    year_str, month_str = month_key.split("-", 1)
+    year = int(year_str)
+    month = int(month_str)
+    fy_start, fy_end = (year, year + 1) if month >= 4 else (year - 1, year)
+    return f"FY{fy_start % 100:02d}-{fy_end}"
+
+
+def fy_key_from_dates(start: date, end: date) -> str:
+    """Map an annual statement date span to its Indian fiscal year key."""
+    if end < start:
+        start, end = end, start
+    months = covered_months_between(start, end)
+    if not months:
+        return fiscal_year_key(start, end)
+    fy_counts: dict[str, int] = {}
+    for month_key in months:
+        fy = _fiscal_year_key_from_month_key(month_key)
+        fy_counts[fy] = fy_counts.get(fy, 0) + 1
+    return max(fy_counts, key=lambda fy: fy_counts[fy])
 
 
 def covered_months_between(start: date, end: date) -> tuple[str, ...]:
@@ -111,22 +162,6 @@ def fiscal_year_key(start: date, end: date) -> str:
     fy_start = start.year if start.month >= 4 else start.year - 1
     fy_end = fy_start + 1
     return f"FY{fy_start % 100:02d}-{fy_end}"
-
-
-def calendar_year_key(start: date, end: date) -> str:
-    _ = end
-    return str(start.year)
-
-
-def year_key_for_period(
-    start: date,
-    end: date,
-    *,
-    year_display: YearDisplay,
-) -> str:
-    if year_display == "fiscal_year":
-        return fiscal_year_key(start, end)
-    return calendar_year_key(start, end)
 
 
 def year_key_label(year_key: str, *, year_display: YearDisplay) -> str:
@@ -163,15 +198,6 @@ def period_for_year_key(
         raise ValueError(f"invalid calendar year key: {year_key!r}")
     year = int(match.group(1))
     return date(year, 1, 1), date(year, 12, 31)
-
-
-def yearly_period_for_year_key(
-    year_key: str,
-    *,
-    year_display: YearDisplay,
-) -> str:
-    start, end = period_for_year_key(year_key, year_display=year_display)
-    return yearly_period_from_dates(start, end)
 
 
 def parse_month_year_token(token: str) -> tuple[int, int] | None:

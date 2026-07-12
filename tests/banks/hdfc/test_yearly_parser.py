@@ -20,6 +20,7 @@ def _account() -> ResolvedAccount:
             "variant": "default",
             "account_number": "1234",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )
@@ -38,7 +39,7 @@ class HdfcYearlyParserTests(unittest.TestCase):
         rows = parser.parse(
             self.text,
             account=self.account,
-            source_file="yearly-2024-04_2025-03.pdf",
+            source_file="fiscal_year.pdf",
         )
         self.assertEqual(len(rows), 4)
         self.assertEqual(rows[0].description, "SAMPLE MERCHANT ONE")

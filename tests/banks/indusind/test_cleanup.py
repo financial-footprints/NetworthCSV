@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 from cleanup_support import FIXTURES_ROOT, account, run_context, staging_layout
 from networthcsv.pipeline.cleanup import prepare_month, run
-from networthcsv.utils.banks import get_handler
 from networthcsv.utils.path import statement_pdf_path, txt_path_for_pdf
 
 
@@ -86,7 +85,7 @@ class IndusindAnnualSummaryCleanupTests(unittest.TestCase):
             self.assertFalse(staging.is_file())
 
     @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
-    def test_handler_exclusion_survives_empty_text_not_contains(
+    def test_bank_defaults_survive_empty_text_not_contains(
         self, mock_extract: MagicMock
     ) -> None:
         summary_text = (FIXTURES_ROOT / "indusind/annual-spend-summary.txt").read_text(
@@ -99,7 +98,10 @@ class IndusindAnnualSummaryCleanupTests(unittest.TestCase):
             text_not_contains=[],
             account_number="5621",
         )
-        self.assertEqual(resolved_account.statement.text_not_contains, [])
+        self.assertIn(
+            "ANNUAL SPEND SUMMARY",
+            resolved_account.statement.text_not_contains,
+        )
         with tempfile.TemporaryDirectory() as tmp:
             staging_dir, download_path, resolved_account = staging_layout(
                 tmp, resolved_account
@@ -178,22 +180,6 @@ class IndusindAnnualSummaryCleanupTests(unittest.TestCase):
             self.assertTrue(pdf_out.is_file())
             self.assertTrue(txt_out.is_file())
             self.assertFalse(staging.is_file())
-
-
-class IndusindExcludedStatementTests(unittest.TestCase):
-    def test_is_excluded_statement_matches_spaced_markers(self) -> None:
-        handler = get_handler("indusind", "auraedge")
-        spaced = (FIXTURES_ROOT / "indusind/annual-spend-summary-spaced.txt").read_text(
-            encoding="utf-8"
-        )
-        self.assertTrue(handler.is_excluded_statement(spaced))
-
-    def test_is_excluded_statement_allows_real_statement(self) -> None:
-        handler = get_handler("indusind", "auraedge")
-        statement_text = (FIXTURES_ROOT / "indusind/auraedge/sample.txt").read_text(
-            encoding="utf-8"
-        )
-        self.assertFalse(handler.is_excluded_statement(statement_text))
 
 
 if __name__ == "__main__":

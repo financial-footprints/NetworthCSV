@@ -15,17 +15,12 @@ from networthcsv.utils.banks.helpers.tables import (
     label_next_line_amount,
     total_outstanding_section_amount,
 )
-from networthcsv.utils.banks.helpers.text import text_not_contains_violated
 from networthcsv.utils.banks.mixins.dates import ContextRangePeriodMixin
 
-_ANNUAL_SUMMARY_MARKERS = [
+_EXCLUDED_STATEMENT_MARKERS = [
     "ANNUAL SPEND SUMMARY",
     "CARD WISE SUMMARY FOR ACCOUNT OF",
     "MONTH WISE SPENDS ON YOUR ACCOUNT",
-]
-
-_EXCLUDED_STATEMENT_MARKERS = [
-    *_ANNUAL_SUMMARY_MARKERS,
     "GLIMPSE OF HOW YOU SPENT",
 ]
 
@@ -44,18 +39,25 @@ class IndusindDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
         return ["IndusInd Bank Credit Card"]
 
     def trim_end(self) -> list[str]:
-        return ["Rewards Opening Balance"]
+        return ["Rewards Opening Balance", "Rewards OpeningBalance"]
 
     def drop_sections(self) -> list[str]:
         return [
             "IMPORTANT MESSAGES:",
+            "IMPORTANTMESSAGES:",
             "PROMOTIONAL MESSAGES:",
+            "PROMOTIONALMESSAGES:",
             "MARKETING MESSAGE",
+            "MARKETINGMESSAGE",
             "NOTE: *Total of points redeemed",
             "With IndusAlerts",
             "Secure your IndusInd Bank Credit Card on-the-go",
             "HOW TO MAKE PAYMENTS",
             "FEES & CHARGES",
+            "CREDIT AND CASH WITHDRAWAL LIMITS",
+            "Pleasedrawyourcheque",
+            "Closest IndusInd Bank ATM Drop Box",
+            "Manage your Card with instant Card blocking",
         ]
 
     def matching_defaults(self) -> MatchingFields:
@@ -66,14 +68,11 @@ class IndusindDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
                 "statement": StatementCleanupConfig.model_validate(
                     {
                         **defaults.statement.model_dump(),
-                        "text_not_contains": list(_ANNUAL_SUMMARY_MARKERS),
+                        "text_not_contains": list(_EXCLUDED_STATEMENT_MARKERS),
                     }
                 ).model_dump(),
             }
         )
-
-    def is_excluded_statement(self, text: str) -> bool:
-        return text_not_contains_violated(text, _EXCLUDED_STATEMENT_MARKERS)
 
     def get_statement_date(self, text: str) -> date | None:
         end = super().get_statement_date(text)

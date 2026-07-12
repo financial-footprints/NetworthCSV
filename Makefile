@@ -1,4 +1,4 @@
-.PHONY: help install dev upgrade test lint format ci clean
+.PHONY: help install dev upgrade test lint format ci dev-ci clean
 
 UV := uv
 PYTHON := $(UV) run python
@@ -10,9 +10,10 @@ help:
 	@echo "  upgrade   Upgrade locked dependencies"
 	@echo "  clean     Remove Python build artifacts and caches"
 	@echo "  test      Run unit tests"
-	@echo "  lint      Type-check with basedpyright"
+	@echo "  lint      Autofix with ruff; type-check with basedpyright"
 	@echo "  format    Format Python sources with ruff"
-	@echo "  ci        Run format, lint, then test"
+	@echo "  ci        Check-only: format, lint, then test"
+	@echo "  dev-ci    Autofix format and lint, then test"
 
 install:
 	$(UV) venv --allow-existing
@@ -29,7 +30,7 @@ test:
 	$(PYTHON) tests/run.py
 
 lint:
-	$(UV) run ruff check src tests
+	$(UV) run ruff check --fix src tests
 	$(UV) run basedpyright
 
 format:
@@ -37,7 +38,11 @@ format:
 
 ci:
 	$(UV) run ruff format --check src tests
-	$(MAKE) lint test
+	$(UV) run ruff check src tests
+	$(UV) run basedpyright
+	$(MAKE) test
+
+dev-ci: format lint test
 
 clean:
 	/usr/bin/rm -rf build dist .ruff_cache

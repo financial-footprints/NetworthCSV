@@ -31,4 +31,6 @@ class BobEasyHandler(BobDefaultHandler):
             "Billing Dispute Resolution",
             "For T&C & details on Fee/charges",
             "Important Security Update for Your BOBCARD",
+            "via the BOBCARD mobile app or portal",
+            "Clickheretoknowmore",
         ]

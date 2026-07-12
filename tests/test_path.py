@@ -15,13 +15,16 @@ from networthcsv.settings import (
     ThunderbirdSourceSettings,
 )
 from networthcsv.utils.path import (
+    FISCAL_YEAR_BASENAME,
     account_fy_dir,
     account_metadata_path,
     discover_account_fy_dirs,
     fy_folder_name,
     iter_pdfs,
     pdf_path_for_txt,
+    statement_csv_path,
     statement_pdf_path,
+    statement_period_from_path,
     txt_is_current,
     txt_path_for_pdf,
     unique_path,
@@ -52,6 +55,7 @@ def _account(*, account_number: str = "5678") -> ResolvedAccount:
             "variant": "easy",
             "account_number": account_number,
             "passwords": ["secret"],
+            "opening_date": "01-01-2020",
             "mail": {"subjects": ["BOB"]},
             "statement": {"text_contains": [account_number]},
         }
@@ -71,6 +75,31 @@ class PathTests(unittest.TestCase):
         self.assertEqual(fy_folder_name("2024-03"), "FY23-2024")
         self.assertEqual(fy_folder_name("2024-04"), "FY24-2025")
         self.assertEqual(fy_folder_name("unknown-month"), "unknown-month")
+
+    def test_fy_folder_name_annual_period(self) -> None:
+        self.assertEqual(fy_folder_name("FY25-2026"), "FY25-2026")
+        self.assertEqual(fy_folder_name("FY22-2023"), "FY22-2023")
+
+    def test_statement_pdf_path_annual(self) -> None:
+        download_path = Path("/data")
+        account = _account()
+        self.assertEqual(
+            statement_pdf_path(download_path, account, "FY24-2025"),
+            Path("/data/FY24-2025/credit_card/5678/fiscal_year.pdf"),
+        )
+
+    def test_statement_csv_path_annual(self) -> None:
+        download_path = Path("/data")
+        account = _account()
+        self.assertEqual(
+            statement_csv_path(download_path, account, "FY24-2025"),
+            Path("/data/FY24-2025/credit_card/5678/fiscal_year.csv"),
+        )
+
+    def test_statement_period_from_path_annual(self) -> None:
+        path = Path("/data/FY24-2025/credit_card/5678/fiscal_year.pdf")
+        self.assertEqual(statement_period_from_path(path), "FY24-2025")
+        self.assertEqual(FISCAL_YEAR_BASENAME, "fiscal_year")
 
     def test_txt_path_for_pdf(self) -> None:
         pdf_path = Path("/data/FY23-2024/credit_card/5678/2024-01.pdf")

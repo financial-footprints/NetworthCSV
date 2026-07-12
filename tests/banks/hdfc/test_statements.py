@@ -25,6 +25,7 @@ def _account(*, variant: str | None) -> ResolvedAccount:
             "variant": variant,
             "account_number": "1234",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )
@@ -122,7 +123,7 @@ class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
         self.assertTrue(approximate)
 
 
-class HdfcYearlyStatementTests(unittest.TestCase):
+class HdfcAnnualStatementTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.account = _account(variant="default")
@@ -134,36 +135,36 @@ class HdfcYearlyStatementTests(unittest.TestCase):
     def test_year_display_is_fiscal(self) -> None:
         self.assertEqual(self.handler.year_display(), "fiscal_year")
 
-    def test_yearly_mail_subjects_merged_in_defaults(self) -> None:
+    def test_annual_mail_subjects_merged_in_defaults(self) -> None:
         defaults = self.handler.matching_defaults()
         self.assertIn("Year End Statement Summary", defaults.mail.subjects)
 
-    def test_is_yearly_statement(self) -> None:
-        self.assertTrue(self.handler.is_yearly_statement(self.text))
+    def test_is_annual_statement(self) -> None:
+        self.assertTrue(self.handler.is_annual_statement(self.text))
 
-    def test_is_yearly_statement_from_period_pattern_only(self) -> None:
+    def test_is_annual_statement_from_period_pattern_only(self) -> None:
         text = (
             "Account Summary for the period from APRIL-24 to MARCH-25\n"
             "000123456XXXXXX7890"
         )
-        self.assertTrue(self.handler.is_yearly_statement(text))
+        self.assertTrue(self.handler.is_annual_statement(text))
 
-    def test_yearly_period(self) -> None:
-        period = self.handler.get_yearly_period(self.text)
+    def test_annual_period(self) -> None:
+        period = self.handler.get_annual_period(self.text)
         self.assertIsNotNone(period)
         assert period is not None
         self.assertEqual(period[0], date(2024, 4, 1))
         self.assertEqual(period[1], date(2025, 3, 31))
 
-    def test_resolve_yearly_period(self) -> None:
+    def test_resolve_annual_period(self) -> None:
         period = resolve_period_key(self.text, "sample.pdf", account=self.account)
-        self.assertEqual(period, "yearly-2024-04_2025-03")
+        self.assertEqual(period, "FY24-2025")
 
-    def test_yearly_statement_date_is_period_end(self) -> None:
+    def test_annual_statement_date_is_period_end(self) -> None:
         parsed = extract_statement_date(self.text, account=self.account)
         self.assertEqual(parsed, date(2025, 3, 31))
 
-    def test_yearly_statement_period(self) -> None:
+    def test_annual_statement_period(self) -> None:
         period_start, period_end = extract_statement_period(
             self.text,
             account=self.account,

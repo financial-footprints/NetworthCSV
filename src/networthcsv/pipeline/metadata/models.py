@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-StatementGranularity = Literal["monthly", "yearly"]
+StatementGranularity = Literal["monthly", "annual"]
 BalanceGapStatus = Literal["matched", "mismatched", "discontinuity"]
 
 
@@ -24,7 +24,7 @@ class StatementMetadata:
 
 
 @dataclass(frozen=True)
-class YearlyStatementSummary:
+class AnnualStatementSummary:
     year_key: str
     statement_date: str
     label: str

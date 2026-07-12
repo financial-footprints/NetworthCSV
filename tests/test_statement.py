@@ -15,6 +15,7 @@ def _account() -> ResolvedAccount:
             "variant": "easy",
             "account_number": "5678",
             "passwords": ["secret"],
+            "opening_date": "01-01-2020",
             "mail": {"subjects": ["BOB"], "body_contains": [], "from": []},
             "statement": {"text_contains": ["5678"]},
         }

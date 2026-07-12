@@ -91,6 +91,7 @@ class BuildImapSearchTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1234",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {"subjects": ["stmt"]},
                 "closing_date": date(2024, 2, 1),
             }

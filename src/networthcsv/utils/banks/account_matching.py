@@ -19,6 +19,7 @@ from networthcsv.utils.banks._matching_validators import (
     Subjects,
     TextContains,
     TextNotContains,
+    normalize_account_type,
 )
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "MatchingFieldsCore",
     "StatementCleanupConfig",
     "StatementCleanupOverride",
+    "normalize_account_type",
 ]
 
 
@@ -101,13 +103,37 @@ class AccountMatching:
         )
 
     @staticmethod
+    def _union_text_not_contains(base: list[str], overlay: list[str]) -> list[str]:
+        seen: set[str] = set()
+        merged: list[str] = []
+        for marker in [*base, *overlay]:
+            if marker in seen:
+                continue
+            seen.add(marker)
+            merged.append(marker)
+        return merged
+
+    @staticmethod
     def _merge_statement(
         base: StatementCleanupConfig, overlay: StatementCleanupOverride | None
     ) -> StatementCleanupConfig:
         if overlay is None:
             return base
-        return StatementCleanupConfig.model_validate(
-            AccountMatching._merge_model_fields(base, overlay)
+        text_contains = (
+            overlay.text_contains
+            if overlay.text_contains is not None
+            else base.text_contains
+        )
+        text_not_contains = (
+            AccountMatching._union_text_not_contains(
+                base.text_not_contains, overlay.text_not_contains
+            )
+            if overlay.text_not_contains is not None
+            else base.text_not_contains
+        )
+        return StatementCleanupConfig(
+            text_contains=text_contains,
+            text_not_contains=text_not_contains,
         )
 
     @staticmethod

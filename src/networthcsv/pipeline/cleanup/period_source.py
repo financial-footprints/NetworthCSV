@@ -9,7 +9,7 @@ from networthcsv.utils.banks.period import PeriodSource
 
 _PERIOD_SOURCE_RANK: dict[PeriodSource, int] = {
     "manual": -1,
-    "yearly": 0,
+    "annual": 0,
     "content_date": 1,
     "filename_fallback": 2,
     "unknown": 3,

@@ -522,7 +522,7 @@ class RunCleanupTests(unittest.TestCase):
 
 
 class AmbiguousStatementCleanupTests(unittest.TestCase):
-    @patch("networthcsv.pipeline.cleanup.prepare_month.logger")
+    @patch("networthcsv.pipeline.cleanup.prepare_common.logger")
     @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_ambiguous_warning_lists_conflicting_filenames(
         self, mock_extract: MagicMock, mock_logger: MagicMock
@@ -550,8 +550,9 @@ class AmbiguousStatementCleanupTests(unittest.TestCase):
 
             self.assertEqual((prepared, rejected), (0, 1))
             warning_args = mock_logger.warning.call_args[0]
-            self.assertIn("All Mail__2023-04-18.pdf", warning_args[2])
-            self.assertIn("Starred_Email__2023-04-18.pdf", warning_args[2])
+            conflict_summary = warning_args[3]
+            self.assertIn("All Mail__2023-04-18.pdf", conflict_summary)
+            self.assertIn("Starred_Email__2023-04-18.pdf", conflict_summary)
 
 
 class TextNotContainsCleanupTests(unittest.TestCase):

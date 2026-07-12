@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from networthcsv.utils.banks.account_matching import (
     MailMatchConfig,
@@ -18,6 +18,10 @@ from networthcsv.utils.banks.helpers.text import (
     sanitize_statement_text,
     trim_by_markers,
 )
+
+if TYPE_CHECKING:
+    from networthcsv.settings import ResolvedAccount
+    from networthcsv.utils.banks.period import PeriodSource
 
 
 class BankHandler(ABC):
@@ -54,27 +58,44 @@ class BankHandler(ABC):
     def year_display(self) -> Literal["fiscal_year", "calendar_year"]:
         return "calendar_year"
 
-    def yearly_mail_subjects(self) -> list[str]:
+    def annual_mail_subjects(self) -> list[str]:
         return []
 
-    def yearly_mail_body_contains(self) -> list[str]:
+    def annual_mail_body_contains(self) -> list[str]:
         return []
 
-    def is_yearly_statement(self, text: str) -> bool:
+    def is_annual_statement(self, text: str) -> bool:
         return False
 
-    def get_yearly_period(self, text: str) -> tuple[date, date] | None:
+    def get_annual_period(self, text: str) -> tuple[date, date] | None:
         return None
 
-    def is_excluded_statement(self, text: str) -> bool:
-        """Return True when *text* is a non-statement attachment that must be dropped."""
-        return False
+    def resolve_csv_period_key_with_source(
+        self,
+        csv_text: str,
+        filename: str,
+        *,
+        account: ResolvedAccount,
+    ) -> tuple[str, PeriodSource]:
+        """Resolve period key for a bank CSV statement. Default: unknown."""
+        _ = (csv_text, filename, account)
+        return "unknown-month", "unknown"
+
+    def resolve_csv_period_bounds(
+        self,
+        csv_text: str,
+        *,
+        account: ResolvedAccount,
+    ) -> tuple[date | None, date | None]:
+        """Return inclusive period bounds from CSV content. Default: none."""
+        _ = (csv_text, account)
+        return None, None
 
     def matching_defaults(self) -> MatchingFields:
-        subjects = [*self.mail_subjects(), *self.yearly_mail_subjects()]
+        subjects = [*self.mail_subjects(), *self.annual_mail_subjects()]
         body_contains = [
             *self.mail_body_contains(),
-            *self.yearly_mail_body_contains(),
+            *self.annual_mail_body_contains(),
         ]
         return MatchingFields.model_validate(
             {

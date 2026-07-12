@@ -17,6 +17,7 @@ _DATE_FORMATS = (
     "%d %B %Y",
     "%B %d, %Y",
     "%d-%b-%Y",
+    "%d-%b-%y",
 )
 
 _RANGE_JOINERS = (" to ", " - ", " To ")
@@ -175,16 +176,7 @@ def label_range_period(
 
 def label_range_end(text: str, label: str, joiner: str) -> date | None:
     _, end = label_range_period(text, label, joiner)
-    if end is not None:
-        return end
-    match = find_label(text, label)
-    if match is None:
-        return None
-    remainder = text[match.end() : match.end() + 300]
-    if joiner not in remainder:
-        return None
-    left, _, right = remainder.partition(joiner)
-    return take_from_range(left, right, take="end")
+    return end
 
 
 def context_range_period(

@@ -15,15 +15,24 @@ from networthcsv.pipeline.metadata.models import (
 )
 from networthcsv.utils.account_dates import parse_account_date, require_account_date_str
 from networthcsv.utils.banks.helpers.amounts import balances_match
-from networthcsv.utils.statement_period import is_yearly_period, yearly_period_bounds
+from networthcsv.utils.statement_period import (
+    is_annual_period,
+    is_fy_period,
+    period_for_year_key,
+)
 
 
 def covered_month(statement_date: str) -> str:
-    if is_yearly_period(statement_date):
-        bounds = yearly_period_bounds(statement_date)
-        if bounds is None:
-            return statement_date
-        return bounds[0]
+    if is_annual_period(statement_date):
+        if is_fy_period(statement_date):
+            year_display = "fiscal_year"
+        else:
+            year_display = "calendar_year"
+        start, _end = period_for_year_key(
+            statement_date,
+            year_display=year_display,
+        )
+        return start.strftime("%Y-%m")
     year_str, month_str = statement_date.split("-", 1)
     year = int(year_str)
     month = int(month_str)
@@ -63,10 +72,10 @@ def compute_balance_gaps(
     tolerance: Decimal | None = None,
 ) -> tuple[BalanceGap, ...]:
     """Mark gap months and adjacent-statement balance discontinuities."""
-    yearly_covered: set[str] = set()
+    annual_covered: set[str] = set()
     for statement in statements:
-        if statement.granularity == "yearly":
-            yearly_covered.update(statement.covered_months)
+        if statement.granularity == "annual":
+            annual_covered.update(statement.covered_months)
 
     monthly_statements = tuple(
         statement for statement in statements if statement.granularity == "monthly"
@@ -100,7 +109,7 @@ def compute_balance_gaps(
             gaps.extend(
                 BalanceGap(month=month, status=status)
                 for month in between
-                if month not in yearly_covered
+                if month not in annual_covered
             )
             continue
 
@@ -201,7 +210,7 @@ def build_period_covered(
                 *(
                     month
                     for statement in statements
-                    if statement.granularity == "yearly"
+                    if statement.granularity == "annual"
                     for month in statement.covered_months
                 ),
             }

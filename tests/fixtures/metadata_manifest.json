@@ -38,7 +38,7 @@
   "hdfc/default/yearly-sample.txt": {
     "closing": null,
     "opening": null,
-    "statement_month": "yearly-2024-04_2025-03",
+    "statement_month": "FY24-2025",
     "period_start": "01-04-2024",
     "period_end": "31-03-2025"
   },

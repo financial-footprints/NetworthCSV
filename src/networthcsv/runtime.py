@@ -14,7 +14,7 @@ from networthcsv.pipeline.results import PipelineResult
 from networthcsv.pipeline.runner import run_pipeline
 from networthcsv.settings import ResolvedAccount
 
-UploadSourceFormat = Literal["pdf", "csv"]
+UploadSourceFormat = Literal["pdf", "csv", "zip"]
 
 __all__ = [
     "load_context",
@@ -42,6 +42,8 @@ def process_upload(
             account,
             upload_statement_date=statement_date,
         )
+    elif source_format == "zip":
+        _ = cleanup_stage.run_account(ctx, account)
     raise_if_cancelled(ctx)
     _ = metadata_stage.run_account(ctx, account)
     raise_if_cancelled(ctx)

@@ -20,6 +20,7 @@ class BankParserRegistryTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {"subjects": ["stmt"]},
                 "statement": {"text_contains": ["1"]},
             }

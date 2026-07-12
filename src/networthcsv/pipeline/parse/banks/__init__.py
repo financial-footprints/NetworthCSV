@@ -19,13 +19,9 @@ def register_parser(bank: str, variant: str | None = None):
 
 
 def get_parser(bank: str, variant: str | None = None) -> StatementParser:
-    if variant:
-        try:
-            return _BANK_PARSERS.get(bank, variant)
-        except KeyError:
-            pass
-    return _BANK_PARSERS.get(bank, None)
+    return _BANK_PARSERS.get(bank, variant)
 
 
 from networthcsv.pipeline.parse.banks import hdfc as _hdfc  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import icici as _icici  # noqa: E402, F401
 from networthcsv.pipeline.parse.banks import idfc as _idfc  # noqa: E402, F401

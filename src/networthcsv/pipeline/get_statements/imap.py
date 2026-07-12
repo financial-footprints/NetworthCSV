@@ -175,7 +175,7 @@ def extract_account(
         if not message_matches_account(msg, account, effective_start, search_end):
             continue
         messages_matched += 1
-        attachments_saved += save_attachments(msg, download_dir, folder_label)
+        attachments_saved += save_attachments(msg, download_dir, folder_label, account)
 
     result = ExtractAccountResult(
         bank=account.bank,

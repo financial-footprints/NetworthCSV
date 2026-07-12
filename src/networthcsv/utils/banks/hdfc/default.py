@@ -32,9 +32,18 @@ _HDFC_DROP_SECTIONS = [
     "Important Information",
     "Useful Links",
     "To update your personal details, please write a letter to",
+    "In case you wish to update the personal details",
+    "Note : The  Available Credit Limit",
+    "If the  Minimum Amount Due",
+    "To Hotlist your Credit Card",
+    "To Hotlist your credit card",
+    "Credit Information Companies",
+    "Making only the minimum payment every month",
+    "Statement and Payment MITC",
+    "with Credit Information Companies",
 ]
 
-_YEARLY_PERIOD_PATTERN = re.compile(
+_ANNUAL_PERIOD_PATTERN = re.compile(
     r"period from\s+([A-Z]+-\d{2,4})\s+to\s+([A-Z]+-\d{2,4})",
     re.IGNORECASE,
 )
@@ -51,7 +60,7 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
     def mail_subjects(self) -> list[str]:
         return ["HDFC Bank Credit Card Statement"]
 
-    def yearly_mail_subjects(self) -> list[str]:
+    def annual_mail_subjects(self) -> list[str]:
         return ["Year End Statement Summary"]
 
     def year_display(self) -> Literal["fiscal_year", "calendar_year"]:
@@ -66,19 +75,19 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
     def balance_match_tolerance(self) -> Decimal:
         return Decimal("0.99")
 
-    def is_yearly_statement(self, text: str) -> bool:
+    def is_annual_statement(self, text: str) -> bool:
         lowered = text.lower()
         if (
             "year end statement" in lowered
             and "account summary for the period from" in lowered
         ):
             return True
-        if _YEARLY_PERIOD_PATTERN.search(text) is None:
+        if _ANNUAL_PERIOD_PATTERN.search(text) is None:
             return False
         return "year end statement" in lowered or "account summary" in lowered
 
-    def get_yearly_period(self, text: str) -> tuple[date, date] | None:
-        match = _YEARLY_PERIOD_PATTERN.search(text)
+    def get_annual_period(self, text: str) -> tuple[date, date] | None:
+        match = _ANNUAL_PERIOD_PATTERN.search(text)
         if match is None:
             return None
         start_token = parse_month_year_token(match.group(1))
@@ -91,8 +100,8 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
         return date(start_year, start_month, 1), date(end_year, end_month, end_day)
 
     def get_statement_date(self, text: str) -> date | None:
-        if self.is_yearly_statement(text):
-            period = self.get_yearly_period(text)
+        if self.is_annual_statement(text):
+            period = self.get_annual_period(text)
             if period is not None:
                 return period[1]
         return first_not_none_date(
@@ -103,8 +112,8 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
         )
 
     def get_statement_period(self, text: str) -> tuple[date | None, date | None]:
-        if self.is_yearly_statement(text):
-            period = self.get_yearly_period(text)
+        if self.is_annual_statement(text):
+            period = self.get_annual_period(text)
             if period is not None:
                 return period
         return super().get_statement_period(text)

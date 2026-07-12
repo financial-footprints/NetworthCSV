@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from networthcsv.settings import ResolvedAccount
-from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.helpers.text import text_not_contains_violated
 
 
@@ -14,13 +13,10 @@ def statement_should_exclude(
     account: ResolvedAccount,
     is_manual: bool,
 ) -> bool:
-    """Return True when a staging PDF must be deleted (non-statement attachment)."""
+    """Return True when a staging statement must be deleted (non-statement attachment)."""
     if is_manual:
         return False
 
-    handler = get_handler(account.bank, account.variant)
-    if handler.is_excluded_statement(raw) or handler.is_excluded_statement(sanitized):
-        return True
     markers = account.statement.text_not_contains
     return text_not_contains_violated(raw, markers) or text_not_contains_violated(
         sanitized, markers

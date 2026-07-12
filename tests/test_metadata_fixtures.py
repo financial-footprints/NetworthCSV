@@ -28,6 +28,7 @@ def _account(*, bank: str, variant: str | None) -> ResolvedAccount:
             "variant": variant,
             "account_number": "1234",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )

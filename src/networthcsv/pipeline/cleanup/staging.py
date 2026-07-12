@@ -13,37 +13,52 @@ from networthcsv.pipeline.cleanup.models import MonthGroups
 from networthcsv.pipeline.upload import period_from_manual_upload
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
-from networthcsv.utils.path import iter_pdfs
+from networthcsv.utils.path import is_csv_path, is_pdf_path, iter_pdfs
+from networthcsv.utils.zip_archive import password_candidates
 
 logger = logging.getLogger(__name__)
 
+_SUPPORTED_STAGING_SUFFIXES = frozenset({".pdf", ".csv"})
 
-def is_staging_pdf(download_dir: Path, path: Path) -> bool:
+
+def _is_staging_file(
+    download_dir: Path,
+    path: Path,
+    *,
+    is_type,
+) -> bool:
     try:
         _ = path.relative_to(download_dir)
     except ValueError:
         return False
-    if path.parent == download_dir:
-        return True
-    return False
+    return path.parent == download_dir and is_type(path)
 
 
-def prune_non_pdfs(download_dir: Path) -> int:
+def is_staging_pdf(download_dir: Path, path: Path) -> bool:
+    return _is_staging_file(download_dir, path, is_type=is_pdf_path)
+
+
+def is_staging_csv(download_dir: Path, path: Path) -> bool:
+    return _is_staging_file(download_dir, path, is_type=is_csv_path)
+
+
+def prune_unsupported_staging_files(download_dir: Path) -> int:
+    """Remove staging files that are neither PDF nor CSV."""
     removed = 0
     for path in sorted(download_dir.iterdir()):
         if not path.is_file():
             continue
-        if path.suffix.lower() == ".pdf":
+        if path.suffix.lower() in _SUPPORTED_STAGING_SUFFIXES:
             continue
         _ = path.unlink()
-        logger.debug("removed (non-pdf): %s", path)
+        logger.debug("removed (unsupported staging): %s", path)
         removed += 1
     return removed
 
 
 def decrypt_pdfs_in_place(download_dir: Path, passwords: list[str]) -> int:
     decrypted = 0
-    decrypt_candidates = list(dict.fromkeys(["", *passwords]))
+    decrypt_candidates = password_candidates(passwords)
     for path in iter_pdfs(download_dir):
         reader = PdfReader(str(path))
         if not reader.is_encrypted:
@@ -70,8 +85,11 @@ def prune_excluded_staging(
     staging_dir: Path,
     account: ResolvedAccount,
     collected: MonthGroups,
+    *,
+    csv_collected: MonthGroups | None = None,
 ) -> int:
-    """Delete non-manual staging PDFs that match handler/config exclusion markers."""
+    """Delete non-manual staging PDFs/CSVs that match exclusion markers."""
+    handler = get_handler(account.bank, account.variant)
     removed = 0
     for path, raw in list(collected.raw_by_path.items()):
         if not path.is_file():
@@ -80,7 +98,7 @@ def prune_excluded_staging(
             continue
         if period_from_manual_upload(path.name):
             continue
-        sanitized = get_handler(account.bank, account.variant).clean_text(raw)
+        sanitized = handler.clean_text(raw)
         if not statement_should_exclude(
             raw, sanitized, account=account, is_manual=False
         ):
@@ -88,4 +106,18 @@ def prune_excluded_staging(
         _ = path.unlink()
         logger.debug("removed (excluded statement): %s", path)
         removed += 1
+
+    if csv_collected is not None:
+        for path, raw in list(csv_collected.raw_by_path.items()):
+            if not path.is_file():
+                continue
+            if not is_staging_csv(staging_dir, path):
+                continue
+            if period_from_manual_upload(path.name):
+                continue
+            if not statement_should_exclude(raw, raw, account=account, is_manual=False):
+                continue
+            _ = path.unlink()
+            logger.debug("removed (excluded statement): %s", path)
+            removed += 1
     return removed

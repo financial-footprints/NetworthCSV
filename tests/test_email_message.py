@@ -11,14 +11,15 @@ from pathlib import Path
 from networthcsv.utils.email.email_message import (
     body_matches,
     from_matches,
+    is_annual_email,
     is_pdf_attachment_part,
-    is_yearly_email,
     message_in_date_range,
     message_matches_account,
     save_attachments,
     subject_matches,
 )
 from networthcsv.settings import ResolvedAccount
+from zip_support import build_zip
 
 
 def _account() -> ResolvedAccount:
@@ -28,6 +29,7 @@ def _account() -> ResolvedAccount:
             "variant": "amazon",
             "account_number": "1234",
             "passwords": ["secret"],
+            "opening_date": "01-01-2020",
             "mail": {
                 "subjects": ["ICICI Bank Credit Card Statement for the period"],
                 "body_contains": [],
@@ -214,6 +216,7 @@ class BodyMatchesTests(unittest.TestCase):
                 "variant": "amazon",
                 "account_number": "3852",
                 "passwords": ["secret"],
+                "opening_date": "01-01-2020",
                 "mail": {
                     "subjects": [
                         "Amazon Pay ICICI Bank Credit Card Statement for the period"
@@ -408,11 +411,11 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         )
         self.assertTrue(message_matches_account(msg, _account(), None))
 
-    def test_message_rejects_csv_only_attachment(self) -> None:
+    def test_message_matches_csv_only_attachment(self) -> None:
         msg = _statement_msg_with_attachments(
             [("transactions.csv", b"a,b,c", "text/csv")]
         )
-        self.assertFalse(message_matches_account(msg, _account(), None))
+        self.assertTrue(message_matches_account(msg, _account(), None))
 
     def test_uppercase_pdf_extension_matches(self) -> None:
         msg = _statement_msg_with_attachments(
@@ -432,7 +435,7 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         pdf_parts = [part for part in parts if is_pdf_attachment_part(part)]
         self.assertEqual(len(pdf_parts), 1)
 
-    def test_save_attachments_writes_pdf_only(self) -> None:
+    def test_save_attachments_writes_pdf_and_csv(self) -> None:
         msg = _statement_msg_with_attachments(
             [
                 ("statement.pdf", b"%PDF-1.4", "application/pdf"),
@@ -441,14 +444,71 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             download_dir = Path(tmp)
-            saved = save_attachments(msg, download_dir, "INBOX")
+            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            self.assertEqual(saved, 2)
+            self.assertEqual(len(list(download_dir.glob("*.pdf"))), 1)
+            self.assertEqual(len(list(download_dir.glob("*.csv"))), 1)
+
+    def test_is_annual_email_from_subject(self) -> None:
+        msg = EmailMessage()
+        msg["Subject"] = "ICICI Bank Annual Credit Card Statement"
+        msg.set_content("See attachment")
+        self.assertTrue(is_annual_email(msg))
+
+    def test_is_annual_email_from_body(self) -> None:
+        msg = EmailMessage()
+        msg["Subject"] = "ICICI Bank Credit Card Statement for the period"
+        msg.set_content("Your annual statement is attached.")
+        self.assertTrue(is_annual_email(msg))
+
+    def test_save_annual_csv_marks_staging_filename(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("statement.csv", b"a,b,c", "text/csv")],
+            body="Your annual credit card statement",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            saved = save_attachments(msg, download_dir, "INBOX", _account())
             self.assertEqual(saved, 1)
-            files = list(download_dir.glob("*.pdf"))
-            self.assertEqual(len(files), 1)
-            self.assertFalse(list(download_dir.glob("*.csv")))
+            csv_files = list(download_dir.glob("*.csv"))
+            self.assertEqual(len(csv_files), 1)
+            self.assertIn("__annual", csv_files[0].name)
+
+    def test_message_matches_zip_only_attachment(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("statements.zip", build_zip({"a.csv": b"a"}), "application/zip")]
+        )
+        self.assertTrue(message_matches_account(msg, _account(), None))
+
+    def test_save_zip_extracts_multiple_csvs(self) -> None:
+        zip_bytes = build_zip(
+            {
+                "monthly.csv": b"Date,Amount\n",
+                "annual.csv": b"Date,Amount\n",
+            }
+        )
+        msg = _statement_msg_with_attachments(
+            [("statements.zip", zip_bytes, "application/zip")]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            self.assertEqual(saved, 2)
+            csv_files = list(download_dir.glob("*.csv"))
+            self.assertEqual(len(csv_files), 2)
+
+    def test_save_zip_skips_on_password_failure(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [("locked.zip", b"not-a-real-zip", "application/zip")]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            self.assertEqual(saved, 0)
+            self.assertEqual(list(download_dir.glob("*")), [])
 
 
-class YearlyEmailAttachmentTests(unittest.TestCase):
+class AnnualEmailAttachmentTests(unittest.TestCase):
     def _hdfc_account(self) -> ResolvedAccount:
         return ResolvedAccount.model_validate(
             {
@@ -456,6 +516,7 @@ class YearlyEmailAttachmentTests(unittest.TestCase):
                 "variant": "default",
                 "account_number": "1234",
                 "passwords": ["secret"],
+                "opening_date": "01-01-2020",
                 "mail": {
                     "subjects": [
                         "HDFC Bank Credit Card Statement",
@@ -468,12 +529,12 @@ class YearlyEmailAttachmentTests(unittest.TestCase):
             }
         )
 
-    def test_is_yearly_email(self) -> None:
+    def test_is_annual_email(self) -> None:
         msg = EmailMessage()
         msg["Subject"] = "HDFC BANK Credit Card Year End Statement Summary"
-        self.assertTrue(is_yearly_email(msg))
+        self.assertTrue(is_annual_email(msg))
 
-    def test_octet_stream_pdf_matches_for_yearly_email(self) -> None:
+    def test_octet_stream_pdf_matches_for_annual_email(self) -> None:
         msg = EmailMessage()
         msg["Subject"] = "HDFC BANK Credit Card Year End Statement Summary"
         msg["From"] = "emailstatements.cards@hdfcbank.bank.in"
@@ -489,7 +550,7 @@ class YearlyEmailAttachmentTests(unittest.TestCase):
         self.assertTrue(message_matches_account(msg, account, None))
         with tempfile.TemporaryDirectory() as tmp:
             download_dir = Path(tmp)
-            saved = save_attachments(msg, download_dir, "INBOX")
+            saved = save_attachments(msg, download_dir, "INBOX", account)
             self.assertEqual(saved, 1)
             files = list(download_dir.glob("*.pdf"))
             self.assertEqual(len(files), 1)

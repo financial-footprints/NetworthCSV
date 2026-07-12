@@ -42,6 +42,7 @@ from networthcsv.utils.account_dates import (
     resolve_account_search_dates,
 )
 from networthcsv.utils.banks import get_handler
+from networthcsv.utils.banks.account_matching import AccountMatching
 from networthcsv.utils.banks._matching_validators import (
     normalize_body_contains,
     normalize_from,
@@ -141,6 +142,7 @@ class SettingsTests(unittest.TestCase):
             "account_number": "1234",
             "statement": {"text_contains": "1234"},
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
         }
         data.update(kwargs)
         return data
@@ -187,6 +189,7 @@ class SettingsTests(unittest.TestCase):
                 "account_number": account_number,
                 "type": account_type,
                 "passwords": passwords or ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {
                     "subjects": subjects or ["BOB"],
                     "body_contains": body_contains or [],
@@ -445,6 +448,7 @@ class SettingsTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1234",
                 "passwords": ["x"],
+                "opening_date": date(2020, 1, 1),
                 "mail": {"subjects": ["stmt"]},
                 "closing_date": date(2024, 2, 1),
             }
@@ -476,9 +480,52 @@ class SettingsTests(unittest.TestCase):
                     "bank": "bob",
                     "account_number": "1234",
                     "passwords": ["x"],
+                    "opening_date": "01-01-2020",
                     "closing_date": "08-2024",
                 }
             )
+
+    def test_missing_opening_date_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _ = UserAccountConfig.model_validate(
+                {
+                    "bank": "bob",
+                    "account_number": "1234",
+                    "passwords": ["x"],
+                }
+            )
+
+    def test_text_not_contains_unions_bank_defaults_with_user_markers(self) -> None:
+        defaults = get_handler("indusind", "auraedge").matching_defaults()
+        user = UserAccountConfig.model_validate(
+            {
+                "bank": "indusind",
+                "variant": "auraedge",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "opening_date": "01-01-2020",
+                "statement": {"text_not_contains": ["USER MARKER"]},
+            }
+        )
+        merged = AccountMatching.merge(defaults, user)
+        self.assertIn("ANNUAL SPEND SUMMARY", merged.statement.text_not_contains)
+        self.assertIn("USER MARKER", merged.statement.text_not_contains)
+
+        cleared = UserAccountConfig.model_validate(
+            {
+                "bank": "indusind",
+                "variant": "auraedge",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "opening_date": "01-01-2020",
+                "statement": {"text_not_contains": []},
+            }
+        )
+        merged_cleared = AccountMatching.merge(defaults, cleared)
+        self.assertIn(
+            "ANNUAL SPEND SUMMARY",
+            merged_cleared.statement.text_not_contains,
+        )
 
     def test_user_override_subjects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -760,6 +807,7 @@ class SettingsTests(unittest.TestCase):
                 "variant": "Swiggy",
                 "account_number": "1234",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
             }
         )
         self.assertEqual(account.variant, "swiggy")

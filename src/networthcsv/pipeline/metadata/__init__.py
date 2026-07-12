@@ -2,7 +2,7 @@
 
 from networthcsv.pipeline.metadata.build import (
     build_account_metadata,
-    build_yearly_statement_summaries,
+    build_annual_statement_summaries,
 )
 from networthcsv.pipeline.metadata.coverage import (
     build_period_covered,
@@ -29,7 +29,7 @@ __all__ = [
     "StatementMetadata",
     "build_account_metadata",
     "build_period_covered",
-    "build_yearly_statement_summaries",
+    "build_annual_statement_summaries",
     "compute_balance_gaps",
     "covered_month",
     "load_account_metadata",

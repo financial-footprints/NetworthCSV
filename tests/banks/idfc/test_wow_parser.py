@@ -22,6 +22,7 @@ def _account() -> ResolvedAccount:
             "variant": "wow",
             "account_number": "1234",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )

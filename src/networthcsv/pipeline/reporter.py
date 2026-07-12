@@ -192,7 +192,7 @@ class ConsoleRunReporter(RunReporter):
         print()
         rejected_hint = " (see warnings above)" if result.rejected else ""
         print(
-            f"done: {result.non_pdf_removed} non-pdf removed, "
+            f"done: {result.unsupported_staging_removed} unsupported staging removed, "
             f"{result.decrypted} decrypted, {result.prepared} prepared, "
             f"{result.rejected} rejected{rejected_hint}, "
             f"{result.orphans_removed} orphan(s) removed"

@@ -7,7 +7,7 @@ name = "NetworthCSV"
 version = "0.1.0"
 description = "Parse credit card and bank statement PDFs from email into CSV files"
 requires-python = ">=3.11"
-dependencies = ["pypdf", "cryptography", "pdfplumber", "pydantic"]
+dependencies = ["pypdf", "pdfplumber", "pydantic", "pyzipper"]
 
 [project.scripts]
 networthcsv = "networthcsv.__main__:main"

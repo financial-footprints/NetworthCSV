@@ -68,15 +68,18 @@ class UserAccountConfig(MatchingFieldsCore):
     variant: VariantName = None
     account_number: AccountNumber
     passwords: Passwords
-    opening_date: date | None = None
+    opening_date: date
     closing_date: date | None = None
     mail: MailMatchOverride | None = None
     statement: StatementCleanupOverride | None = None
 
     @field_validator("opening_date", mode="before")
     @classmethod
-    def validate_opening_date(cls, value: object) -> date | None:
-        return parse_opening_date(value)
+    def validate_opening_date(cls, value: object) -> date:
+        parsed = parse_opening_date(value)
+        if parsed is None:
+            raise ValueError("opening_date is required")
+        return parsed
 
     @field_validator("closing_date", mode="before")
     @classmethod
@@ -85,7 +88,7 @@ class UserAccountConfig(MatchingFieldsCore):
 
     @model_validator(mode="after")
     def validate_account_date_range(self) -> UserAccountConfig:
-        if self.opening_date is None or self.closing_date is None:
+        if self.closing_date is None:
             return self
         if self.closing_date < self.opening_date:
             raise ValueError("closing_date must be on or after opening_date")
@@ -279,13 +282,16 @@ class ResolvedAccount(MatchingFields):
     variant: str | None = None
     account_number: str
     passwords: list[str] = Field(min_length=1)
-    opening_date: date | None = None
+    opening_date: date
     closing_date: date | None = None
 
     @field_validator("opening_date", mode="before")
     @classmethod
-    def validate_opening_date(cls, value: object) -> date | None:
-        return parse_opening_date(value)
+    def validate_opening_date(cls, value: object) -> date:
+        parsed = parse_opening_date(value)
+        if parsed is None:
+            raise ValueError("opening_date is required")
+        return parsed
 
     @field_validator("closing_date", mode="before")
     @classmethod

@@ -14,6 +14,11 @@ from email.utils import getaddresses, parsedate_to_datetime
 
 from networthcsv.utils.path import unique_path
 from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.zip_archive import (
+    ZipArchiveError,
+    extract_csvs_from_zip,
+    sanitize_zip_member_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -182,9 +187,13 @@ def iter_attachment_parts(msg: Message):
 _PDF_MAGIC = b"%PDF"
 
 
-def is_yearly_email(msg: Message) -> bool:
-    decoded = decode_mime_header(msg.get("Subject"))
-    return "year end" in decoded.lower()
+def is_annual_email(msg: Message) -> bool:
+    """True when subject or body mentions annual or year-end statements."""
+    subject = decode_mime_header(msg.get("Subject")).lower()
+    if "annual" in subject or "year end" in subject:
+        return True
+    body = extract_message_body(msg).lower()
+    return "annual" in body or "year end" in body
 
 
 def _payload_is_pdf(payload: bytes | bytearray) -> bool:
@@ -217,10 +226,61 @@ def is_pdf_attachment_part(part: Message, *, allow_octet_stream: bool = False) -
     return False
 
 
+def is_csv_attachment_part(part: Message) -> bool:
+    if not is_attachment_part(part):
+        return False
+    filename = part.get_filename()
+    if filename and Path(sanitize_filename(filename)).suffix.lower() == ".csv":
+        return True
+    content_type = part.get_content_type()
+    if "/" not in content_type:
+        return False
+    maintype, subtype = content_type.split("/", 1)
+    if maintype == "text" and subtype.lower() == "csv":
+        return True
+    if maintype == "application" and subtype.lower() in {"csv", "vnd.ms-excel"}:
+        return True
+    return False
+
+
 def iter_pdf_attachment_parts(msg: Message):
-    yearly = is_yearly_email(msg)
+    annual = is_annual_email(msg)
     for part in iter_attachment_parts(msg):
-        if is_pdf_attachment_part(part, allow_octet_stream=yearly):
+        if is_pdf_attachment_part(part, allow_octet_stream=annual):
+            yield part
+
+
+def iter_csv_attachment_parts(msg: Message):
+    for part in iter_attachment_parts(msg):
+        if is_csv_attachment_part(part):
+            yield part
+
+
+def is_zip_attachment_part(part: Message) -> bool:
+    if not is_attachment_part(part):
+        return False
+    filename = part.get_filename()
+    if filename and Path(sanitize_filename(filename)).suffix.lower() == ".zip":
+        return True
+    content_type = part.get_content_type()
+    if "/" not in content_type:
+        return False
+    maintype, subtype = content_type.split("/", 1)
+    if maintype == "application" and subtype.lower() in {
+        "zip",
+        "x-zip-compressed",
+        "octet-stream",
+    }:
+        return (
+            filename is not None
+            and Path(sanitize_filename(filename)).suffix.lower() == ".zip"
+        )
+    return False
+
+
+def iter_zip_attachment_parts(msg: Message):
+    for part in iter_attachment_parts(msg):
+        if is_zip_attachment_part(part):
             yield part
 
 
@@ -240,40 +300,115 @@ def sanitize_filename(name: str) -> str:
     return name or "attachment"
 
 
-def download_filename_for_attachment(msg: Message, attachment_filename: str) -> str:
+def download_filename_for_attachment(
+    msg: Message,
+    attachment_filename: str,
+    *,
+    annual: bool = False,
+) -> str:
     original = sanitize_filename(attachment_filename)
     suffix = Path(original).suffix
     if suffix.lower() == ".pdf":
         suffix = ".pdf"
+    elif suffix.lower() == ".csv":
+        suffix = ".csv"
     dt = message_received_datetime(msg)
     if dt is not None:
         stem = dt.strftime("%Y-%m-%d")
     else:
         stem = "unknown-date"
-    if not suffix and is_yearly_email(msg):
+    if not suffix and is_annual_email(msg):
         suffix = ".pdf"
+    if annual and suffix == ".csv":
+        stem = f"{stem}__annual"
     return f"{stem}{suffix}" if suffix else stem
+
+
+def download_filename_for_extracted_csv(
+    msg: Message,
+    inner_name: str,
+    *,
+    annual: bool = False,
+) -> str:
+    dt = message_received_datetime(msg)
+    if dt is not None:
+        stem = dt.strftime("%Y-%m-%d")
+    else:
+        stem = "unknown-date"
+    safe_inner = sanitize_zip_member_name(inner_name)
+    if annual:
+        stem = f"{stem}__annual"
+    return f"{stem}__{safe_inner}"
 
 
 def save_attachments(
     msg: Message,
     download_dir: Path,
     folder_prefix: str,
+    account: ResolvedAccount,
 ) -> int:
     saved = 0
     prefix = f"{folder_prefix}__" if folder_prefix else ""
-    for part in iter_pdf_attachment_parts(msg):
-        filename = part.get_filename() or "attachment.pdf"
+    annual = is_annual_email(msg)
+    subject = decode_mime_header(msg.get("Subject"))
+
+    attachment_parts: list[tuple[Message, str]] = [
+        (part, part.get_filename() or "attachment.pdf")
+        for part in iter_pdf_attachment_parts(msg)
+    ]
+    attachment_parts.extend(
+        (part, part.get_filename() or "attachment.csv")
+        for part in iter_csv_attachment_parts(msg)
+    )
+
+    for part, filename in attachment_parts:
         payload = part.get_payload(decode=True)
         if not isinstance(payload, (bytes, bytearray)):
             continue
-        safe_name = download_filename_for_attachment(msg, filename)
+        is_csv = Path(sanitize_filename(filename)).suffix.lower() == ".csv"
+        safe_name = download_filename_for_attachment(
+            msg, filename, annual=annual and is_csv
+        )
         dest = unique_path(download_dir, f"{prefix}{safe_name}")
         _ = dest.write_bytes(bytes(payload))
-        subject = decode_mime_header(msg.get("Subject"))
         date_note = " (no Date header)" if safe_name.startswith("unknown-date") else ""
         logger.info("saved: %s%s  (subject: %s)", dest, date_note, subject[:80])
         saved += 1
+
+    for part in iter_zip_attachment_parts(msg):
+        payload = part.get_payload(decode=True)
+        if not isinstance(payload, (bytes, bytearray)):
+            continue
+        zip_name = part.get_filename() or "attachment.zip"
+        try:
+            extracted = extract_csvs_from_zip(bytes(payload), account.passwords)
+        except ZipArchiveError as exc:
+            logger.warning(
+                "skip zip attachment %s (subject: %s): %s",
+                sanitize_filename(zip_name),
+                subject[:80],
+                exc,
+            )
+            continue
+        for item in extracted:
+            safe_name = download_filename_for_extracted_csv(
+                msg,
+                item.inner_name,
+                annual=annual,
+            )
+            dest = unique_path(download_dir, f"{prefix}{safe_name}")
+            _ = dest.write_bytes(item.content)
+            date_note = (
+                " (no Date header)" if safe_name.startswith("unknown-date") else ""
+            )
+            logger.info(
+                "saved from zip: %s%s  (subject: %s)",
+                dest,
+                date_note,
+                subject[:80],
+            )
+            saved += 1
+
     return saved
 
 
@@ -293,8 +428,11 @@ def message_matches_account(
     if not message_in_date_range(msg, start_date, end_date):
         logger.debug("skip email (date range): %r", subject)
         return False
-    if not list(iter_pdf_attachment_parts(msg)):
-        logger.debug("skip email (no pdf attachment): %r", subject)
+    has_pdf = bool(list(iter_pdf_attachment_parts(msg)))
+    has_csv = bool(list(iter_csv_attachment_parts(msg)))
+    has_zip = bool(list(iter_zip_attachment_parts(msg)))
+    if not has_pdf and not has_csv and not has_zip:
+        logger.debug("skip email (no pdf/csv/zip attachment): %r", subject)
         return False
     if not body_matches(msg, account.mail.body_contains):
         logger.debug(

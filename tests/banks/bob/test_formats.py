@@ -23,6 +23,7 @@ def _account(*, bank: str = "bob", variant: str | None = "easy") -> ResolvedAcco
             "variant": variant,
             "account_number": "4829",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )
@@ -83,6 +84,26 @@ class BobFormatFixtureTests(unittest.TestCase):
         closing = self.handler.get_closing_balance(self.format1)
         self.assertEqual(opening, "42.00")
         self.assertEqual(closing, "192.00")
+
+    def test_clean_text_drops_registration_boilerplate(self) -> None:
+        raw = (
+            "Tax Invoice to:\n"
+            "SAMPLE CARDHOLDER\n"
+            "Statement period 17 Jul, 2024 To 16 Aug, 2024\n"
+            "18/08/2024 R92485 SAMPLE MERCHANT 200.00 DR\n"
+            "via the BOBCARD mobile app or portal for regular alerts.\n"
+            "Clickheretoknowmore\n"
+            "Page 1 of 5\n"
+            "Page 2 of 5\n"
+            "SCHEDULE OF CHARGES\n"
+            "fee table\n"
+        )
+        cleaned = self.handler.clean_text(raw)
+        self.assertIn("SAMPLE CARDHOLDER", cleaned)
+        self.assertIn("SAMPLE MERCHANT", cleaned)
+        self.assertNotIn("via the BOBCARD mobile app or portal", cleaned)
+        self.assertNotIn("Clickheretoknowmore", cleaned)
+        self.assertNotIn("SCHEDULE OF CHARGES", cleaned)
 
 
 if __name__ == "__main__":

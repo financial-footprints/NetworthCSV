@@ -2,46 +2,41 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from networthcsv.pipeline.metadata.coverage import (
-    build_period_covered,
-    parse_account_date_value,
-)
+from networthcsv.pipeline.metadata.coverage import build_period_covered
 from networthcsv.pipeline.metadata.models import (
     AccountMetadata,
     StatementGranularity,
     StatementMetadata,
-    YearlyStatementSummary,
+    AnnualStatementSummary,
 )
 from networthcsv.settings import ResolvedAccount
-from networthcsv.utils.account_dates import format_account_date
+from networthcsv.utils.account_dates import (
+    format_account_date,
+    require_account_date_str,
+)
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.period import resolve_period_bounds
 from networthcsv.utils.path import (
+    FISCAL_YEAR_BASENAME,
     discover_account_fy_dirs,
     iter_statement_csvs,
     iter_statement_pairs,
     statement_csv_path,
+    statement_period_from_path,
     txt_path_for_pdf,
 )
 from networthcsv.utils.statement_period import (
     YearDisplay,
     covered_months_between,
-    is_yearly_period,
-    parse_month_period,
-    year_key_for_period,
+    is_annual_period,
+    period_for_year_key,
     year_key_label,
 )
 
-
-def statement_period_from_path(path: Path) -> str | None:
-    period_id = path.stem
-    if parse_month_period(period_id) is not None:
-        return period_id
-    if is_yearly_period(period_id):
-        return period_id
-    return None
+logger = logging.getLogger(__name__)
 
 
 def statement_formats(
@@ -74,23 +69,42 @@ def extract_statement_balances(
     return handler.get_opening_balance(text), handler.get_closing_balance(text)
 
 
-def build_yearly_statement_summaries(
+def build_annual_statement_summaries(
     statements: tuple[StatementMetadata, ...],
     *,
     year_display: YearDisplay,
-) -> tuple[YearlyStatementSummary, ...]:
-    summaries: list[YearlyStatementSummary] = []
+) -> tuple[AnnualStatementSummary, ...]:
+    summaries: list[AnnualStatementSummary] = []
+    seen_year_keys: dict[str, str] = {}
     for statement in statements:
-        if statement.granularity != "yearly":
+        if statement.granularity != "annual":
             continue
         if (
             statement.year_key is None
             or statement.period_start is None
             or statement.period_end is None
         ):
+            logger.warning(
+                "annual statement %s excluded from annual_statements: "
+                "missing year_key or period bounds (period_start=%s, period_end=%s); "
+                "Annual CSV chip will not appear in calendar",
+                statement.statement_date,
+                statement.period_start,
+                statement.period_end,
+            )
             continue
+        prior = seen_year_keys.get(statement.year_key)
+        if prior is not None:
+            logger.warning(
+                "annual statement %s shares year_key %s with %s; "
+                "calendar UI keeps one entry per year_key (last wins in API map)",
+                statement.statement_date,
+                statement.year_key,
+                prior,
+            )
+        seen_year_keys[statement.year_key] = statement.statement_date
         summaries.append(
-            YearlyStatementSummary(
+            AnnualStatementSummary(
                 year_key=statement.year_key,
                 statement_date=statement.statement_date,
                 label=year_key_label(
@@ -103,6 +117,44 @@ def build_yearly_statement_summaries(
             )
         )
     return tuple(summaries)
+
+
+def _count_annual_csvs_on_disk(download_path: Path, account: ResolvedAccount) -> int:
+    count = 0
+    for csv_path in iter_statement_csvs(download_path, account):
+        if csv_path.stem == FISCAL_YEAR_BASENAME:
+            count += 1
+    return count
+
+
+def _log_annual_metadata_summary(
+    download_path: Path,
+    account: ResolvedAccount,
+    statements: tuple[StatementMetadata, ...],
+    *,
+    year_display: YearDisplay,
+) -> None:
+    annual_csv_on_disk = _count_annual_csvs_on_disk(download_path, account)
+    summaries = build_annual_statement_summaries(
+        statements,
+        year_display=year_display,
+    )
+    annual_with_csv = sum(1 for item in summaries if "csv" in item.formats)
+    if annual_csv_on_disk != annual_with_csv:
+        logger.warning(
+            "annual CSV visibility: %d annual CSV file(s) on disk → "
+            "%d annual_statements with csv format "
+            "(re-run metadata after fixing period bounds or year_key collisions)",
+            annual_csv_on_disk,
+            annual_with_csv,
+        )
+    elif annual_csv_on_disk:
+        logger.info(
+            "annual CSV visibility: %d annual CSV file(s) → "
+            "%d calendar Annual CSV chip(s)",
+            annual_csv_on_disk,
+            annual_with_csv,
+        )
 
 
 def build_account_metadata(
@@ -127,6 +179,8 @@ def build_account_metadata(
 
     statements: list[StatementMetadata] = []
     account_formats: set[str] = set()
+    handler = get_handler(account.bank, account.variant)
+    year_display = handler.year_display()
 
     for statement_date in sorted(statements_by_date):
         pdf_path, txt_path, csv_path = statements_by_date[statement_date]
@@ -148,25 +202,44 @@ def build_account_metadata(
                 text,
                 account=account,
             )
+        elif csv_path is not None and csv_path.is_file():
+            opening_balance, closing_balance = None, None
+            csv_text = csv_path.read_text(encoding="utf-8", errors="replace")
+            csv_start, csv_end = handler.resolve_csv_period_bounds(
+                csv_text, account=account
+            )
+            if csv_start is not None and csv_end is not None:
+                period_start = require_account_date_str(csv_start)
+                period_end = require_account_date_str(csv_end)
+                period_approximate = False
+            else:
+                period_start, period_end, period_approximate = None, None, False
+                if is_annual_period(statement_date):
+                    logger.warning(
+                        "annual CSV %s: could not resolve period bounds "
+                        "(check opening_date and transaction rows); "
+                        "Annual CSV chip may not appear in calendar",
+                        csv_path.name,
+                    )
         else:
             opening_balance, closing_balance = None, None
             period_start, period_end, period_approximate = None, None, False
 
         granularity: StatementGranularity = (
-            "yearly" if is_yearly_period(statement_date) else "monthly"
+            "annual" if is_annual_period(statement_date) else "monthly"
         )
         statement_covered_months: tuple[str, ...] = ()
         year_key: str | None = None
-        if granularity == "yearly" and period_start and period_end:
-            start_date = parse_account_date_value(period_start)
-            end_date = parse_account_date_value(period_end)
-            handler = get_handler(account.bank, account.variant)
-            statement_covered_months = covered_months_between(start_date, end_date)
-            year_key = year_key_for_period(
-                start_date,
-                end_date,
-                year_display=handler.year_display(),
+        if granularity == "annual":
+            year_key = statement_date
+            fy_start, fy_end = period_for_year_key(
+                statement_date,
+                year_display=year_display,
             )
+            period_start = require_account_date_str(fy_start)
+            period_end = require_account_date_str(fy_end)
+            period_approximate = False
+            statement_covered_months = covered_months_between(fy_start, fy_end)
 
         statements.append(
             StatementMetadata(
@@ -184,14 +257,21 @@ def build_account_metadata(
         )
 
     statement_dates = tuple(item.statement_date for item in statements)
+    statements_tuple = tuple(statements)
 
     if has_transactions_csv(download_path, account):
         account_formats.add("csv")
 
-    handler = get_handler(account.bank, account.variant)
     period_covered = build_period_covered(
-        tuple(statements),
+        statements_tuple,
         tolerance=handler.balance_match_tolerance(),
+    )
+
+    _log_annual_metadata_summary(
+        download_path,
+        account,
+        statements_tuple,
+        year_display=year_display,
     )
 
     return AccountMetadata(
@@ -202,7 +282,7 @@ def build_account_metadata(
         opening_date=format_account_date(account.opening_date),
         closing_date=format_account_date(account.closing_date),
         formats=tuple(sorted(account_formats)),
-        statements=tuple(statements),
+        statements=statements_tuple,
         statement_dates=statement_dates,
         starting=statement_dates[0] if statement_dates else None,
         ending=statement_dates[-1] if statement_dates else None,

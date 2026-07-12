@@ -23,7 +23,7 @@ class HdfcInboxCleanupTests(unittest.TestCase):
         return path
 
     @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
-    def test_yearly_inbox_sibling_lands_in_yearly_period(
+    def test_annual_inbox_sibling_lands_in_annual_period(
         self, mock_extract: MagicMock
     ) -> None:
         yearly_text = (FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
@@ -51,12 +51,12 @@ class HdfcInboxCleanupTests(unittest.TestCase):
             )
 
             collected = collect_month_groups(staging_dir, resolved_account)
-            yearly_period = "yearly-2024-04_2025-03"
-            self.assertIn(yearly_period, collected.groups)
+            annual_period = "FY24-2025"
+            self.assertIn(annual_period, collected.groups)
             self.assertIn("2026-05", collected.groups)
             self.assertEqual(
                 collected.path_period_source[yearly_pdf],
-                "yearly",
+                "annual",
             )
             self.assertEqual(
                 collected.path_period_source[sibling],
@@ -66,20 +66,20 @@ class HdfcInboxCleanupTests(unittest.TestCase):
             prepared, rejected = prepare_month(
                 staging_dir,
                 download_path,
-                yearly_period,
-                collected.groups[yearly_period],
+                annual_period,
+                collected.groups[annual_period],
                 resolved_account,
                 raw_by_path=collected.raw_by_path,
                 path_month=collected.path_month,
                 path_hash=collected.path_hash,
                 path_period_source=collected.path_period_source,
             )
-            yearly_out = statement_pdf_path(
-                download_path, resolved_account, yearly_period
+            annual_out = statement_pdf_path(
+                download_path, resolved_account, annual_period
             )
             self.assertEqual((prepared, rejected), (1, 0))
-            self.assertTrue(yearly_out.is_file())
-            self.assertTrue(txt_path_for_pdf(yearly_out).is_file())
+            self.assertTrue(annual_out.is_file())
+            self.assertTrue(txt_path_for_pdf(annual_out).is_file())
             self.assertFalse(yearly_pdf.exists())
 
             month_prepared, month_rejected = prepare_month(
@@ -98,7 +98,7 @@ class HdfcInboxCleanupTests(unittest.TestCase):
             self.assertTrue(bare.is_file())
 
     @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
-    def test_prefers_yearly_confidence_over_filename_fallback(
+    def test_prefers_annual_confidence_over_filename_fallback(
         self, mock_extract: MagicMock
     ) -> None:
         yearly_text = (FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
@@ -122,9 +122,9 @@ class HdfcInboxCleanupTests(unittest.TestCase):
                     fallback_pdf: yearly_text,
                 }
             )
-            period = "yearly-2024-04_2025-03"
+            period = "FY24-2025"
             path_period_source: dict[Path, PeriodSource] = {
-                yearly_pdf: "yearly",
+                yearly_pdf: "annual",
                 fallback_pdf: "filename_fallback",
             }
 

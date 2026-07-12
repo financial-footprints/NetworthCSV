@@ -13,7 +13,6 @@ from networthcsv.pipeline.cleanup.exclusion import statement_should_exclude
 from networthcsv.pipeline.cleanup.grouping import dedupe_paths_by_hash, file_hash
 from networthcsv.pipeline.cleanup.keeper import (
     delete_staging_duplicates_for_month,
-    format_ambiguous_candidates,
     identity_is_strong,
     select_keeper,
     statement_identity_key,
@@ -22,10 +21,10 @@ from networthcsv.pipeline.cleanup.period_source import (
     period_source_for_path,
     period_source_rank,
 )
+from networthcsv.pipeline.cleanup.prepare_common import report_ambiguous_period
 from networthcsv.pipeline.upload import period_from_manual_upload
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.account import account_label
-from networthcsv.utils.alerts.models import Alert, AlertKind
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.utils.banks.helpers.text import (
     check_text_contains,
@@ -117,30 +116,15 @@ def prepare_month(
     )
 
     if ambiguous_paths:
-        conflict_summary = format_ambiguous_candidates(
-            ambiguous_paths,
-            period_source_lookup,
+        report_ambiguous_period(
+            format_label="PDF",
+            label=label,
+            month=month,
+            ambiguous_paths=ambiguous_paths,
+            period_source_lookup=period_source_lookup,
+            text_contains=text_contains,
+            alerts=alerts,
         )
-        logger.warning(
-            "ambiguous statement period for %s: %s for month %s; "
-            "leaving files in staging",
-            label,
-            conflict_summary,
-            month,
-        )
-        if alerts is not None:
-            alerts.emit(
-                Alert(
-                    kind=AlertKind.AMBIGUOUS_STATEMENT_PERIOD,
-                    message=(
-                        f"multiple matching PDFs with same period confidence "
-                        f"for {month}: {conflict_summary}; manual review required"
-                    ),
-                    account=label,
-                    source_file=month,
-                    text_contains=list(text_contains),
-                )
-            )
         return 0, 1
 
     if keeper is None:

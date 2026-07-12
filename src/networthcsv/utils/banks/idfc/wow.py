@@ -34,6 +34,15 @@ class IdfcWowHandler(IdfcDefaultHandler):
     def drop_sections(self) -> list[str]:
         return [
             "Payment Modes",
+            "PAYMENT MODES",
+            "Pay via our new Mobile App",
+            "Need help Check out our FAQs",
+            "Pay Now        Pay in EMI",
+            "3X rewards on UPI",
+            "Refer this Credit Card",
+            "CHECK OUT WHY",
+            "Covert your IDFC FIRST Bank Credit Card",
+            "Late payment fee would be levied if Minimum",
             "SPECIAL BENEFITS ON YOUR CARD",
             "OFFER OF THE MONTH",
             "YOU MADE A GREAT CHOICE",

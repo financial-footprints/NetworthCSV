@@ -30,6 +30,7 @@ def _account() -> ResolvedAccount:
             "variant": "wow",
             "account_number": "1234",
             "passwords": ["x"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
         }
     )
@@ -134,6 +135,31 @@ class IdfcWowStatementTests(unittest.TestCase):
         cleaned = self.handler.clean_text(raw)
         self.assertIn("16/05/2021 Sample Merchant 100.00", cleaned)
         self.assertNotIn("marketing", cleaned)
+        self.assertIn("IMPORTANT INFORMATION", cleaned)
+        self.assertNotIn("legal text", cleaned)
+
+    def test_drops_payment_modes_and_comparison_tables(self) -> None:
+        raw = (
+            "Credit Card Statement\n"
+            "Statement Date:   17/02/2025\n"
+            "PAYMENT MODES\n"
+            "Pay via our new Mobile App\n"
+            "YOUR TRANSACTIONS\n"
+            "15 Feb 25       SAMPLE MERCHANT               512.78 DR\n"
+            "Refer this Credit Card to your friends\n"
+            "CHECK OUT WHY.\n"
+            "comparison table text\n"
+            "IMPORTANT INFORMATION\n"
+            "legal text\n"
+        )
+        cleaned = self.handler.clean_text(raw)
+        self.assertIn("Statement Date:", cleaned)
+        self.assertIn("SAMPLE MERCHANT", cleaned)
+        self.assertNotIn("PAYMENT MODES", cleaned)
+        self.assertNotIn("Pay via our new Mobile App", cleaned)
+        self.assertNotIn("Refer this Credit Card", cleaned)
+        self.assertNotIn("CHECK OUT WHY", cleaned)
+        self.assertNotIn("comparison table text", cleaned)
         self.assertIn("IMPORTANT INFORMATION", cleaned)
         self.assertNotIn("legal text", cleaned)
 

@@ -65,7 +65,7 @@ def metadata_to_dict(metadata: AccountMetadata) -> dict[str, object]:
 
 
 def _require_granularity(value: object) -> StatementGranularity:
-    if value not in ("monthly", "yearly"):
+    if value not in ("monthly", "annual"):
         raise ValueError(f"invalid statement granularity: {value!r}")
     return value
 

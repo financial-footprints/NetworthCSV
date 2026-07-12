@@ -27,12 +27,7 @@ def register(
 
 
 def get_handler(bank: str, variant: str | None = None) -> BankHandler:
-    if variant:
-        try:
-            return _HANDLERS.get(bank, variant)
-        except KeyError:
-            pass
-    return _HANDLERS.get(bank, None)
+    return _HANDLERS.get(bank, variant)
 
 
 def list_handlers() -> tuple[str, ...]:

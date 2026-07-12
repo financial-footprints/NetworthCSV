@@ -28,6 +28,7 @@ def _account(*, account_number: str = "5678") -> ResolvedAccount:
             "variant": "easy",
             "account_number": account_number,
             "passwords": ["secret"],
+            "opening_date": "01-01-2020",
             **defaults.model_dump(),
             "statement": {
                 **defaults.statement.model_dump(),

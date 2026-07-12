@@ -1,10 +1,10 @@
 """Bank-delegated statement period resolution."""
 
 from networthcsv.utils.banks.period.bounds import (
-    period_start_from_end,
-    period_start_from_previous_month,
+    ordered_date_bounds,
     resolve_period_bounds,
 )
+from networthcsv.utils.banks.period.csv import resolve_csv_period_key_with_source
 from networthcsv.utils.banks.period.key import (
     PeriodSource,
     extract_statement_date,
@@ -19,8 +19,8 @@ __all__ = [
     "PeriodSource",
     "extract_statement_date",
     "extract_statement_period",
-    "period_start_from_end",
-    "period_start_from_previous_month",
+    "ordered_date_bounds",
+    "resolve_csv_period_key_with_source",
     "resolve_month_period",
     "resolve_month_period_with_source",
     "resolve_period_bounds",

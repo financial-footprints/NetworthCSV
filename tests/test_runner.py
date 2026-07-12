@@ -48,6 +48,7 @@ def _write_minimal_configs(root: Path) -> Path:
                         "account_number": "1",
                         "statement": {"text_contains": "1"},
                         "passwords": ["x"],
+                        "opening_date": "01-01-2020",
                     }
                 ],
             }
@@ -76,6 +77,7 @@ def _write_two_account_configs(root: Path) -> Path:
                         "account_number": "1",
                         "statement": {"text_contains": "1"},
                         "passwords": ["x"],
+                        "opening_date": "01-01-2020",
                     },
                     {
                         "bank": "bob",
@@ -83,6 +85,7 @@ def _write_two_account_configs(root: Path) -> Path:
                         "account_number": "2",
                         "statement": {"text_contains": "2"},
                         "passwords": ["x"],
+                        "opening_date": "01-01-2020",
                     },
                 ],
             }
@@ -118,7 +121,7 @@ class RunnerTests(unittest.TestCase):
         mock_run_account.return_value = CleanupAccountResult(
             bank="bob",
             download_dir=Path("/tmp"),
-            non_pdf_removed=0,
+            unsupported_staging_removed=0,
             decrypted=0,
             prepared=0,
             rejected=0,
@@ -179,7 +182,7 @@ class RunnerTests(unittest.TestCase):
         mock_cleanup.return_value = CleanupAccountResult(
             bank="bob",
             download_dir=Path("/tmp"),
-            non_pdf_removed=0,
+            unsupported_staging_removed=0,
             decrypted=0,
             prepared=0,
             rejected=0,
@@ -249,6 +252,7 @@ class RuntimeApiTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {"subjects": ["stmt"]},
                 "statement": {"text_contains": ["1"]},
             }
@@ -269,6 +273,36 @@ class RuntimeApiTests(unittest.TestCase):
                 )
         mock_cleanup.assert_not_called()
 
+    @patch("networthcsv.runtime.parse_stage.run_account")
+    @patch("networthcsv.runtime.metadata_stage.run_account")
+    @patch("networthcsv.runtime.cleanup_stage.run_account")
+    def test_process_upload_zip_runs_full_cleanup(
+        self,
+        mock_cleanup: MagicMock,
+        mock_metadata: MagicMock,
+        mock_parse: MagicMock,
+    ) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1",
+                "passwords": ["x"],
+                "opening_date": "01-01-2020",
+                "mail": {"subjects": ["stmt"]},
+                "statement": {"text_contains": ["1"]},
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = RunContext(
+                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
+                alerts=AlertService(handler=None),
+                reporter=NullRunReporter(),
+            )
+            process_upload(ctx, account, source_format="zip")
+        mock_cleanup.assert_called_once_with(ctx, account)
+        mock_metadata.assert_called_once_with(ctx, account)
+        mock_parse.assert_called_once_with(ctx, account)
+
 
 class StageErrorTests(unittest.TestCase):
     def test_parse_returns_empty_when_no_fy_dirs(self) -> None:
@@ -277,6 +311,7 @@ class StageErrorTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {"subjects": ["stmt"]},
                 "statement": {"text_contains": ["1"]},
             }
@@ -297,6 +332,7 @@ class StageErrorTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {"subjects": ["stmt"]},
                 "statement": {"text_contains": ["1"]},
             }
@@ -339,6 +375,7 @@ class StageErrorTests(unittest.TestCase):
                 "bank": "bob",
                 "account_number": "1",
                 "passwords": ["x"],
+                "opening_date": "01-01-2020",
                 "mail": {"subjects": ["stmt"]},
                 "statement": {"text_contains": ["1"]},
             }

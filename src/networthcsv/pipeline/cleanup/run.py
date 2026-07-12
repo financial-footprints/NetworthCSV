@@ -8,8 +8,9 @@ from pathlib import Path
 from networthcsv.context import RunContext
 from networthcsv.pipeline.cleanup.canonical import remove_ineligible_canonical_outputs
 from networthcsv.pipeline.cleanup.exclusion import statement_should_exclude
-from networthcsv.pipeline.cleanup.grouping import collect_month_groups
+from networthcsv.pipeline.cleanup.grouping import collect_staging_groups
 from networthcsv.pipeline.cleanup.orphans import sweep_orphans
+from networthcsv.pipeline.cleanup.prepare_csv_month import prepare_csv_month
 from networthcsv.pipeline.cleanup.prepare_month import prepare_month
 from networthcsv.pipeline.cleanup import staging
 from networthcsv.pipeline.results import CleanupAccountResult
@@ -18,6 +19,7 @@ from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks.helpers.text import statement_text_eligible
 from networthcsv.utils.path import (
     account_download_path,
+    statement_csv_path,
     statement_pdf_path,
     txt_is_current,
     txt_path_for_pdf,
@@ -38,7 +40,7 @@ def run(
         return CleanupAccountResult(
             bank=account.bank,
             download_dir=staging_dir,
-            non_pdf_removed=0,
+            unsupported_staging_removed=0,
             decrypted=0,
             prepared=0,
             rejected=0,
@@ -50,22 +52,29 @@ def run(
     ctx.reporter.cleanup_started(account.bank, staging_dir)
 
     alerts = ctx.alerts
-    removed = staging.prune_non_pdfs(staging_dir)
+    removed = staging.prune_unsupported_staging_files(staging_dir)
     decrypted = staging.decrypt_pdfs_in_place(staging_dir, account.passwords)
 
     prepared = 0
     rejected = 0
+    pdf_paths: list[Path] | None
+    csv_paths: list[Path] | None
     if upload_statement_date is not None:
         upload_path = manual_upload_pdf_path(staging_dir, upload_statement_date)
-        staging_paths = [upload_path] if upload_path.is_file() else []
+        pdf_paths = [upload_path] if upload_path.is_file() else []
+        csv_paths = []
     else:
-        staging_paths = None
-    collected = collect_month_groups(
+        pdf_paths = None
+        csv_paths = None
+    collected, csv_collected = collect_staging_groups(
         staging_dir,
         account,
-        paths=staging_paths,
+        pdf_paths=pdf_paths,
+        csv_paths=csv_paths,
     )
-    _ = staging.prune_excluded_staging(staging_dir, account, collected)
+    _ = staging.prune_excluded_staging(
+        staging_dir, account, collected, csv_collected=csv_collected
+    )
     _ = remove_ineligible_canonical_outputs(download_path, account)
 
     for month, candidates in sorted(collected.groups.items()):
@@ -135,12 +144,49 @@ def run(
         prepared += month_prepared
         rejected += month_rejected
 
+    # CSV path: skip when this run is a targeted PDF upload.
+    if upload_statement_date is None:
+        for month, candidates in sorted(csv_collected.groups.items()):
+            if month == "unknown-month":
+                names = ", ".join(path.name for path in candidates)
+                logger.warning(
+                    "skip unknown-month csv: leaving %d file(s) in %s (%s); "
+                    "check opening_date and period inference",
+                    len(candidates),
+                    staging_dir,
+                    names,
+                )
+                continue
+            csv_out = statement_csv_path(download_path, account, month)
+            extra = [
+                path
+                for path in candidates
+                if path.is_file()
+                and (not csv_out.is_file() or path.resolve() != csv_out.resolve())
+            ]
+            if not extra and csv_out.is_file():
+                continue
+            month_prepared, month_rejected = prepare_csv_month(
+                staging_dir,
+                download_path,
+                month,
+                candidates,
+                account,
+                raw_by_path=csv_collected.raw_by_path,
+                path_month=csv_collected.path_month,
+                path_hash=csv_collected.path_hash,
+                path_period_source=csv_collected.path_period_source,
+                alerts=alerts,
+            )
+            prepared += month_prepared
+            rejected += month_rejected
+
     orphans = sweep_orphans(ctx.settings, account)
 
     result = CleanupAccountResult(
         bank=account.bank,
         download_dir=staging_dir,
-        non_pdf_removed=removed,
+        unsupported_staging_removed=removed,
         decrypted=decrypted,
         prepared=prepared,
         rejected=rejected,

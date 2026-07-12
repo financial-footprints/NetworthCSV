@@ -23,7 +23,7 @@ class ExtractStageResult:
 class CleanupAccountResult:
     bank: str
     download_dir: Path
-    non_pdf_removed: int
+    unsupported_staging_removed: int
     decrypted: int
     prepared: int
     rejected: int

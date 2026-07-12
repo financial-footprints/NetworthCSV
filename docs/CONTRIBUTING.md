@@ -62,18 +62,25 @@ Run `make help` for a short list.
 | `make install` | Create the venv, run `uv lock`, and `uv sync --group dev`                                   |
 | `make dev`     | Run the full pipeline (`uv run python -m networthcsv`)                                      |
 | `make upgrade` | Upgrade locked dependencies and sync the dev group                                          |
-| `make test`    | Run unit tests (`uv run python -m unittest discover -s tests`)                              |
-| `make lint`    | Type-check with [basedpyright](https://docs.basedpyright.com/) (config in `pyproject.toml`) |
-| `make format`  | Format `src/` and `tests/` with [ruff](https://docs.astral.sh/ruff/)                        |
-| `make ci`      | Run format, lint, then test                                                                 |
-| `make clean`   | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`       |
+| `make test`    | Run unit tests (`uv run python tests/run.py`)                                               |
+| `make lint`    | Autofix with [ruff](https://docs.astral.sh/ruff/); type-check with [basedpyright](https://docs.basedpyright.com/) |
+| `make format`  | Format `src/` and `tests/` with ruff                                                                  |
+| `make ci`      | Check-only: format check, lint, then test                                                             |
+| `make dev-ci`  | Autofix format and lint, then test                                                                    |
+| `make clean`   | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`                 |
 
 ## Before Submitting
 
-Run the full CI target locally:
+Run the check-only CI target locally:
 
 ```bash
 make ci
+```
+
+To autofix formatting and lint issues before testing (same as the workspace script):
+
+```bash
+make dev-ci
 ```
 
 If you use the shared workspace scripts, you can also run from the workspace root:

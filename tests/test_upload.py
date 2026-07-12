@@ -12,6 +12,7 @@ from networthcsv.pipeline.upload import (
     period_from_manual_upload,
     save_uploaded_csv,
     save_uploaded_pdf,
+    save_uploaded_zip,
 )
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.path import (
@@ -19,6 +20,7 @@ from networthcsv.utils.path import (
     statement_csv_path,
     statement_pdf_path,
 )
+from zip_support import build_zip
 
 
 def _account() -> ResolvedAccount:
@@ -28,6 +30,7 @@ def _account() -> ResolvedAccount:
             "variant": "easy",
             "account_number": "5678",
             "passwords": ["secret"],
+            "opening_date": "01-01-2020",
             "mail": {"subjects": ["BOB"]},
             "statement": {"text_contains": ["5678"]},
         }
@@ -39,6 +42,16 @@ class UploadHelperTests(unittest.TestCase):
         self.assertEqual(
             period_from_manual_upload("manual__2024-02.pdf"),
             "2024-02",
+        )
+        self.assertEqual(
+            period_from_manual_upload("manual__2024-02.csv"),
+            "2024-02",
+        )
+        self.assertEqual(
+            period_from_manual_upload(
+                "manual__FY23-2024.csv",
+            ),
+            "FY23-2024",
         )
         self.assertIsNone(period_from_manual_upload("INBOX__2024-01-21.pdf"))
         self.assertIsNone(period_from_manual_upload("manual__bad-name.pdf"))
@@ -105,6 +118,36 @@ class UploadHelperTests(unittest.TestCase):
             self.assertEqual(metadata.statement_count, 1)
             self.assertEqual(metadata.statements[0].statement_date, "2024-02")
             self.assertEqual(metadata.statements[0].formats, ("csv",))
+
+    def test_save_uploaded_zip_writes_staging_csvs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = _account()
+            staging_dir = account_download_path(download_path, account)
+            zip_bytes = build_zip({"statement-one.csv": b"a,b\n"})
+            paths = save_uploaded_zip(staging_dir, account, zip_bytes)
+            self.assertEqual(len(paths), 1)
+            self.assertTrue(paths[0].is_file())
+            self.assertEqual(paths[0].name, "manual__statement-one.csv")
+
+    def test_save_uploaded_zip_writes_multiple_staging_csvs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = _account()
+            staging_dir = account_download_path(download_path, account)
+            zip_bytes = build_zip(
+                {
+                    "one.csv": b"1",
+                    "two.csv": b"2",
+                }
+            )
+            paths = save_uploaded_zip(staging_dir, account, zip_bytes)
+            self.assertEqual(len(paths), 2)
+            names = {path.name for path in paths}
+            self.assertEqual(
+                names,
+                {"manual__one.csv", "manual__two.csv"},
+            )
 
 
 if __name__ == "__main__":

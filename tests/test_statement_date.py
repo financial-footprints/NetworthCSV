@@ -42,6 +42,7 @@ class ParseDateStringTests(unittest.TestCase):
         self.assertEqual(parse_date_string("October 12, 2025"), date(2025, 10, 12))
         self.assertEqual(parse_date_string("April 14, 2026"), date(2026, 4, 14))
         self.assertEqual(parse_date_string("17/May/2026"), date(2026, 5, 17))
+        self.assertEqual(parse_date_string("17 Oct 25"), date(2025, 10, 17))
 
     def test_invalid_returns_none(self) -> None:
         self.assertIsNone(parse_date_string("not a date"))

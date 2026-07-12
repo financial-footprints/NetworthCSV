@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import unittest
 from decimal import Decimal
-from pathlib import Path
 
+from cleanup_support import FIXTURES_ROOT
 from networthcsv.pipeline.parse.banks import get_parser
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
-
-_FIXTURES_ROOT = Path(__file__).resolve().parent.parent / "fixtures"
 
 
 def _account() -> ResolvedAccount:
@@ -30,7 +28,7 @@ def _account() -> ResolvedAccount:
 class HdfcYearlyParserTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.text = (_FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
+        cls.text = (FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
             encoding="utf-8"
         )
         cls.account = _account()

@@ -144,10 +144,11 @@ class BodyMatchesTests(unittest.TestCase):
         )
         self.assertTrue(body_matches(msg, ["Amazon Pay ICICI Bank Credit Card"]))
 
-    def test_all_body_contains_must_match(self) -> None:
+    def test_any_body_contains_enough(self) -> None:
         msg = self._msg_with_body("alpha beta gamma")
         self.assertTrue(body_matches(msg, ["alpha", "gamma"]))
-        self.assertFalse(body_matches(msg, ["alpha", "missing"]))
+        self.assertTrue(body_matches(msg, ["alpha", "missing"]))
+        self.assertFalse(body_matches(msg, ["missing", "absent"]))
 
     def test_html_tag_substring_match(self) -> None:
         msg = self._msg_with_body(
@@ -201,9 +202,10 @@ class BodyMatchesTests(unittest.TestCase):
         self.assertTrue(
             body_matches(msg, ["Amazon Pay ICICI Bank Credit Card", "XX3852"])
         )
-        self.assertFalse(
+        self.assertTrue(
             body_matches(msg, ["Amazon Pay ICICI Bank Credit Card", "XX9999"])
         )
+        self.assertFalse(body_matches(msg, ["XX9999", "missing marker"]))
 
     def test_message_matches_account_with_filename_only_marker(self) -> None:
         account = ResolvedAccount.model_validate(
@@ -234,6 +236,67 @@ class BodyMatchesTests(unittest.TestCase):
             subject="Amazon Pay ICICI Bank Credit Card Statement for the period",
         )
         self.assertTrue(message_matches_account(msg, account, None))
+
+
+class IdfcWowBodyContainsTests(unittest.TestCase):
+    def _idfc_wow_account(self) -> ResolvedAccount:
+        from networthcsv.utils.banks import get_handler
+
+        handler = get_handler("idfc", "wow")
+        defaults = handler.matching_defaults()
+        return ResolvedAccount.model_validate(
+            {
+                "bank": "idfc",
+                "variant": "wow",
+                "account_number": "3841",
+                "passwords": ["4729"],
+                "opening_date": date(2023, 2, 18),
+                "mail": {
+                    **defaults.mail.model_dump(by_alias=True),
+                    "body_contains": ["XXXX5623", "810293746105"],
+                },
+                "statement": {
+                    "text_contains": ["XX5623", "291847******5623", "810293746105"],
+                },
+            }
+        )
+
+    def test_relationship_number_in_filename_matches_any_body_contains(self) -> None:
+        msg = _statement_msg_with_attachments(
+            [
+                (
+                    "810293746105_16092023_847291036.pdf",
+                    b"%PDF-1.4",
+                    "application/octet-stream",
+                )
+            ],
+            body="Greetings! We are pleased to share your E-statement.",
+            subject="Your FIRST WOW Credit Card Statement",
+        )
+        msg.replace_header("Date", "Mon, 18 Sep 2023 09:26:51 +0530")
+        self.assertTrue(body_matches(msg, ["XXXX5623", "810293746105"]))
+
+    def test_idfc_wow_message_matches_with_relationship_only_in_filename(self) -> None:
+        account = self._idfc_wow_account()
+        msg = _statement_msg_with_attachments(
+            [
+                (
+                    "810293746105_16092023_847291036.pdf",
+                    b"%PDF-1.4",
+                    "application/octet-stream",
+                )
+            ],
+            body="Greetings! We are pleased to share your E-statement.",
+            subject="Your FIRST WOW Credit Card Statement",
+        )
+        msg.replace_header("Date", "Mon, 18 Sep 2023 09:26:51 +0530")
+        self.assertTrue(
+            message_matches_account(
+                msg,
+                account,
+                date(2023, 2, 18),
+            )
+        )
 
 
 class FromMatchesTests(unittest.TestCase):

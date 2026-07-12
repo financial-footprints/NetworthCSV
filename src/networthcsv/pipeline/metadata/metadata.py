@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Literal
 
 from networthcsv.context import RunContext
-from networthcsv.pipeline.cleanup.statement_period import period_start_from_end
+from networthcsv.pipeline.cleanup.statement_period import (
+    period_start_from_previous_month,
+)
 from networthcsv.pipeline.results import MetadataAccountResult
 from networthcsv.settings import (
     ResolvedAccount,
@@ -301,11 +303,8 @@ def _resolve_statement_period(
         )
     if period_end is None:
         return None, None, False
-    start_day = handler.period_start_day()
-    if start_day is None:
-        return None, None, False
-    period_start = period_start_from_end(period_end, start_day)
-    return _format_account_date(period_start), _format_account_date(period_end), False
+    period_start = period_start_from_previous_month(period_end)
+    return _format_account_date(period_start), _format_account_date(period_end), True
 
 
 def _merge_coverage_periods(

@@ -1,0 +1,21 @@
+Credit Card Statement
+18/05/2021 - 17/06/2021
+Amit Singh
+Statement Date	Customer Relationship No.
+17/06/2021	7100000042	80123456789012
+Account Number :
+STATEMENT SUMMARY
+Total Amount Due
+                           Opening Purchases Other Debits Payments Other Total
+      r350.00 CR
+                           Balance                           Credits Amount Due
+Minimum Amount Due
+r0.00              r500.00 CR  r100.00   r0.00    r250.00   r0.00  r350.00 CR
+Payment Due Date
+05/07/2021
+YOUR TRANSACTIONS
+Transaction Date Transactional Details FX Transactions Amount ( r)
+16/05/2021 Sample FX Merchant USD, Example USD 5.00 100.00
+20/05/2021 Online Payment Received 250.00 CR
+25/05/2021 Online Payment Received 150.00 CR
+IMPORTANT INFORMATION

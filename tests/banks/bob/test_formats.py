@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 
+from cleanup_support import FIXTURES_ROOT
 from networthcsv.pipeline.cleanup.statement_date import resolve_month_period
 from networthcsv.utils.banks.helpers.text import trim_by_markers
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.base import CreditCardHandler
 
-_FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "bob" / "easy"
+_FIXTURES = FIXTURES_ROOT / "bob" / "easy"
 
 
 def _account(*, bank: str = "bob", variant: str | None = "easy") -> ResolvedAccount:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from networthcsv.settings import MatchingFields, StatementCleanupConfig
 from networthcsv.utils.banks import register
 from networthcsv.utils.banks.base import CreditCardHandler
 from networthcsv.utils.banks.helpers.dates import date_after_label
@@ -38,6 +39,24 @@ class IndusindDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
             "HOW TO MAKE PAYMENTS",
             "FEES & CHARGES",
         ]
+
+    def matching_defaults(self) -> MatchingFields:
+        defaults = super().matching_defaults()
+        return MatchingFields.model_validate(
+            {
+                **defaults.model_dump(),
+                "statement": StatementCleanupConfig.model_validate(
+                    {
+                        **defaults.statement.model_dump(),
+                        "text_not_contains": [
+                            "ANNUAL SPEND SUMMARY",
+                            "CARD WISE SUMMARY FOR ACCOUNT OF",
+                            "MONTH WISE SPENDS ON YOUR ACCOUNT",
+                        ],
+                    }
+                ).model_dump(),
+            }
+        )
 
     def get_statement_date(self, text: str) -> date | None:
         end = super().get_statement_date(text)

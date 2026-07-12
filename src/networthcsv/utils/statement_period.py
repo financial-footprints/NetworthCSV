@@ -10,12 +10,17 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
 YearDisplay = Literal["fiscal_year", "calendar_year"]
 
 MONTH_PERIOD_PATTERN = re.compile(r"^(\d{4}-\d{2})$")
 FILENAME_MONTH_PATTERN = re.compile(r"(\d{4}-\d{2})(?:-\d{2})?")
+_STAGING_EMAIL_DATE_PATTERN = re.compile(
+    r"__(\d{4}-\d{2}-\d{2})(?:\s+\(\d+\))?\.pdf$",
+    re.IGNORECASE,
+)
 YEARLY_PERIOD_PATTERN = re.compile(
     r"^yearly-(\d{4}-\d{2})_(\d{4}-\d{2})$",
 )
@@ -52,6 +57,16 @@ def month_period_from_filename(filename: str) -> str:
     if match:
         return match.group(1)
     return "unknown-month"
+
+
+def email_date_from_staging_filename(filename: str) -> date | None:
+    """Return the email received date encoded in a staging PDF name, if present."""
+    name = Path(filename).name
+    match = _STAGING_EMAIL_DATE_PATTERN.search(name)
+    if match is None:
+        return None
+    year, month, day = (int(part) for part in match.group(1).split("-"))
+    return date(year, month, day)
 
 
 def is_yearly_period(period: str) -> bool:

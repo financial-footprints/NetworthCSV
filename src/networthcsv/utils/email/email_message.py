@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
@@ -13,6 +14,8 @@ from email.utils import getaddresses, parsedate_to_datetime
 
 from networthcsv.utils.path import unique_path
 from networthcsv.settings import ResolvedAccount
+
+logger = logging.getLogger(__name__)
 
 _UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _CHARSET_ALIASES: dict[str, str] = {
@@ -88,7 +91,7 @@ def body_matches(msg: Message, body_contains: list[str]) -> bool:
         return True
     haystack_parts = [extract_message_body(msg), *_attachment_filenames(msg)]
     lowered = "\n".join(haystack_parts).lower()
-    return all(body.lower() in lowered for body in body_contains)
+    return any(body.lower() in lowered for body in body_contains if body)
 
 
 def parse_from_addresses(msg: Message) -> list[tuple[str, str]]:
@@ -280,14 +283,24 @@ def message_matches_account(
     start_date: date | None,
     end_date: date | None = None,
 ) -> bool:
+    subject = decode_mime_header(msg.get("Subject"))[:80]
     if not subject_matches(msg, account.mail.subjects):
+        logger.debug("skip email (subject): %r", subject)
         return False
     if not from_matches(msg, account.mail.from_addresses):
+        logger.debug("skip email (from): %r", subject)
         return False
     if not message_in_date_range(msg, start_date, end_date):
+        logger.debug("skip email (date range): %r", subject)
         return False
     if not list(iter_pdf_attachment_parts(msg)):
+        logger.debug("skip email (no pdf attachment): %r", subject)
         return False
     if not body_matches(msg, account.mail.body_contains):
+        logger.debug(
+            "skip email (body_contains %r): %r",
+            account.mail.body_contains,
+            subject,
+        )
         return False
     return True

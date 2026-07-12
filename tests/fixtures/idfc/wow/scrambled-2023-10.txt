@@ -1,0 +1,37 @@
+Credit Card Statement
+17/09/2023 - 17/10/2023
+Amit Singh
+Statement Date	Customer Relationship No.
+17/10/2023	7100000042	80123456789012
+Account Number :
+Other Debits
+Total Amount Due Purchases
+Payment Due Date
+Minimum Amount Due
+Opening
+Balance
+Other
+Credits
+Total
+Amount Due
+Credit Limit Available Credit Limit Cash Limit
+Payments
+r2,000
+r0.00
+04/11/2023
+r2,000
+r0.00 r0.00 r10,000.00
+CR
+r100.00 r0.00	r12,345.67
+CR
+-
+r10,000.00 CR
+STATEMENT SUMMARY
+Late payment fee would be levied if Minimum
+Amount Due is not paid by the due date. Interest
+will be charged on the Total Amount due
++ + - - =
+YOUR TRANSACTIONS
+Transaction Date Transactional Details FX Transactions Amount ( r)
+17/10/2023 Sample Merchant One 100.00 DR
+IMPORTANT INFORMATION

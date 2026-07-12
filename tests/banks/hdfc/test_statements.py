@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 from datetime import date
-from pathlib import Path
 
+from cleanup_support import FIXTURES_ROOT
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_date,
     extract_statement_period,
@@ -14,8 +14,6 @@ from networthcsv.pipeline.cleanup.statement_date import (
 from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
-
-_FIXTURES_ROOT = Path(__file__).resolve().parent.parent / "fixtures"
 
 
 def _account(*, variant: str | None) -> ResolvedAccount:
@@ -99,7 +97,7 @@ class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.account = _account(variant="swiggy")
         cls.text = (
-            _FIXTURES_ROOT / "hdfc/swiggy/sample-collapsed-header.txt"
+            FIXTURES_ROOT / "hdfc/swiggy/sample-collapsed-header.txt"
         ).read_text(encoding="utf-8")
 
     def test_collapsed_header_statement_date(self) -> None:
@@ -121,14 +119,14 @@ class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
         )
         self.assertEqual(period_start, "21-05-2024")
         self.assertEqual(period_end, "20-06-2024")
-        self.assertFalse(approximate)
+        self.assertTrue(approximate)
 
 
 class HdfcYearlyStatementTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.account = _account(variant="default")
-        cls.text = (_FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
+        cls.text = (FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
             encoding="utf-8"
         )
         cls.handler = get_handler(cls.account.bank, cls.account.variant)

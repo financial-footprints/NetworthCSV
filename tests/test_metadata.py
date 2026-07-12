@@ -729,7 +729,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
             self.assertEqual(metadata.period_covered.segments[0].start, "17-09-2024")
             self.assertEqual(metadata.period_covered.segments[0].end, "16-10-2024")
 
-    def test_hdfc_derives_period_from_statement_date_rule(self) -> None:
+    def test_hdfc_derives_period_from_previous_month_rule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
             account = _account(bank="hdfc", variant="regalia")
@@ -745,7 +745,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
 
             self.assertEqual(metadata.statements[0].period_start, "21-08-2021")
             self.assertEqual(metadata.statements[0].period_end, "20-09-2021")
-            self.assertFalse(metadata.statements[0].period_approximate)
+            self.assertTrue(metadata.statements[0].period_approximate)
 
     def test_extracted_period_range_wins_over_statement_period_rule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

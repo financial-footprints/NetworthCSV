@@ -1,0 +1,16 @@
+Credit Card Statement
+Statement Date 18/May/2021 to 17/Jun/2021
+Amit Singh
+FIRST WOW   Statement Summary
+Total Amount Due Minimum Amount Due Credit Limit Payment Due Date Statement Period
+r350.00 CR r0.00      r2,000       05/07/2021   18/May/2021 - 17/Jun/2021
+Opening Balance      r500.00 CR
+Purchases       +       r100.00
+EMI & Other Debits +      r0.00
+Payments & Refunds -      r250.00
+Total Amount Due =   r350.00 CR
+YOUR TRANSACTIONS
+Date               Details           Forex Transactions Total Amount (r)
+Purchases, EMIs & Other Debits
+17/05/2021 Sample FX Merchant USD 5.00 100.00 DR
+IMPORTANT INFORMATION

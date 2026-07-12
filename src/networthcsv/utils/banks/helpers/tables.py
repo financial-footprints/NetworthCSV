@@ -32,6 +32,11 @@ _DATE_IN_LINE = re.compile(
     re.IGNORECASE,
 )
 
+_DATE_ONLY_LINE = re.compile(
+    r"^\d{1,2}/(?:\d{1,2}|[A-Za-z]{3})/\d{2,4}$",
+    re.IGNORECASE,
+)
+
 
 def _is_table_section_boundary(line: str) -> bool:
     return _TABLE_SECTION_BOUNDARY.search(line) is not None
@@ -132,6 +137,8 @@ def summary_table_column(
             continue
         if _is_table_section_boundary(line):
             break
+        if _DATE_ONLY_LINE.match(stripped):
+            continue
         row_amounts, row_currency_only = _summary_row_amounts(line)
         if len(row_amounts) >= 3 and _summary_table_header_seen(header_lines):
             data_line = line
@@ -207,7 +214,16 @@ def label_single_amount(text: str, label: str) -> str | None:
     if match is None:
         return None
     window_end = min(len(text), match.end() + 400)
-    return first_amount_in_text(text[match.end() : window_end])
+    for line in text[match.end() : window_end].split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if _DATE_ONLY_LINE.match(stripped):
+            continue
+        parsed = first_amount_in_text(line)
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def label_next_line_amount(text: str, label: str) -> str | None:

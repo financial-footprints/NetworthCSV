@@ -51,9 +51,6 @@ class BankHandler(ABC):
     def balance_match_tolerance(self) -> Decimal:
         return DEFAULT_BALANCE_MATCH_TOLERANCE
 
-    def period_start_day(self) -> int | None:
-        return None
-
     def year_display(self) -> Literal["fiscal_year", "calendar_year"]:
         return "calendar_year"
 

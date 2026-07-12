@@ -66,9 +66,6 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
     def balance_match_tolerance(self) -> Decimal:
         return Decimal("0.99")
 
-    def period_start_day(self) -> int | None:
-        return 21
-
     def is_yearly_statement(self, text: str) -> bool:
         lowered = text.lower()
         if (

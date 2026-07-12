@@ -12,6 +12,7 @@ _DATE_FORMATS = (
     "%d/%b/%Y",
     "%d %b, %Y",
     "%d %b %Y",
+    "%d %b %y",
     "%d %B, %Y",
     "%d %B %Y",
     "%B %d, %Y",

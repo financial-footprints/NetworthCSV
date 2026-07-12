@@ -45,6 +45,7 @@ from networthcsv.settings import (
     account_download_path,
     account_label,
 )
+from networthcsv.utils.statement_period import email_date_from_staging_filename
 
 logger = logging.getLogger(__name__)
 
@@ -156,18 +157,19 @@ def prune_non_pdfs(download_dir: Path) -> int:
 
 def decrypt_pdfs_in_place(download_dir: Path, passwords: list[str]) -> int:
     decrypted = 0
+    decrypt_candidates = list(dict.fromkeys(["", *passwords]))
     for path in iter_pdfs(download_dir):
         reader = PdfReader(str(path))
         if not reader.is_encrypted:
-            logger.debug("skip (already decrypted): %s", path)
+            logger.debug("skip (not encrypted): %s", path)
             continue
-        if not passwords:
-            raise StageError(f"encrypted PDF requires password: {path}")
-        for password in passwords:
+        for password in decrypt_candidates:
             if reader.decrypt(password) != 0:
                 break
         else:
-            raise StageError(f"none of {len(passwords)} password(s) worked for {path}")
+            raise StageError(
+                f"none of {len(decrypt_candidates)} password(s) worked for {path}"
+            )
         writer = PdfWriter()
         for page in reader.pages:
             _ = writer.add_page(page)
@@ -315,19 +317,51 @@ def _remove_ineligible_canonical_outputs(
     return removed
 
 
+def _statement_identity_key(
+    text: str,
+    account: ResolvedAccount,
+) -> tuple[object, ...]:
+    from networthcsv.utils.banks import get_handler
+
+    handler = get_handler(account.bank, account.variant)
+    period_start, period_end = handler.get_statement_period(text)
+    return (
+        handler.get_statement_date(text),
+        period_start,
+        period_end,
+        handler.get_opening_balance(text),
+        handler.get_closing_balance(text),
+    )
+
+
+def _identity_is_strong(key: tuple[object, ...]) -> bool:
+    return any(part is not None for part in key)
+
+
+def _format_ambiguous_candidates(
+    paths: list[Path],
+    path_period_source: dict[Path, PeriodSource],
+) -> str:
+    return ", ".join(
+        f"{path.name} ({_period_source_for_path(path, path_period_source)})"
+        for path in sorted(paths, key=lambda item: item.as_posix())
+    )
+
+
 def _select_keeper(
     unique: list[Path],
     *,
+    account: ResolvedAccount,
     sanitized_by_path: dict[Path, str],
     path_period_source: dict[Path, PeriodSource],
     path_hash: dict[Path, str],
     text_contains: list[str],
     manual_candidates: list[Path],
-) -> tuple[Path | None, bool]:
+) -> tuple[Path | None, list[Path]]:
     if manual_candidates:
-        return manual_candidates[-1], False
+        return manual_candidates[-1], []
     if not text_contains:
-        return (unique[-1] if unique else None), False
+        return (unique[-1] if unique else None), []
 
     matching = [
         path
@@ -335,7 +369,7 @@ def _select_keeper(
         if text_contains_present(sanitized_by_path[path], text_contains)
     ]
     if not matching:
-        return None, False
+        return None, []
 
     matching_sorted = sorted(
         matching,
@@ -353,12 +387,41 @@ def _select_keeper(
         if _period_source_rank(path_period_source.get(path, "unknown")) == best_rank
     ]
     if len(best) == 1:
-        return best[0], False
+        return best[0], []
 
     digests = {path_hash.get(path) or _file_hash(path) for path in best}
     if len(digests) == 1:
-        return best[-1], False
-    return None, True
+        return best[-1], []
+
+    identity_by_path = {
+        path: _statement_identity_key(sanitized_by_path[path], account) for path in best
+    }
+    unique_identities = set(identity_by_path.values())
+    if len(unique_identities) > 1:
+        return None, best
+    identity_key = next(iter(unique_identities))
+    if not _identity_is_strong(identity_key):
+        return None, best
+
+    dated = [(path, email_date_from_staging_filename(path.name)) for path in best]
+    with_dates = [(path, received) for path, received in dated if received is not None]
+    if with_dates:
+        latest_date = max(received for _, received in with_dates)
+        latest_paths = sorted(
+            (path for path, received in with_dates if received == latest_date),
+            key=lambda path: path.as_posix(),
+        )
+        keeper = latest_paths[-1]
+        ignored = [path for path in best if path != keeper]
+        if ignored:
+            logger.debug(
+                "collapsed re-issued statement: kept %s, ignored %s",
+                keeper.name,
+                ", ".join(path.name for path in ignored),
+            )
+        return keeper, []
+
+    return best[-1], []
 
 
 def prepare_month(
@@ -421,8 +484,9 @@ def prepare_month(
     if not eligible:
         return 0, 1
 
-    keeper, ambiguous = _select_keeper(
+    keeper, ambiguous_paths = _select_keeper(
         eligible,
+        account=account,
         sanitized_by_path=sanitized_by_path,
         path_period_source=period_source_lookup,
         path_hash=hash_lookup,
@@ -430,11 +494,16 @@ def prepare_month(
         manual_candidates=[path for path in manual_candidates if path in eligible],
     )
 
-    if ambiguous:
+    if ambiguous_paths:
+        conflict_summary = _format_ambiguous_candidates(
+            ambiguous_paths,
+            period_source_lookup,
+        )
         logger.warning(
-            "ambiguous statement period for %s: multiple matching PDFs with "
-            "same confidence for month %s; leaving files in staging",
+            "ambiguous statement period for %s: %s for month %s; "
+            "leaving files in staging",
             label,
+            conflict_summary,
             month,
         )
         if alerts is not None:
@@ -443,7 +512,7 @@ def prepare_month(
                     kind=AlertKind.AMBIGUOUS_STATEMENT_PERIOD,
                     message=(
                         f"multiple matching PDFs with same period confidence "
-                        f"for {month}; manual review required"
+                        f"for {month}: {conflict_summary}; manual review required"
                     ),
                     account=label,
                     source_file=month,
@@ -472,6 +541,7 @@ def prepare_month(
         _period_source_for_path(keeper, period_source_lookup)
     )
     keeper_digest = hash_lookup.get(keeper) or _file_hash(keeper)
+    keeper_identity = _statement_identity_key(sanitized_by_path[keeper], account)
     preserve: frozenset[Path] = frozenset()
     if text_contains and not keeper_is_manual:
         preserve = frozenset(
@@ -499,7 +569,12 @@ def prepare_month(
             _period_source_for_path(path, period_source_lookup)
         )
         path_digest = hash_lookup.get(path) or _file_hash(path)
-        if path_digest == keeper_digest or path_rank > keeper_rank:
+        same_identity = (
+            _identity_is_strong(keeper_identity)
+            and _statement_identity_key(sanitized_by_path[path], account)
+            == keeper_identity
+        )
+        if path_digest == keeper_digest or path_rank > keeper_rank or same_identity:
             if path.is_file():
                 _ = path.unlink()
                 logger.debug("removed (duplicate month): %s", path)

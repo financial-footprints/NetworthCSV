@@ -1,7 +1,7 @@
-   Name :AJAY TRIPATHI                       Statement for HDFC Bank Credit Card
-0001Em0a1il061:0A0JA0Y2391I1N0@G7M9A1IL.COM Statement Card No: 5268 73XX XXXX 0797
-0  Address :F-37 SECTOR 39 GAUTAM BUDDHA NAGAR Date:20/06/2024 AAN : 0001010610002110791
-        GAUTAM BUDHA NAGAR-201303 UP
+   Name :Sample Holder                       Statement for HDFC Bank Credit Card
+   Email : meera.sample@example.com        Statement Card No: 5268 73XX XXXX 3850
+   Address :123 Sample Street, Example City Date:20/06/2024 AAN : 0001010610002110000
+        EXAMPLE CITY-000000 ST
                                     Payment Due Date  Total Dues  Minimum Amount Due
 06/2024
    GST No :

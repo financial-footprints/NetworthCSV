@@ -1,0 +1,18 @@
+Credit Card Statement
+17/09/2023 - 17/10/2023
+Amit Singh
+Account Number :     Customer Relationship No.    Statement Date
+80123456789012           7100000042               17/10/2023
+STATEMENT SUMMARY
+Total Amount Due
+                           Opening Purchases Other Debits Payments Other Total
+      r10,000.00 CR
+                           Balance                           Credits Amount Due
+Minimum Amount Due         +        +        -       -       =
+r0.00              r12,345.67 r100.00  r0.00    r0.00   r0.00  r10,000.00
+Payment Due Date   CR                                            CR
+04/11/2023
+YOUR TRANSACTIONS
+Transaction Date Transactional Details FX Transactions Amount ( r)
+17/10/2023 Sample Merchant One 100.00 DR
+IMPORTANT INFORMATION

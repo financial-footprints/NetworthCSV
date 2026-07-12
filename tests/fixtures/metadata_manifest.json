@@ -80,6 +80,11 @@
     "period_start": "13-09-2021",
     "period_end": "12-10-2021"
   },
+  "icici/amazon/with_earnings.txt": {
+    "closing": "420.00",
+    "opening": "0.00",
+    "statement_month": "2099-99"
+  },
   "icici/coral/sample.txt": {
     "closing": "-150.00",
     "opening": "-2626.26",
@@ -98,6 +103,41 @@
     "closing": "-350.00",
     "opening": "-350.00",
     "statement_month": "2021-06"
+  },
+  "idfc/wow/classic-2023-08.txt": {
+    "closing": "-350.00",
+    "opening": "-500.00",
+    "statement_month": "2021-06",
+    "period_start": "18-05-2021",
+    "period_end": "17-06-2021"
+  },
+  "idfc/wow/modern-2025-11.txt": {
+    "closing": "-350.00",
+    "opening": "-500.00",
+    "statement_month": "2021-11",
+    "period_start": "18-10-2021",
+    "period_end": "17-11-2021"
+  },
+  "idfc/wow/modern-2026-04.txt": {
+    "closing": "-350.00",
+    "opening": "-500.00",
+    "statement_month": "2021-06",
+    "period_start": "18-05-2021",
+    "period_end": "17-06-2021"
+  },
+  "idfc/wow/scrambled-2023-10.txt": {
+    "closing": "-10000.00",
+    "opening": "-12345.67",
+    "statement_month": "2023-10",
+    "period_start": "17-09-2023",
+    "period_end": "17-10-2023"
+  },
+  "idfc/wow/classic-detached-cr-2023-10.txt": {
+    "closing": "-10000.00",
+    "opening": "-12345.67",
+    "statement_month": "2023-10",
+    "period_start": "17-09-2023",
+    "period_end": "17-10-2023"
   },
   "indusind/amex-epay/sample.txt": {
     "closing": "950.00",

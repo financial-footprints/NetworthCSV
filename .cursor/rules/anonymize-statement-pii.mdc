@@ -1,0 +1,40 @@
+---
+description: Anonymize PII in bank statement fixtures, tests, and sample files
+alwaysApply: true
+---
+
+# Anonymize bank statement PII
+
+Never commit real personal data from bank or credit card statements. This applies to fixtures, inline test strings, sample files, rules, comments, and commit messages.
+
+**Never embed real or copied PII anywhere in the repo — including as "bad examples" in docs or rules.**
+
+## Must anonymize
+
+- Names (cardholder, merchant, payee)
+- Addresses (street, city, PIN/postal code)
+- Transaction dates from real activity
+- Amounts from real statements
+- Descriptions that identify real merchants, UPI IDs, reference numbers, or locations
+
+## How to substitute
+
+**Randomize personalized fields every time** you create or edit a fixture. Do not reuse a single canonical fake identity (e.g. the same placeholder name across files).
+
+- **Names** — invent a new obviously fake name per fixture (`<Fake Name A>`, `<Fake Name B>`)
+- **Addresses** — generic fake street/city/PIN, different per fixture
+- **Card numbers** — masked fake PAN (`XXXX1234`, `4412XXXXXXXX5678`); stable within one fixture file if tests depend on `text_contains`, but vary across fixtures
+- **Dates** — synthetic dates with no link to production mail or statements
+- **Amounts** — round or obviously invented values (`100.00`, `1,234.56`)
+- **Descriptions** — generic labels (`SAMPLE PAYMENT`, `TEST MERCHANT`) — not copied from a real statement
+
+## When adding or editing fixtures
+
+1. Preserve **layout and parsing signals** (labels, column order, section markers) — replace only identifying content.
+2. Do **not** paste verbatim text from a real statement; rewrite every personal field first.
+3. Do **not** add real statement PDFs/TXT to the repo; keep those outside git.
+4. Do **not** quote real PII in rules, tests, or comments — describe the field type instead ("cardholder name", "billing address").
+
+## Quick check before committing
+
+Scan diffs for person names, street addresses, PIN codes, merchant strings, and account fragments. If it could identify a real person or account — or looks copied from one — replace it with freshly randomized fake data.

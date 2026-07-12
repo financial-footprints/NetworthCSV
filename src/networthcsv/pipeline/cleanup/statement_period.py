@@ -17,3 +17,8 @@ def period_start_from_end(end: date, start_day: int) -> date:
     last_day = calendar.monthrange(prev_year, prev_month)[1]
     day = min(start_day, last_day)
     return date(prev_year, prev_month, day)
+
+
+def period_start_from_previous_month(end: date) -> date:
+    """Return period start as (end.day + 1) of the month before *end*."""
+    return period_start_from_end(end, end.day + 1)

@@ -32,3 +32,4 @@ def get_parser(bank: str, variant: str | None = None) -> StatementParser:
 
 
 from networthcsv.pipeline.parse.banks import hdfc as _hdfc  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import idfc as _idfc  # noqa: E402, F401

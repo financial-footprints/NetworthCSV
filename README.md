@@ -68,7 +68,7 @@ Full pipeline for one account with a local app config:
 
 ```bash
 uv run networthcsv \
-  --identifier '5298' \
+  --identifier '3841' \
   --config /path/to/app.config.json
 ```
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 from datetime import date
-from pathlib import Path
 
+from cleanup_support import FIXTURES_ROOT
 from networthcsv.pipeline.cleanup.statement_date import (
     extract_statement_period,
     resolve_month_period,
@@ -17,7 +17,7 @@ from networthcsv.pipeline.metadata.metadata import (
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 
-_FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "pnb" / "platinum"
+_FIXTURES = FIXTURES_ROOT / "pnb" / "platinum"
 
 _STATEMENT_FIXTURES = (
     ("2024-03.txt", "2024-03", "-4200.5", "-2750.5"),

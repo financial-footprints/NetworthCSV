@@ -126,6 +126,70 @@ def _purge_marker_line_block(text: str, marker: str) -> str:
     return _drop_blank_lines("\n".join(lines[:start_idx] + lines[end_idx + 1 :]))
 
 
+_SECTION_BOUNDARY_MARKERS = (
+    "IMPORTANT INFORMATION",
+    "YOUR TRANSACTIONS",
+    "STATEMENT SUMMARY",
+    "Statement Summary",
+    "MOST IMPORTANT TERMS AND CONDITIONS",
+)
+
+
+def _purge_marker_section_block(
+    text: str,
+    marker: str,
+    *,
+    all_markers: list[str],
+) -> str:
+    """Drop a short section header line and following lines until a boundary."""
+    words = _marker_words(marker)
+    if not words or len(words) > 6:
+        return text
+
+    start_anchor = " ".join(words)
+    boundaries = {start_anchor, *_SECTION_BOUNDARY_MARKERS}
+    for other in all_markers:
+        if other != marker:
+            boundaries.add(other)
+
+    lines = text.split("\n")
+    start_idx: int | None = None
+    end_idx: int | None = None
+    for index, line in enumerate(lines):
+        if start_idx is None:
+            if start_anchor in line:
+                start_idx = index
+            continue
+        if any(boundary in line for boundary in boundaries):
+            end_idx = index
+            break
+
+    if start_idx is None:
+        return text
+    if end_idx is None:
+        end_idx = len(lines)
+
+    return _drop_blank_lines("\n".join(lines[:start_idx] + lines[end_idx:]))
+
+
+def _is_standalone_section_header(line: str, marker: str) -> bool:
+    anchor = " ".join(_marker_words(marker))
+    if not anchor:
+        return False
+    stripped = line.strip()
+    if stripped.upper() != anchor.upper():
+        return False
+    letters = [character for character in anchor if character.isalpha()]
+    if not letters:
+        return False
+    uppercase = sum(1 for character in letters if character.isupper())
+    return uppercase / len(letters) >= 0.8
+
+
+def _marker_has_standalone_section_header(text: str, marker: str) -> bool:
+    return any(_is_standalone_section_header(line, marker) for line in text.split("\n"))
+
+
 def purge_drop_sections(text: str, *, drop_sections: list[str] | None = None) -> str:
     """Remove text matching any drop section marker from sanitized statement text."""
     if not drop_sections:
@@ -133,7 +197,16 @@ def purge_drop_sections(text: str, *, drop_sections: list[str] | None = None) ->
 
     result = text
     for marker in drop_sections:
-        updated = _purge_marker_regex(result, marker)
+        if _marker_has_standalone_section_header(result, marker):
+            updated = _purge_marker_section_block(
+                result,
+                marker,
+                all_markers=drop_sections,
+            )
+        else:
+            updated = result
+        if updated == result:
+            updated = _purge_marker_regex(result, marker)
         if updated == result:
             updated = _purge_marker_line_block(result, marker)
         if updated == result:

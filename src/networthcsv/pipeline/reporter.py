@@ -8,12 +8,13 @@ from pathlib import Path
 from networthcsv.pipeline.results import (
     CleanupAccountResult,
     ExtractAccountResult,
-    ExtractStageResult,
     MetadataAccountResult,
     ParseAccountResult,
     ParseFyResult,
 )
-from networthcsv.settings import ResolvedAccount, account_label, format_account_date
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.account import account_label
+from networthcsv.utils.account_dates import format_account_date
 
 
 def format_run_settings_lines(

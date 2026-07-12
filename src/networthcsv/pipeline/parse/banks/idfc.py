@@ -8,12 +8,12 @@ from decimal import Decimal
 from networthcsv.pipeline.parse.banks import register_parser
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks.helpers.dates import parse_date_string
+from networthcsv.utils.string import DECIMAL_AMOUNT_TWO_PLACES
 from networthcsv.utils.transactions import Transaction
 
 _DATE_PREFIX = re.compile(
     r"^(\d{1,2}/(?:\d{1,2}|[A-Za-z]{3})/\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2})\s+"
 )
-_AMOUNT_TOKEN = re.compile(r"[\d,]+\.\d{2}")
 _DR_CR_SUFFIX = re.compile(r"\s+(DR|CR)\s*$", re.IGNORECASE)
 _CR_SUFFIX = re.compile(r"\s+CR\s*$", re.IGNORECASE)
 _FX_TAIL = re.compile(r"\s+USD\s+[\d,]+\.\d{2}\s*$", re.IGNORECASE)
@@ -43,7 +43,7 @@ def _parse_transaction_line(line: str) -> tuple | None:
         direction = "CR"
         rest = _CR_SUFFIX.sub("", rest).strip()
 
-    amount_matches = list(_AMOUNT_TOKEN.finditer(rest))
+    amount_matches = list(DECIMAL_AMOUNT_TWO_PLACES.finditer(rest))
     if not amount_matches:
         return None
 

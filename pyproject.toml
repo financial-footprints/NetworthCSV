@@ -32,6 +32,3 @@ root = "src"
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
 extraPaths = ["src", "tests"]
-
-[tool.pytest.ini_options]
-pythonpath = ["src", "tests"]

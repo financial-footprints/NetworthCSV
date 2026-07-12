@@ -4,12 +4,30 @@ from __future__ import annotations
 
 from datetime import date
 
-from networthcsv.settings import MatchingFields, StatementCleanupConfig
+from networthcsv.utils.banks.account_matching import (
+    MatchingFields,
+    StatementCleanupConfig,
+)
 from networthcsv.utils.banks import register
 from networthcsv.utils.banks.base import CreditCardHandler
 from networthcsv.utils.banks.helpers.dates import date_after_label
-from networthcsv.utils.banks.helpers.tables import label_next_line_amount
+from networthcsv.utils.banks.helpers.tables import (
+    label_next_line_amount,
+    total_outstanding_section_amount,
+)
+from networthcsv.utils.banks.helpers.text import text_not_contains_violated
 from networthcsv.utils.banks.mixins.dates import ContextRangePeriodMixin
+
+_ANNUAL_SUMMARY_MARKERS = [
+    "ANNUAL SPEND SUMMARY",
+    "CARD WISE SUMMARY FOR ACCOUNT OF",
+    "MONTH WISE SPENDS ON YOUR ACCOUNT",
+]
+
+_EXCLUDED_STATEMENT_MARKERS = [
+    *_ANNUAL_SUMMARY_MARKERS,
+    "GLIMPSE OF HOW YOU SPENT",
+]
 
 
 @register("indusind", "default")
@@ -48,15 +66,14 @@ class IndusindDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
                 "statement": StatementCleanupConfig.model_validate(
                     {
                         **defaults.statement.model_dump(),
-                        "text_not_contains": [
-                            "ANNUAL SPEND SUMMARY",
-                            "CARD WISE SUMMARY FOR ACCOUNT OF",
-                            "MONTH WISE SPENDS ON YOUR ACCOUNT",
-                        ],
+                        "text_not_contains": list(_ANNUAL_SUMMARY_MARKERS),
                     }
                 ).model_dump(),
             }
         )
+
+    def is_excluded_statement(self, text: str) -> bool:
+        return text_not_contains_violated(text, _EXCLUDED_STATEMENT_MARKERS)
 
     def get_statement_date(self, text: str) -> date | None:
         end = super().get_statement_date(text)
@@ -68,4 +85,6 @@ class IndusindDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
         return label_next_line_amount(text, "Previous Balance")
 
     def get_closing_balance(self, text: str) -> str | None:
-        return label_next_line_amount(text, "Total Amount Due")
+        return total_outstanding_section_amount(text) or label_next_line_amount(
+            text, "Total Amount Due"
+        )

@@ -26,15 +26,18 @@ upgrade:
 	$(UV) sync --upgrade --group dev
 
 test:
-	$(PYTHON) -m unittest discover -s tests
+	$(PYTHON) tests/run.py
 
 lint:
+	$(UV) run ruff check src tests
 	$(UV) run basedpyright
 
 format:
 	$(UV) run ruff format src tests
 
-ci: format lint test
+ci:
+	$(UV) run ruff format --check src tests
+	$(MAKE) lint test
 
 clean:
 	/usr/bin/rm -rf build dist .ruff_cache

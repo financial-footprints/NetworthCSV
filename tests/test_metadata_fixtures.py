@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.pipeline.cleanup.statement_date import resolve_month_period
-from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
+from networthcsv.utils.banks.period import resolve_month_period, resolve_period_bounds
 from networthcsv.utils.banks.helpers.amounts import balances_match
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
@@ -115,7 +114,7 @@ class MetadataFixtureGoldenTests(unittest.TestCase):
             expected_period_start = expected.get("period_start")
             expected_period_end = expected.get("period_end")
             if expected_period_start and expected_period_end:
-                period_start_iso, period_end_iso, _ = _resolve_statement_period(
+                period_start_iso, period_end_iso, _ = resolve_period_bounds(
                     text,
                     account=account,
                 )

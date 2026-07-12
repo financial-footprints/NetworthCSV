@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
 
 from networthcsv.context import RunContext
 from networthcsv.errors import raise_if_cancelled
-from networthcsv.pipeline.cleanup import cleanup as cleanup_stage
+import networthcsv.pipeline.cleanup as cleanup_stage
+from networthcsv.pipeline.account_stage import (
+    _report_account_banner,
+    _run_account_stage,
+)
 from networthcsv.pipeline.get_statements import extract as extract_stage
-from networthcsv.pipeline.metadata import metadata as metadata_stage
+import networthcsv.pipeline.metadata as metadata_stage
 from networthcsv.pipeline.parse import parse as parse_stage
 from networthcsv.pipeline.results import (
     CleanupAccountResult,
@@ -18,15 +21,7 @@ from networthcsv.pipeline.results import (
     ParseAccountResult,
     PipelineResult,
 )
-from networthcsv.settings import ResolvedAccount, accounts_to_run
-
-T = TypeVar("T")
-
-
-def _report_account_banner(
-    ctx: RunContext, account: ResolvedAccount, index: int, total: int
-) -> None:
-    ctx.reporter.account_banner(account, index=index, total=total)
+from networthcsv.settings import ResolvedAccount
 
 
 def run_extract(ctx: RunContext) -> ExtractStageResult:
@@ -45,21 +40,6 @@ def run_parse(ctx: RunContext) -> tuple[ParseAccountResult, ...]:
     return _run_account_stage(ctx, parse_stage.run_account)
 
 
-def _run_account_stage(
-    ctx: RunContext,
-    run_account: Callable[[RunContext, ResolvedAccount], T],
-) -> tuple[T, ...]:
-    selected = accounts_to_run(ctx.settings)
-    results: list[T] = []
-    for index, account in enumerate(selected):
-        raise_if_cancelled(ctx)
-        if index > 0:
-            ctx.reporter.blank_line()
-        _report_account_banner(ctx, account, index, len(selected))
-        results.append(run_account(ctx, account))
-    return tuple(results)
-
-
 def run_pipeline(ctx: RunContext) -> PipelineResult:
     raise_if_cancelled(ctx)
     extract_result = run_extract(ctx)
@@ -68,7 +48,7 @@ def run_pipeline(ctx: RunContext) -> PipelineResult:
     cleanup_results: list[CleanupAccountResult] = []
     metadata_results: list[MetadataAccountResult] = []
     parse_results: list[ParseAccountResult] = []
-    selected = accounts_to_run(ctx.settings)
+    selected = ctx.settings.accounts_to_run()
 
     for index, account in enumerate(selected):
         raise_if_cancelled(ctx)

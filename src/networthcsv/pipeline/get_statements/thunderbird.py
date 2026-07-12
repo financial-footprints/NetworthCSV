@@ -22,9 +22,9 @@ from networthcsv.utils.email.email_message import (
 from networthcsv.settings import (
     ResolvedAccount,
     ThunderbirdSource,
-    account_download_path,
-    resolve_account_search_dates,
 )
+from networthcsv.utils.account_dates import resolve_account_search_dates
+from networthcsv.utils.path import account_download_path
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,7 @@ def run_account(ctx: RunContext, account: ResolvedAccount) -> ExtractAccountResu
     return extract_account(
         source.thunderbird.profile,
         account,
-        account_download_path(ctx.settings, account),
+        account_download_path(ctx.settings.download_path, account),
         ctx.settings.start_date,
         ctx,
     )

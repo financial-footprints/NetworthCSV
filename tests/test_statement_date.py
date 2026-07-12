@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from networthcsv.pipeline.cleanup.statement_date import (
+from networthcsv.utils.banks.period import (
     extract_statement_date,
     extract_statement_period,
     resolve_month_period,

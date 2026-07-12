@@ -153,6 +153,20 @@
     "period_start": "16-01-2021",
     "period_end": "15-02-2021"
   },
+  "indusind/auraedge/total-outstanding-clean.txt": {
+    "closing": "-799.50",
+    "opening": "-2500.00",
+    "statement_month": "2023-04",
+    "period_start": "16-03-2023",
+    "period_end": "15-04-2023"
+  },
+  "indusind/auraedge/total-outstanding-scrambled.txt": {
+    "closing": "-549.50",
+    "opening": "-1200.00",
+    "statement_month": "2025-08",
+    "period_start": "16-07-2025",
+    "period_end": "15-08-2025"
+  },
   "pnb/platinum/sample.txt": {
     "closing": "-850",
     "opening": "-750",

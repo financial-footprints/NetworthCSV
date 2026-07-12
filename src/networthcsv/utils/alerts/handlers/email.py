@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import smtplib
 from collections.abc import Sequence
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 from email.message import EmailMessage
 
 from networthcsv.utils.alerts.models import Alert, DeliverMode
-from networthcsv.settings import EmailAlertSettings
+
+if TYPE_CHECKING:
+    from networthcsv.settings.models import EmailAlertSettings
 
 logger = logging.getLogger(__name__)
 

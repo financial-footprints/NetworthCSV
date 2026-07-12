@@ -11,7 +11,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError
 
 from networthcsv.errors import StageError
-from networthcsv.pipeline.cleanup.cleanup import decrypt_pdfs_in_place
+from networthcsv.pipeline.cleanup import decrypt_pdfs_in_place
 from networthcsv.utils.pdf import extract_pdf_text_plumber, pdf_is_encrypted
 
 

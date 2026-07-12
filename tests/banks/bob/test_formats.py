@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from cleanup_support import FIXTURES_ROOT
-from networthcsv.pipeline.cleanup.statement_date import resolve_month_period
+from networthcsv.utils.banks.period import resolve_month_period
 from networthcsv.utils.banks.helpers.text import trim_by_markers
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler

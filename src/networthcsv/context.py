@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.pipeline.reporter import NullRunReporter, RunReporter
-from networthcsv.settings import Settings
+from networthcsv.settings import AppSettings
 
 
 CancelChecker = Callable[[], bool]
@@ -15,7 +15,7 @@ CancelChecker = Callable[[], bool]
 
 @dataclass(frozen=True)
 class RunContext:
-    settings: Settings
+    settings: AppSettings
     alerts: AlertService
     reporter: RunReporter = field(default_factory=NullRunReporter)
     should_cancel: CancelChecker | None = None

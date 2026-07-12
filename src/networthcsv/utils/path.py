@@ -68,6 +68,10 @@ def account_metadata_path(download_path: Path, account: ResolvedAccount) -> Path
     )
 
 
+def account_download_path(download_path: Path, account: ResolvedAccount) -> Path:
+    return download_path / account.account_type / account.account_number
+
+
 def statement_pdf_path(
     download_path: Path, account: ResolvedAccount, statement_period: str
 ) -> Path:

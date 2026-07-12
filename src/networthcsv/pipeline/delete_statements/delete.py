@@ -8,14 +8,10 @@ from pathlib import Path
 
 from networthcsv.context import RunContext
 from networthcsv.pipeline.results import DeleteAccountResult
-from networthcsv.settings import (
-    ResolvedAccount,
-    RunSettings,
-    account_download_path,
-    account_label,
-    accounts_to_run,
-)
+from networthcsv.settings import ResolvedAccount, RunSettings
+from networthcsv.utils.account import account_label
 from networthcsv.utils.path import (
+    account_download_path,
     account_metadata_path,
     discover_account_fy_dirs,
     iter_statement_csvs,
@@ -128,14 +124,14 @@ def main() -> None:
             reporter=ConsoleRunReporter(),
         )
 
-        selected = accounts_to_run(ctx.settings)
+        selected = ctx.settings.accounts_to_run()
         if len(selected) != 1:
             raise SystemExit(
                 f"error: expected exactly one account for identifier {args.identifier!r}"
             )
 
         account = selected[0]
-        staging_dir = account_download_path(ctx.settings, account)
+        staging_dir = account_download_path(ctx.settings.download_path, account)
         print(f"delete pipeline outputs: {account_label(account)} {staging_dir}")
         print()
 

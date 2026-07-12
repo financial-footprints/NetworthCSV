@@ -9,10 +9,8 @@ from networthcsv.pipeline.get_statements.imap import (
     build_gmail_raw_query,
     build_imap_search_criteria,
 )
-from networthcsv.settings import (
-    ResolvedAccount,
-    resolve_account_search_dates,
-)
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.account_dates import resolve_account_search_dates
 
 
 class BuildImapSearchTests(unittest.TestCase):

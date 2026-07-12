@@ -8,9 +8,9 @@ import unittest
 from pathlib import Path
 
 from networthcsv.settings import (
+    AppSettings,
     ResolvedAccount,
     RunSettings,
-    Settings,
     ThunderbirdSource,
     ThunderbirdSourceSettings,
 )
@@ -33,8 +33,8 @@ def _settings(
     download_path: Path,
     accounts: list[ResolvedAccount],
     profile: Path = Path("/profile"),
-) -> Settings:
-    return Settings(
+) -> AppSettings:
+    return AppSettings(
         source=ThunderbirdSource(
             thunderbird=ThunderbirdSourceSettings(profile=profile)
         ),

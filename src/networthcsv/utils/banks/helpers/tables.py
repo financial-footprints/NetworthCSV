@@ -247,6 +247,41 @@ def label_next_line_amount(text: str, label: str) -> str | None:
     return None
 
 
+_OUTSTANDING_SECTION_END = re.compile(
+    r"^(?:Rewards\b|Invoice\b|Payment\s*Due\s*Date\b)",
+    re.IGNORECASE,
+)
+_TOTAL_ROW = re.compile(r"^Total\b", re.IGNORECASE)
+
+
+def total_outstanding_section_amount(text: str) -> str | None:
+    """Extract closing balance from IndusInd Total Outstanding section."""
+    match = label_regex("Total Outstanding").search(text[:4000])
+    if match is None:
+        return None
+    tail = text[match.start() :]
+    line_break = tail.find("\n")
+    if line_break == -1:
+        return None
+    window = tail[line_break + 1 : line_break + 1 + 500]
+    last_single: str | None = None
+    total_line_last: str | None = None
+    for line in window.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if _OUTSTANDING_SECTION_END.match(stripped):
+            break
+        amounts = amounts_with_positions(line, currency_only=True)
+        if not amounts:
+            continue
+        if len(amounts) == 1:
+            last_single = amounts[0][0]
+        elif len(amounts) > 1 and _TOTAL_ROW.match(stripped):
+            total_line_last = amounts[-1][0]
+    return last_single or total_line_last
+
+
 def single_amount_after(text: str, anchor: str) -> str | None:
     match = find_label(text, anchor)
     if match is None:

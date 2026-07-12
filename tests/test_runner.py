@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from networthcsv.context import RunContext
 from networthcsv.errors import JobCancelledError, StageError
-from networthcsv.pipeline.cleanup.cleanup import run as cleanup_run
+from networthcsv.pipeline.cleanup import run as cleanup_run
 from networthcsv.pipeline.parse.parse import run as parse_run
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.pipeline.results import (
@@ -31,7 +31,7 @@ from networthcsv.pipeline.runner import (
 from networthcsv.runtime import process, process_upload
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.utils.path import discover_account_fy_dirs
-from networthcsv.settings import ResolvedAccount, load_settings
+from networthcsv.settings import AppSettings, ResolvedAccount
 
 
 def _write_minimal_configs(root: Path) -> Path:
@@ -98,7 +98,7 @@ def _write_two_account_configs(root: Path) -> Path:
 
 
 def _context(root: Path) -> RunContext:
-    settings = load_settings(_write_minimal_configs(root))
+    settings = AppSettings.load(_write_minimal_configs(root))
     return RunContext(settings=settings, alerts=AlertService(handler=None))
 
 
@@ -211,7 +211,7 @@ class RunnerTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ctx = RunContext(
-                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
                 alerts=AlertService(handler=None),
                 should_cancel=lambda: True,
             )
@@ -234,13 +234,13 @@ class RuntimeApiTests(unittest.TestCase):
         mock_run_pipeline.return_value = expected
         with tempfile.TemporaryDirectory() as tmp:
             ctx = RunContext(
-                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
                 alerts=AlertService(handler=None),
                 reporter=NullRunReporter(),
             )
             self.assertIs(process(ctx), expected)
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.run_account")
+    @patch("networthcsv.pipeline.cleanup.run.run_account")
     def test_process_upload_raises_when_cancelled(
         self, mock_cleanup: MagicMock
     ) -> None:
@@ -255,7 +255,7 @@ class RuntimeApiTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             ctx = RunContext(
-                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
                 alerts=AlertService(handler=None),
                 reporter=NullRunReporter(),
                 should_cancel=lambda: True,
@@ -283,7 +283,7 @@ class StageErrorTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             ctx = RunContext(
-                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
                 alerts=AlertService(handler=None),
                 reporter=NullRunReporter(),
             )
@@ -303,7 +303,7 @@ class StageErrorTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             ctx = RunContext(
-                settings=load_settings(_write_minimal_configs(Path(tmp))),
+                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
                 alerts=AlertService(handler=None),
                 reporter=NullRunReporter(),
             )
@@ -316,7 +316,7 @@ class StageErrorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _write_two_account_configs(root)
-            settings = load_settings(root / "app.config.json")
+            settings = AppSettings.load(root / "app.config.json")
             ctx = RunContext(
                 settings=settings,
                 alerts=AlertService(handler=None),

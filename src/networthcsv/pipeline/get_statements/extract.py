@@ -6,21 +6,17 @@ from networthcsv.context import RunContext
 from networthcsv.errors import StageError
 from networthcsv.pipeline.get_statements import imap as imap_pipeline
 from networthcsv.pipeline.get_statements import thunderbird as thunderbird_pipeline
+from networthcsv.pipeline.account_stage import _run_account_stage
 from networthcsv.pipeline.results import ExtractAccountResult, ExtractStageResult
-from networthcsv.settings import ResolvedAccount, ThunderbirdSource, accounts_to_run
+from networthcsv.settings import ResolvedAccount, ThunderbirdSource
 
 
 def run_all(ctx: RunContext) -> ExtractStageResult:
     source = ctx.settings.source
     if isinstance(source, ThunderbirdSource):
-        results: list[ExtractAccountResult] = []
-        accounts = accounts_to_run(ctx.settings)
-        for index, account in enumerate(accounts):
-            if index > 0:
-                ctx.reporter.blank_line()
-            ctx.reporter.account_banner(account, index=index, total=len(accounts))
-            results.append(thunderbird_pipeline.run_account(ctx, account))
-        return ExtractStageResult(accounts=tuple(results))
+        return ExtractStageResult(
+            accounts=_run_account_stage(ctx, thunderbird_pipeline.run_account)
+        )
     return imap_pipeline.run_imap_extract(ctx)
 
 

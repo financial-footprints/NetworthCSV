@@ -5,10 +5,10 @@ from __future__ import annotations
 import re
 
 from networthcsv.utils.banks.helpers.amounts import (
-    _AMOUNT_TOKEN,
     first_amount_in_text,
     first_not_none,
 )
+from networthcsv.utils.string import AMOUNT_TOKEN
 from networthcsv.utils.banks.helpers.dates import find_label, label_regex
 from networthcsv.utils.banks.helpers.tables import (
     _column_index_for_label,
@@ -49,7 +49,7 @@ def _is_summary_date_line(line: str) -> bool:
 def _r_prefixed_amount_count(line: str) -> int:
     return sum(
         1
-        for match in _AMOUNT_TOKEN.finditer(line)
+        for match in AMOUNT_TOKEN.finditer(line)
         if match.group(0).lstrip().lower().startswith("r")
     )
 
@@ -82,7 +82,7 @@ def _merge_row_with_cr_dr_suffix(data_line: str, suffix_line: str) -> str:
     if not markers:
         return data_line
 
-    amount_matches = list(_AMOUNT_TOKEN.finditer(data_line))
+    amount_matches = list(AMOUNT_TOKEN.finditer(data_line))
     if not amount_matches:
         return data_line
 

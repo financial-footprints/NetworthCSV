@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from networthcsv.settings import (
+from networthcsv.utils.banks.account_matching import (
     MailMatchConfig,
     MatchingFields,
     StatementCleanupConfig,
@@ -65,6 +65,10 @@ class BankHandler(ABC):
 
     def get_yearly_period(self, text: str) -> tuple[date, date] | None:
         return None
+
+    def is_excluded_statement(self, text: str) -> bool:
+        """Return True when *text* is a non-statement attachment that must be dropped."""
+        return False
 
     def matching_defaults(self) -> MatchingFields:
         subjects = [*self.mail_subjects(), *self.yearly_mail_subjects()]

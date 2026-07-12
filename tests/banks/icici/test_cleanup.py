@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from cleanup_support import account, extract_side_effect, staging_layout
-from networthcsv.pipeline.cleanup.cleanup import prepare_month
+from networthcsv.pipeline.cleanup import prepare_month
 from networthcsv.utils.path import statement_pdf_path
 
 _ICICI_REISSUE_STATEMENT = """\
@@ -33,7 +33,7 @@ class IciciReissuedStatementCleanupTests(unittest.TestCase):
         _ = path.write_bytes(payload)
         return path
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_reissued_statement_prefers_later_email_date(
         self, mock_extract: MagicMock
     ) -> None:

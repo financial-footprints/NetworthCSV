@@ -5,9 +5,7 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from networthcsv.pipeline.cleanup.statement_period import (
-    period_start_from_previous_month,
-)
+from networthcsv.utils.banks.period import period_start_from_previous_month
 from networthcsv.utils.statement_period import (
     email_date_from_staging_filename,
     fiscal_year_key,

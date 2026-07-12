@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar, Protocol
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 from networthcsv.utils.alerts.handlers.console import ConsoleAlertHandler
 from networthcsv.utils.alerts.handlers.email import SmtpEmailAlertHandler
 from networthcsv.utils.alerts.models import Alert, DeliverMode
-from networthcsv.settings import (
-    AlertSettings,
-    ConsoleAlertSettings,
-    EmailAlertsSettings,
-)
+
+if TYPE_CHECKING:
+    from networthcsv.settings.models import (
+        AlertSettings,
+    )
 
 
 class AlertHandler(Protocol):
@@ -50,6 +50,11 @@ class AlertService:
 
 
 def build_alert_service(*, alerts: AlertSettings | None) -> AlertService:
+    from networthcsv.settings.models import (
+        ConsoleAlertSettings,
+        EmailAlertsSettings,
+    )
+
     if alerts is None:
         return AlertService(handler=None)
 

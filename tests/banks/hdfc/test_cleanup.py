@@ -8,8 +8,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from cleanup_support import FIXTURES_ROOT, account, extract_side_effect, staging_layout
-from networthcsv.pipeline.cleanup.cleanup import collect_month_groups, prepare_month
-from networthcsv.pipeline.cleanup.statement_date import PeriodSource
+from networthcsv.pipeline.cleanup import (
+    PeriodSource,
+    collect_month_groups,
+    prepare_month,
+)
 from networthcsv.utils.path import statement_pdf_path, txt_path_for_pdf
 
 
@@ -19,7 +22,7 @@ class HdfcInboxCleanupTests(unittest.TestCase):
         _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
         return path
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_yearly_inbox_sibling_lands_in_yearly_period(
         self, mock_extract: MagicMock
     ) -> None:
@@ -94,7 +97,7 @@ class HdfcInboxCleanupTests(unittest.TestCase):
             self.assertTrue(sibling.is_file())
             self.assertTrue(bare.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_prefers_yearly_confidence_over_filename_fallback(
         self, mock_extract: MagicMock
     ) -> None:

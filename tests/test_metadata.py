@@ -9,9 +9,11 @@ from datetime import date
 from pathlib import Path
 
 from networthcsv.context import RunContext
-from networthcsv.pipeline.metadata.metadata import (
+from networthcsv.pipeline.metadata import (
     BalanceGap,
+    StatementMetadata,
     build_account_metadata,
+    build_period_covered,
     compute_balance_gaps,
     covered_month,
     load_account_metadata,
@@ -20,14 +22,12 @@ from networthcsv.pipeline.metadata.metadata import (
     refresh_account_metadata,
     run_account,
     statement_date_for_covered_month,
-    StatementMetadata,
-    _build_period_covered,
 )
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.settings import (
+    AppSettings,
     ResolvedAccount,
     RunSettings,
-    Settings,
     ThunderbirdSource,
     ThunderbirdSourceSettings,
 )
@@ -71,7 +71,7 @@ def _account(
 
 def _run_context(download_path: Path) -> RunContext:
     return RunContext(
-        settings=Settings(
+        settings=AppSettings(
             source=ThunderbirdSource(
                 thunderbird=ThunderbirdSourceSettings(profile=Path("."))
             ),
@@ -401,7 +401,7 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             ),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(len(period.segments), 1)
         self.assertEqual(period.segments[0].start, "16-04-2024")
@@ -432,7 +432,7 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             ),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(len(period.segments), 1)
         self.assertEqual(period.segments[0].start, "21-12-2023")
@@ -455,7 +455,7 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             ),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(len(period.segments), 2)
         self.assertEqual(len(period.gaps), 1)
@@ -481,7 +481,7 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             ),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(len(period.gaps), 1)
         self.assertEqual(period.gaps[0].start, "21-01-2024")
@@ -506,7 +506,7 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             ),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(len(period.gaps), 1)
         self.assertFalse(period.gaps[0].balances_match)
@@ -528,10 +528,60 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             ),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(len(period.gaps), 1)
         self.assertIsNone(period.gaps[0].balances_match)
+
+    def test_period_gap_balances_ignore_yearly_opening(self) -> None:
+        """Yearly can bound the gap dates but must not drive balances_match."""
+        statements = (
+            StatementMetadata(
+                statement_date="2024-01",
+                formats=("pdf",),
+                period_start="21-12-2023",
+                period_end="20-01-2024",
+                closing_balance="-3047.00",
+            ),
+            StatementMetadata(
+                statement_date="yearly-2024-04_2025-03",
+                formats=("pdf",),
+                period_start="01-04-2024",
+                period_end="31-03-2025",
+                opening_balance="21850.02",
+                closing_balance="800000.00",
+                granularity="yearly",
+                covered_months=(
+                    "2024-04",
+                    "2024-05",
+                    "2024-06",
+                    "2024-07",
+                    "2024-08",
+                    "2024-09",
+                    "2024-10",
+                    "2024-11",
+                    "2024-12",
+                    "2025-01",
+                    "2025-02",
+                    "2025-03",
+                ),
+                year_key="FY24-2025",
+            ),
+            StatementMetadata(
+                statement_date="2024-05",
+                formats=("pdf",),
+                period_start="21-04-2024",
+                period_end="20-05-2024",
+                opening_balance="-3047.00",
+            ),
+        )
+
+        period = build_period_covered(statements)
+
+        self.assertEqual(len(period.gaps), 1)
+        self.assertEqual(period.gaps[0].start, "21-01-2024")
+        self.assertEqual(period.gaps[0].end, "31-03-2024")
+        self.assertTrue(period.gaps[0].balances_match)
 
     def test_statements_without_periods_keep_months_only(self) -> None:
         statements = (
@@ -539,7 +589,7 @@ class BuildPeriodCoveredTests(unittest.TestCase):
             StatementMetadata(statement_date="2024-02", formats=("pdf",)),
         )
 
-        period = _build_period_covered(statements)
+        period = build_period_covered(statements)
 
         self.assertEqual(period.segments, ())
         self.assertEqual(period.gaps, ())

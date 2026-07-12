@@ -91,14 +91,6 @@ def yearly_period_end_month(period: str) -> str:
     return bounds[1]
 
 
-def fy_folder_name_for_period(period: str) -> str:
-    from networthcsv.utils.path import fy_folder_name
-
-    if is_yearly_period(period):
-        return fy_folder_name(yearly_period_end_month(period))
-    return fy_folder_name(period)
-
-
 def covered_months_between(start: date, end: date) -> tuple[str, ...]:
     """Return YYYY-MM covered-month keys from start through end (inclusive)."""
     if end < start:

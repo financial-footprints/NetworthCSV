@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -131,7 +133,10 @@ class DeleteAccountStatementsTests(unittest.TestCase):
 class DeleteStatementsCliTests(unittest.TestCase):
     def test_parser_requires_identifier(self) -> None:
         parser = _build_parser()
-        with self.assertRaises(SystemExit):
+        with (
+            self.assertRaises(SystemExit),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
             _ = parser.parse_args([])
 
 

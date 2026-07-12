@@ -272,7 +272,7 @@ def save_attachments(
         _ = dest.write_bytes(bytes(payload))
         subject = decode_mime_header(msg.get("Subject"))
         date_note = " (no Date header)" if safe_name.startswith("unknown-date") else ""
-        print(f"saved: {dest}{date_note}  (subject: {subject[:80]})")
+        logger.info("saved: %s%s  (subject: %s)", dest, date_note, subject[:80])
         saved += 1
     return saved
 

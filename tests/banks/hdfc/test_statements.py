@@ -6,12 +6,12 @@ import unittest
 from datetime import date
 
 from cleanup_support import FIXTURES_ROOT
-from networthcsv.pipeline.cleanup.statement_date import (
+from networthcsv.utils.banks.period import (
     extract_statement_date,
     extract_statement_period,
-    resolve_statement_period,
+    resolve_period_bounds,
+    resolve_period_key,
 )
-from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 
@@ -113,7 +113,7 @@ class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
         self.assertEqual(period_end, date(2024, 6, 20))
 
     def test_collapsed_header_resolved_period_bounds(self) -> None:
-        period_start, period_end, approximate = _resolve_statement_period(
+        period_start, period_end, approximate = resolve_period_bounds(
             self.text,
             account=self.account,
         )
@@ -156,7 +156,7 @@ class HdfcYearlyStatementTests(unittest.TestCase):
         self.assertEqual(period[1], date(2025, 3, 31))
 
     def test_resolve_yearly_period(self) -> None:
-        period = resolve_statement_period(self.text, "sample.pdf", account=self.account)
+        period = resolve_period_key(self.text, "sample.pdf", account=self.account)
         self.assertEqual(period, "yearly-2024-04_2025-03")
 
     def test_yearly_statement_date_is_period_end(self) -> None:

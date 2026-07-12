@@ -1,0 +1,34 @@
+   INDUSIND BANK PLATINUM AURA EDGE CREDIT CARD STATEMENT
+                                                                   Previous Balance
+                                                                   2500.00 CR
+                                                              Purchases & Other Charges
+                                                                    1500.00
+                                                                  Cash Advance
+                                                                     0.00
+                                                               Payment & Other Credits
+    Credit   Credit Limit Available Credit Limit Cash Limit Available Cash Limit 0.00
+   Summary
+              500000.00     500799.50   100000.00    100000.00
+                                                                   Total Amount Due
+                              800.00 CR
+                                                                Minimum Amount Due
+                                                                     0.00
+                          ACCOUNTSUMMARY
+                                                                 Statement Period
+     Date       TransactionDetails MerchantCategory Amount(in )
+                                             Points             16/03/2023 To 15/04/2023
+   Purchases & Cash Transactions for MS PRIYA KAPOOR (Credit Card No. 4412XXXXXXXX2941)
+   20/03/2023 SAMPLE PAYMENT A IN           5        1000.00 DR
+                                                                 Statement Date
+   22/03/2023 TEST MERCHANT B IN           1         500.00 DR
+   Total                                      6        1500.00      15/04/2023
+                                                                    Total Outstanding
+                                                                     (Including Loans)
+                                                                     799.50 CR
+   Rewards OpeningBalance(Points) PointsEarned PointsRedeemed* ClosingBalance(Points)
+   Summary
+                1            6            0            7
+   MS PRIYA KAPOOR
+   12 Lake View Apartments Pune
+   Pune
+   PUNE MH - 411001

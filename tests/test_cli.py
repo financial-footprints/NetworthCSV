@@ -14,12 +14,7 @@ from networthcsv.cli import (
     parse_run_args,
 )
 from networthcsv.errors import ConfigError
-from networthcsv.settings import (
-    RunSettings,
-    accounts_to_run,
-    load_settings,
-    validate_run_filter,
-)
+from networthcsv.settings import AppSettings, RunSettings
 
 
 class CliTests(unittest.TestCase):
@@ -61,7 +56,7 @@ class CliTests(unittest.TestCase):
     def test_apply_run_overrides_merges_run_block(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app_config_path = self._write_minimal_configs(Path(tmp))
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             updated = apply_run_overrides(settings, {"identifier": "1"})
             self.assertEqual(updated.run.identifier, "1")
 
@@ -72,7 +67,7 @@ class CliTests(unittest.TestCase):
                 config_path=app_config_path,
                 run_overrides=RunSettings(identifier="1"),
             )
-            selected = accounts_to_run(ctx.settings)
+            selected = ctx.settings.accounts_to_run()
             self.assertEqual(len(selected), 1)
 
     def test_parse_run_args_reads_identifier(self) -> None:
@@ -96,23 +91,23 @@ class CliTests(unittest.TestCase):
             app_config_path = self._write_minimal_configs(Path(tmp))
             with self.assertRaises(ValueError):
                 _ = apply_run_overrides(
-                    load_settings(app_config_path),
+                    AppSettings.load(app_config_path),
                     {"identifier": "missing"},
                 )
 
     def test_validate_run_filter_raises_when_no_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app_config_path = self._write_minimal_configs(Path(tmp))
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             settings = dataclasses.replace(
                 settings, run=RunSettings(identifier="missing")
             )
             with self.assertRaises(ValueError):
-                validate_run_filter(settings)
+                settings.validate_run_filter()
 
     def test_load_settings_raises_config_error_for_missing_file(self) -> None:
         with self.assertRaises(ConfigError):
-            _ = load_settings("/tmp/does-not-exist-networthcsv-config.json")
+            _ = AppSettings.load("/tmp/does-not-exist-networthcsv-config.json")
 
 
 if __name__ == "__main__":

@@ -9,8 +9,9 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from networthcsv.utils.banks.base import BankHandler
+from networthcsv.utils.registry import Registry, handler_registry_key
 
-_HANDLERS: dict[str, BankHandler] = {}
+_HANDLERS: Registry[BankHandler] = Registry(key_for=handler_registry_key)
 
 HandlerT = TypeVar("HandlerT", bound=BankHandler)
 
@@ -19,40 +20,23 @@ def register(
     bank: str, variant: str | None = None
 ) -> Callable[[type[HandlerT]], type[HandlerT]]:
     def decorator(cls: type[HandlerT]) -> type[HandlerT]:
-        key = _handler_key(bank, variant)
-        _HANDLERS[key] = cls()
+        _HANDLERS.register(bank, variant, cls())
         return cls
 
     return decorator
 
 
-def _handler_key(bank: str, variant: str | None) -> str:
-    bank_key = bank.strip().lower()
-    if variant is None or variant.strip().lower() in {"", "default"}:
-        return f"{bank_key}/default"
-    return f"{bank_key}/{variant.strip().lower()}"
-
-
 def get_handler(bank: str, variant: str | None = None) -> BankHandler:
-    bank_key = bank.strip().lower()
     if variant:
-        exact = _handler_key(bank_key, variant)
-        handler = _HANDLERS.get(exact)
-        if handler is not None:
-            return handler
-    default_handler = _HANDLERS.get(_handler_key(bank_key, None))
-    if default_handler is not None:
-        return default_handler
-    known = ", ".join(sorted(_HANDLERS)) or "(none registered)"
-    raise KeyError(
-        f"no bank handler for {bank_key!r}"
-        + (f" variant {variant!r}" if variant else "")
-        + f" (known: {known})"
-    )
+        try:
+            return _HANDLERS.get(bank, variant)
+        except KeyError:
+            pass
+    return _HANDLERS.get(bank, None)
 
 
 def list_handlers() -> tuple[str, ...]:
-    return tuple(sorted(_HANDLERS))
+    return _HANDLERS.keys()
 
 
 # Import bank modules for registration side effects.
@@ -68,4 +52,4 @@ from networthcsv.utils.banks import (  # noqa: E402, F401
     yes,
 )
 
-__all__ = ["BankHandler", "get_handler", "list_handlers", "register"]
+__all__ = ["get_handler", "list_handlers", "register"]

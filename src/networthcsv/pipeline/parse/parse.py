@@ -16,12 +16,10 @@ from networthcsv.pipeline.results import (
     ParseStatementResult,
 )
 from networthcsv.pipeline.parse.statement import parse_statement_text
-from networthcsv.settings import (
-    ResolvedAccount,
-    account_download_path,
-    parse_account_date,
-)
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.account_dates import parse_account_date
 from networthcsv.utils.path import (
+    account_download_path,
     discover_account_fy_dirs,
     fy_folder_name,
     iter_statement_pairs,
@@ -39,6 +37,7 @@ _CSV_COLUMNS = ("Date", "Description", "Ref", "Credited", "Debited", "File")
 class _StatementSource:
     pdf_path: Path
     txt_path: Path
+    text: str
     statement_period: str
     is_yearly: bool
     period_start: date | None
@@ -85,9 +84,9 @@ def _parse_period_dates(
     *,
     account: ResolvedAccount,
 ) -> tuple[date | None, date | None]:
-    from networthcsv.pipeline.metadata.metadata import _resolve_statement_period
+    from networthcsv.utils.banks.period import resolve_period_bounds
 
-    period_start, period_end, _approximate = _resolve_statement_period(
+    period_start, period_end, _approximate = resolve_period_bounds(
         text,
         account=account,
     )
@@ -99,9 +98,11 @@ def _parse_period_dates(
 def _collect_statement_sources(
     download_path: Path,
     account: ResolvedAccount,
+    *,
+    fy_limit: Path | None = None,
 ) -> list[_StatementSource]:
     sources: list[_StatementSource] = []
-    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+    for pdf_path, txt_path in iter_statement_pairs(download_path, account, fy_limit):
         if not _should_parse_txt(pdf_path, txt_path):
             continue
         statement_period = pdf_path.stem
@@ -111,6 +112,7 @@ def _collect_statement_sources(
             _StatementSource(
                 pdf_path=pdf_path,
                 txt_path=txt_path,
+                text=text,
                 statement_period=statement_period,
                 is_yearly=is_yearly_period(statement_period),
                 period_start=period_start,
@@ -163,9 +165,8 @@ def _parse_selected_sources(
     statements_by_fy: dict[str, list[ParseStatementResult]] = {}
 
     for source in selected_sources:
-        text = source.txt_path.read_text(encoding="utf-8")
         rows = parse_statement_text(
-            text,
+            source.text,
             account=account,
             source_file=source.pdf_path.name,
         )
@@ -238,7 +239,7 @@ def run(
     *,
     fy_limit: Path | None = None,
 ) -> ParseAccountResult:
-    staging_dir = account_download_path(ctx.settings, account)
+    staging_dir = account_download_path(ctx.settings.download_path, account)
     account_fy_dirs = discover_account_fy_dirs(
         ctx.settings.download_path, account, fy_limit
     )
@@ -252,7 +253,9 @@ def run(
         )
 
     ctx.reporter.parse_started(account.bank, staging_dir)
-    all_sources = _collect_statement_sources(ctx.settings.download_path, account)
+    all_sources = _collect_statement_sources(
+        ctx.settings.download_path, account, fy_limit=fy_limit
+    )
     selected_sources = _select_sources(all_sources)
     transactions_by_fy, statements_by_fy = _parse_selected_sources(
         selected_sources,

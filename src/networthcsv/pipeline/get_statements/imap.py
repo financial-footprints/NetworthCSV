@@ -22,10 +22,9 @@ from networthcsv.settings import (
     EmailSource,
     EmailSourceSettings,
     ResolvedAccount,
-    account_download_path,
-    accounts_to_run,
-    resolve_account_search_dates,
 )
+from networthcsv.utils.account_dates import resolve_account_search_dates
+from networthcsv.utils.path import account_download_path
 
 
 def _escape_gmail_term(value: str) -> str:
@@ -129,7 +128,7 @@ def extract_account(
     email_settings: EmailSourceSettings,
     folder_label: str,
 ) -> ExtractAccountResult:
-    download_dir = account_download_path(ctx.settings, account)
+    download_dir = account_download_path(ctx.settings.download_path, account)
     _ = download_dir.mkdir(parents=True, exist_ok=True)
 
     effective_start, search_end = resolve_account_search_dates(
@@ -213,7 +212,7 @@ def run_imap_extract(ctx: RunContext) -> ExtractStageResult:
                 f"could not open IMAP folder {email_settings.folder!r}: {detail}"
             )
 
-        accounts = accounts_to_run(ctx.settings)
+        accounts = ctx.settings.accounts_to_run()
         for index, account in enumerate(accounts):
             if index > 0:
                 ctx.reporter.blank_line()

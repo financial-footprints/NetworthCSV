@@ -5,33 +5,13 @@ from __future__ import annotations
 import re
 from decimal import Decimal, InvalidOperation
 
+from networthcsv.utils.string import (
+    AMOUNT_TOKEN,
+    CID_PATTERN,
+    CURRENCY_AMOUNT_TOKEN,
+)
+
 DEFAULT_BALANCE_MATCH_TOLERANCE = Decimal("0.21")
-
-_AMOUNT_TOKEN = re.compile(
-    r"(?:"
-    r"\(?\s*"
-    r"(?:Rs\.?|INR|₹|[rC])\s*"
-    r")?"
-    r"(-?\d[\d,]*(?:\.\d+)?|\.\d+)"
-    r"\s*"
-    r"(?:Cr|Dr|CR|DR)?"
-    r"\s*\)?",
-    re.IGNORECASE,
-)
-
-_CURRENCY_AMOUNT_TOKEN = re.compile(
-    r"(?:"
-    r"\(?\s*"
-    r"(?:Rs\.?|INR|₹|[rC])\s*"
-    r")?"
-    r"(-?\d[\d,]*\.\d+|\.\d+)"
-    r"\s*"
-    r"(?:Cr|Dr|CR|DR)?"
-    r"\s*\)?",
-    re.IGNORECASE,
-)
-
-_CID_PATTERN = re.compile(r"\(cid:\d+\)", re.IGNORECASE)
 
 
 def parse_amount_string(value: str) -> str | None:
@@ -87,14 +67,14 @@ def balances_match(
 
 
 def _is_inside_cid(text: str, index: int) -> bool:
-    for match in _CID_PATTERN.finditer(text):
+    for match in CID_PATTERN.finditer(text):
         if match.start() <= index < match.end():
             return True
     return False
 
 
 def first_amount_in_text(text: str) -> str | None:
-    for match in _AMOUNT_TOKEN.finditer(text):
+    for match in AMOUNT_TOKEN.finditer(text):
         if _is_inside_cid(text, match.start()):
             continue
         parsed = parse_amount_string(match.group(0))
@@ -108,7 +88,7 @@ def amounts_with_positions(
     *,
     currency_only: bool = False,
 ) -> list[tuple[str, int]]:
-    pattern = _CURRENCY_AMOUNT_TOKEN if currency_only else _AMOUNT_TOKEN
+    pattern = CURRENCY_AMOUNT_TOKEN if currency_only else AMOUNT_TOKEN
     found: list[tuple[str, int]] = []
     for match in pattern.finditer(line):
         if _is_inside_cid(line, match.start()):

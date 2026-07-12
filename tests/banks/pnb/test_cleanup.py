@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from cleanup_support import account, staging_layout
-from networthcsv.pipeline.cleanup.cleanup import prepare_month
+from networthcsv.pipeline.cleanup import prepare_month
 from networthcsv.utils.path import statement_pdf_path, txt_path_for_pdf
 
 
@@ -18,7 +18,7 @@ class PnbSanitizedTextCleanupTests(unittest.TestCase):
         _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
         return path
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_identifier_must_appear_in_sanitized_text(
         self, mock_extract: MagicMock
     ) -> None:

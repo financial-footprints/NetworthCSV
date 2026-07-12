@@ -6,11 +6,11 @@ import unittest
 from datetime import date
 
 from cleanup_support import FIXTURES_ROOT
-from networthcsv.pipeline.cleanup.statement_date import (
+from networthcsv.utils.banks.period import (
     extract_statement_period,
     resolve_month_period,
 )
-from networthcsv.pipeline.metadata.metadata import (
+from networthcsv.pipeline.metadata import (
     StatementMetadata,
     compute_balance_gaps,
 )

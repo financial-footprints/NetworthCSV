@@ -16,11 +16,7 @@ class ConfigError(NetworthCsvError):
     """Invalid or missing configuration."""
 
 
-class PipelineError(NetworthCsvError):
-    """Pipeline stage failure."""
-
-
-class StageError(PipelineError):
+class StageError(NetworthCsvError):
     """Operational failure inside a pipeline stage."""
 
 

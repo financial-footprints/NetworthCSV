@@ -8,9 +8,9 @@ from pathlib import Path
 from networthcsv.context import RunContext
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.settings import (
+    AppSettings,
     ResolvedAccount,
     RunSettings,
-    Settings,
     ThunderbirdSource,
     ThunderbirdSourceSettings,
 )
@@ -77,7 +77,7 @@ def staging_layout(
 
 def run_context(download_path: Path) -> RunContext:
     return RunContext(
-        settings=Settings(
+        settings=AppSettings(
             source=ThunderbirdSource(
                 thunderbird=ThunderbirdSourceSettings(profile=Path("."))
             ),

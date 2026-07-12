@@ -14,40 +14,41 @@ from pydantic import ValidationError
 
 from networthcsv.errors import ConfigError
 from networthcsv.settings import (
+    AppSettings,
     ConsoleAlertSettings,
     EmailAlertSettings,
     EmailAlertsSettings,
     EmailSource,
     ResolvedAccount,
     RunSettings,
-    Settings,
     ThunderbirdSource,
     ThunderbirdSourceSettings,
-    UserAccountConfig,
-    UserConfig,
-    account_download_path,
-    account_label,
-    accounts_to_run,
-    parse_opening_date,
-    parse_closing_date,
-    resolve_account_search_dates,
-    validate_run_filter,
-    CONFIG_ENV_VAR,
-    DEFAULT_CONFIG_PATH,
-    load_app_config,
-    load_settings,
-    load_user_config,
-    merge_settings,
-    normalize_bank,
-    normalize_body_contains,
-    normalize_from,
+)
+from networthcsv.settings._validators import (
     normalize_account_number,
-    normalize_text_contains,
-    normalize_text_not_contains,
+    normalize_bank,
     normalize_variant,
-    resolve_config_path,
+)
+from networthcsv.settings.app_settings import (
+    _load_app_config,
+    _load_user_config,
+    _merge_settings,
+)
+from networthcsv.settings.models import UserAccountConfig, UserConfig
+from networthcsv.utils.account import account_label
+from networthcsv.utils.account_dates import (
+    parse_closing_date,
+    parse_opening_date,
+    resolve_account_search_dates,
 )
 from networthcsv.utils.banks import get_handler
+from networthcsv.utils.banks._matching_validators import (
+    normalize_body_contains,
+    normalize_from,
+    normalize_text_contains,
+    normalize_text_not_contains,
+)
+from networthcsv.utils.path import account_download_path
 
 
 _DEFAULT_PROFILE = Path("/profile")
@@ -153,8 +154,8 @@ class SettingsTests(unittest.TestCase):
         alerts: ConsoleAlertSettings | EmailAlertsSettings | None = None,
         run: RunSettings | None = None,
         start_date: date | None = None,
-    ) -> Settings:
-        return Settings(
+    ) -> AppSettings:
+        return AppSettings(
             source=source or self._thunderbird_source(),
             download_path=download_path,
             accounts=accounts or [self._account_settings()],
@@ -214,7 +215,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(settings.source.type, "thunderbird")
             assert isinstance(settings.source, ThunderbirdSource)
             self.assertEqual(settings.source.thunderbird.profile, profile.resolve())
@@ -242,7 +243,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="federal", variant="signet")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             handler = get_handler("federal", "signet")
             account = settings.accounts[0]
             self.assertEqual(account.mail.body_contains, handler.mail_body_contains())
@@ -267,7 +268,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             account = settings.accounts[0]
             self.assertEqual(account.mail.body_contains, ["custom body"])
             self.assertEqual(account.mail.from_addresses, ["custom@bank.com"])
@@ -282,7 +283,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="icici")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             handler = get_handler("icici", None)
             account = settings.accounts[0]
             self.assertEqual(account.mail.subjects, handler.mail_subjects())
@@ -347,7 +348,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="bob")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(settings.start_date, date(2024, 6, 1))
 
     def test_load_with_opening_date(self) -> None:
@@ -362,7 +363,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(settings.accounts[0].opening_date, date(2023, 4, 1))
 
     def test_load_with_closing_date(self) -> None:
@@ -381,7 +382,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(settings.accounts[0].closing_date, date(2024, 8, 1))
 
     def test_omitted_closing_date_means_account_open(self) -> None:
@@ -404,7 +405,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="bob", opening_date="01-04-2023")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertIsNone(settings.accounts[0].closing_date)
 
     def test_closing_date_before_opening_date_rejected(self) -> None:
@@ -494,7 +495,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(
                 settings.accounts[0].mail.subjects,
                 ["Custom BOB subject for testing"],
@@ -518,7 +519,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(
                 settings.accounts[0].mail.subjects,
                 get_handler("bob", None).mail_subjects(),
@@ -539,7 +540,7 @@ class SettingsTests(unittest.TestCase):
             )
             app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
-                _ = load_settings(app_config_path)
+                _ = AppSettings.load(app_config_path)
 
     def test_relative_user_config_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -551,7 +552,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="bob")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            app_config = load_app_config(app_config_path)
+            app_config = _load_app_config(app_config_path)
             self.assertEqual(
                 app_config.user_config, (root / "user.config.json").resolve()
             )
@@ -567,7 +568,7 @@ class SettingsTests(unittest.TestCase):
             )
             app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
-                _ = load_settings(app_config_path)
+                _ = AppSettings.load(app_config_path)
 
     def test_duplicate_account_number_rejected(self) -> None:
         with self.assertRaises(ValidationError):
@@ -648,7 +649,7 @@ class SettingsTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            account_download_path(settings, settings.accounts[0]),
+            account_download_path(settings.download_path, settings.accounts[0]),
             Path("/statements/credit_card/1234"),
         )
 
@@ -664,7 +665,7 @@ class SettingsTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            account_download_path(settings, settings.accounts[0]),
+            account_download_path(settings.download_path, settings.accounts[0]),
             Path("/statements/bank_account/1234"),
         )
 
@@ -689,7 +690,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             amazon = settings.accounts[0]
             platinum = settings.accounts[1]
             catch_all = settings.accounts[2]
@@ -717,7 +718,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="icici", variant="missing")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             account = settings.accounts[0]
             self.assertEqual(account.variant, "missing")
             self.assertEqual(
@@ -743,7 +744,7 @@ class SettingsTests(unittest.TestCase):
                 ],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             account = settings.accounts[0]
             self.assertEqual(account.variant, "missing")
             self.assertEqual(
@@ -791,7 +792,7 @@ class SettingsTests(unittest.TestCase):
             )
             app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
-                _ = load_settings(app_config_path)
+                _ = AppSettings.load(app_config_path)
 
     def test_explicit_thunderbird_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -807,7 +808,7 @@ class SettingsTests(unittest.TestCase):
                 },
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             assert isinstance(settings.source, ThunderbirdSource)
             self.assertEqual(settings.source.thunderbird.profile, profile.resolve())
 
@@ -828,7 +829,7 @@ class SettingsTests(unittest.TestCase):
                 },
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             assert isinstance(settings.source, EmailSource)
             self.assertEqual(settings.source.email.host, "imap.gmail.com")
             self.assertEqual(settings.source.email.folder, "[Gmail]/All Mail")
@@ -850,7 +851,7 @@ class SettingsTests(unittest.TestCase):
             )
             app_config_path = self._write_app_config(root, "user.config.json")
             with self.assertRaises(ConfigError):
-                _ = load_settings(app_config_path)
+                _ = AppSettings.load(app_config_path)
 
     def test_merge_settings_directly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -860,9 +861,9 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="bob", passwords=["secret"])],
             )
             app_config_path = self._write_app_config(root, str(user_config_path.name))
-            app_config = load_app_config(app_config_path)
-            user_config = load_user_config(user_config_path)
-            settings = merge_settings(app_config, user_config)
+            app_config = _load_app_config(app_config_path)
+            user_config = _load_user_config(user_config_path)
+            settings = _merge_settings(app_config, user_config)
             self.assertEqual(
                 settings.accounts[0].mail.subjects,
                 get_handler("bob", None).mail_subjects(),
@@ -876,7 +877,7 @@ class SettingsTests(unittest.TestCase):
                 root,
                 accounts=[self._account(bank="bob")],
             )
-            user_config = load_user_config(user_config_path)
+            user_config = _load_user_config(user_config_path)
             self.assertIsNone(user_config.alerts)
 
     def test_alerts_console_type(self) -> None:
@@ -936,7 +937,7 @@ class SettingsTests(unittest.TestCase):
                 },
             )
             app_config_path = self._write_app_config(root, str(user_config_path.name))
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertIsNotNone(settings.alerts)
             assert settings.alerts is not None
             self.assertEqual(settings.alerts.type, "email")
@@ -945,23 +946,34 @@ class SettingsTests(unittest.TestCase):
 
     def test_resolve_config_path_default(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(resolve_config_path(None), DEFAULT_CONFIG_PATH.resolve())
+            self.assertEqual(
+                AppSettings.resolve_config_path(None),
+                AppSettings.DEFAULT_CONFIG_PATH.resolve(),
+            )
 
     def test_resolve_config_path_env_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             custom = Path(tmp) / "custom.config.json"
             _ = custom.write_text("{}", encoding="utf-8")
-            with mock.patch.dict(os.environ, {CONFIG_ENV_VAR: str(custom)}, clear=True):
-                self.assertEqual(resolve_config_path(None), custom.resolve())
+            with mock.patch.dict(
+                os.environ, {AppSettings.CONFIG_ENV_VAR: str(custom)}, clear=True
+            ):
+                self.assertEqual(
+                    AppSettings.resolve_config_path(None), custom.resolve()
+                )
 
     def test_resolve_config_path_explicit_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             custom = Path(tmp) / "custom.config.json"
             _ = custom.write_text("{}", encoding="utf-8")
             with mock.patch.dict(
-                os.environ, {CONFIG_ENV_VAR: "/other/app.config.json"}, clear=True
+                os.environ,
+                {AppSettings.CONFIG_ENV_VAR: "/other/app.config.json"},
+                clear=True,
             ):
-                self.assertEqual(resolve_config_path(custom), custom.resolve())
+                self.assertEqual(
+                    AppSettings.resolve_config_path(custom), custom.resolve()
+                )
 
     def test_local_app_config_overlay_overrides_user_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -973,7 +985,7 @@ class SettingsTests(unittest.TestCase):
                 {"user_config": str(custom_user_config)},
             )
 
-            app_config = load_app_config(overlay_path)
+            app_config = _load_app_config(overlay_path)
 
             self.assertEqual(app_config.user_config, custom_user_config.resolve())
 
@@ -983,9 +995,9 @@ class SettingsTests(unittest.TestCase):
             base_path = self._write_app_config(root, "user.config.json")
             overlay_path = self._write_app_config_overlay(root, {})
 
-            app_config = load_app_config(overlay_path)
+            app_config = _load_app_config(overlay_path)
 
-            base_config = load_app_config(base_path)
+            base_config = _load_app_config(base_path)
             self.assertEqual(app_config.user_config, base_config.user_config)
 
     def test_local_app_config_overlay_requires_base_config(self) -> None:
@@ -996,7 +1008,7 @@ class SettingsTests(unittest.TestCase):
                 {"user_config": "user.config.json"},
             )
             with self.assertRaises(ConfigError):
-                _ = load_app_config(overlay_path)
+                _ = _load_app_config(overlay_path)
 
     def test_run_settings_rejects_no_matching_account(self) -> None:
         with self.assertRaises(ValidationError):
@@ -1031,7 +1043,7 @@ class SettingsTests(unittest.TestCase):
                 },
             )
             app_config_path = self._write_app_config(root, str(user_config_path.name))
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(settings.run.identifier, "5678")
             self.assertEqual(settings.run.financial_year, "FY23-2024")
 
@@ -1057,8 +1069,8 @@ class SettingsTests(unittest.TestCase):
                 },
             )
             app_config_path = self._write_app_config(root, str(user_config_path.name))
-            settings = load_settings(app_config_path)
-            selected = accounts_to_run(settings)
+            settings = AppSettings.load(app_config_path)
+            selected = settings.accounts_to_run()
             self.assertEqual(len(selected), 1)
             self.assertEqual(selected[0].bank, "bob")
             self.assertEqual(selected[0].account_number, "1")
@@ -1071,7 +1083,7 @@ class SettingsTests(unittest.TestCase):
             run=RunSettings(identifier="missing"),
         )
         with self.assertRaises(ValueError):
-            validate_run_filter(settings)
+            settings.validate_run_filter()
 
     def test_run_settings_model_defaults(self) -> None:
         run = RunSettings()
@@ -1088,7 +1100,7 @@ class SettingsTests(unittest.TestCase):
                 accounts=[self._account(bank="bob")],
             )
             app_config_path = self._write_app_config(root, "user.config.json")
-            settings = load_settings(app_config_path)
+            settings = AppSettings.load(app_config_path)
             self.assertEqual(settings.accounts[0].account_type, "credit_card")
 
 

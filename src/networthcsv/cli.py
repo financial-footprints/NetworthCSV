@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import dataclasses
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,11 +18,9 @@ from networthcsv.pipeline.reporter import (
 from networthcsv.pipeline.runner import run_stage_for_accounts
 from networthcsv.logging import configure_logging
 from networthcsv.settings import (
+    AppSettings,
     ResolvedAccount,
     RunSettings,
-    Settings,
-    load_settings,
-    validate_run_filter,
 )
 
 __all__ = [
@@ -75,9 +72,9 @@ def parse_run_args(argv: list[str] | None = None) -> CliRunOptions:
 
 
 def apply_run_overrides(
-    settings: Settings,
+    settings: AppSettings,
     run_overrides: RunSettings | Mapping[str, object] | None,
-) -> Settings:
+) -> AppSettings:
     if run_overrides is None:
         return settings
 
@@ -89,9 +86,7 @@ def apply_run_overrides(
             key: value for key, value in run_overrides.items() if value is not None
         }
     merged.update(patch)
-    updated = dataclasses.replace(settings, run=RunSettings.model_validate(merged))
-    validate_run_filter(updated)
-    return updated
+    return settings.with_run(RunSettings.model_validate(merged))
 
 
 def load_context(
@@ -101,7 +96,7 @@ def load_context(
     reporter: RunReporter | None = None,
     should_cancel: CancelChecker | None = None,
 ) -> RunContext:
-    settings = load_settings(config_path)
+    settings = AppSettings.load(config_path)
     settings = apply_run_overrides(settings, run_overrides)
     configure_logging(settings.log_level)
     return RunContext(

@@ -216,12 +216,22 @@ def purge_drop_sections(text: str, *, drop_sections: list[str] | None = None) ->
     return _drop_blank_lines(result)
 
 
+def normalize_match_text(text: str) -> str:
+    """Collapse whitespace so PDF layout spacing does not break marker checks."""
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def text_contains_present(text: str, text_contains: list[str]) -> bool:
     return any(marker in text for marker in text_contains if marker)
 
 
 def text_not_contains_violated(text: str, text_not_contains: list[str]) -> bool:
-    return any(marker in text for marker in text_not_contains if marker)
+    normalized = normalize_match_text(text)
+    return any(
+        normalize_match_text(marker) in normalized
+        for marker in text_not_contains
+        if marker
+    )
 
 
 def statement_text_eligible(

@@ -32,13 +32,70 @@ def _account(*, variant: str | None = "default") -> ResolvedAccount:
 
 class IndusindStatementBalanceTests(unittest.TestCase):
     def test_previous_balance_next_line(self) -> None:
-        text = "Previous Balance\n0.00 DR\nTotal Amount Due\n990.00 CR\n"
+        text = (
+            "Previous Balance\n"
+            "0.00 DR\n"
+            "Total Amount Due\n"
+            "990.00 CR\n"
+            "Total Outstanding\n"
+            "(Including Loans)\n"
+            "990.00 CR\n"
+        )
         account = _account()
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)
         self.assertEqual(opening, "0.00")
         self.assertEqual(closing, "-990.00")
+
+    def test_total_outstanding_scrambled_layout(self) -> None:
+        text = (
+            "Previous Balance\n"
+            "1200.00 CR\n"
+            "Total Amount Due\n"
+            "550.00 CR\n"
+            "22/07/2025 GST @ 18%                       0          .50 DR  Total Outstanding\n"
+            "                                                                   (includingLoans)\n"
+            "   Total                                      0         3.50\n"
+            "                                                                    549.50 CR\n"
+            "   Rewards OpeningBalance(Points) PointsEarned PointsRedeemed* ClosingBalance(Points)\n"
+        )
+        handler = get_handler("indusind", "auraedge")
+        closing = handler.get_closing_balance(text)
+        self.assertEqual(closing, "-549.50")
+
+    def test_total_outstanding_on_total_row(self) -> None:
+        text = (
+            "Previous Balance\n"
+            "400.00 DR\n"
+            "Total Amount Due\n"
+            "125.00 DR\n"
+            "25/04/2025 SAMPLE MERCHANT 356  DEPARTMENTAL 0       500.00 DR Total Outstanding\n"
+            "                                   STORES                          (includingLoans)\n"
+            "   Total                                      0        500.00       125.00 DR\n"
+            "   Rewards OpeningBalance(Points) PointsEarned PointsRedeemed* ClosingBalance(Points)\n"
+        )
+        handler = get_handler("indusind", "amex-epay")
+        closing = handler.get_closing_balance(text)
+        self.assertEqual(closing, "125.00")
+
+    def test_total_outstanding_stops_before_invoice(self) -> None:
+        text = (
+            "Previous Balance\n"
+            "0.00 DR\n"
+            "Total Amount Due\n"
+            "950.00 DR\n"
+            "Total Outstanding\n"
+            "(includingLoans)\n"
+            "950.00 DR\n"
+            "MS NEHA GUPTA\n"
+            "Invoice and Credit note No : 8123456789012345678\n"
+            "PaymentDueDate Min.AmountDue\n"
+            "07/03/2022 80.00\n"
+        )
+        handler = get_handler("indusind", "amex-epay")
+        closing = handler.get_closing_balance(text)
+        self.assertEqual(closing, "950.00")
 
 
 class IndusindMatchingDefaultsTests(unittest.TestCase):
@@ -73,6 +130,7 @@ class IndusindMatchingDefaultsTests(unittest.TestCase):
                 defaults.statement.text_not_contains,
             )
         )
+        self.assertFalse(handler.is_excluded_statement(sanitized))
 
 
 if __name__ == "__main__":

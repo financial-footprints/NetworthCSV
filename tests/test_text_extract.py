@@ -193,6 +193,12 @@ class TextContainsValidationTests(unittest.TestCase):
             text_not_contains_violated("Card ending in 5678", ["Anotherthing"])
         )
         self.assertFalse(text_not_contains_violated("any text", []))
+        self.assertTrue(
+            text_not_contains_violated(
+                "ANNUAL  SPEND  SUMMARY for FY",
+                ["ANNUAL SPEND SUMMARY"],
+            )
+        )
 
     @patch("networthcsv.utils.banks.helpers.text.logger.debug")
     def test_text_contains_found(self, mock_debug: MagicMock) -> None:

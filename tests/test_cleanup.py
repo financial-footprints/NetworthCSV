@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from cleanup_support import account, extract_side_effect, run_context, staging_layout
-from networthcsv.pipeline.cleanup.cleanup import (
+from networthcsv.pipeline.cleanup import (
     collect_month_groups,
     prepare_month,
     run,
@@ -27,7 +27,7 @@ class PrepareMonthTests(unittest.TestCase):
         _ = path.write_bytes(payload)
         return path
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_accepts_month_when_text_contains_blank(
         self, mock_extract: MagicMock
     ) -> None:
@@ -54,7 +54,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(txt_out.is_file())
             self.assertFalse(staging.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_writes_paired_pdf_and_txt_for_matching_staging_file(
         self, mock_extract: MagicMock
     ) -> None:
@@ -79,7 +79,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertIn("5678", txt_out.read_text(encoding="utf-8"))
             self.assertFalse(staging.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_prepare_month_accepts_manual_upload_without_text_contains_in_text(
         self, mock_extract: MagicMock
     ) -> None:
@@ -103,7 +103,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(txt_out.is_file())
             self.assertFalse(staging.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_keeps_last_matching_identifier_for_same_month(
         self, mock_extract: MagicMock
     ) -> None:
@@ -134,7 +134,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(first.is_file())
             self.assertFalse(second.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_strict_rejects_month_when_no_identifier_matches(
         self, mock_extract: MagicMock
     ) -> None:
@@ -165,7 +165,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(first.is_file())
             self.assertTrue(second.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_accepts_month_when_any_text_contains_matches(
         self, mock_extract: MagicMock
     ) -> None:
@@ -194,7 +194,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(txt_out.is_file())
             self.assertIn("XXXX5678", txt_out.read_text(encoding="utf-8"))
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_rejects_month_when_no_text_contains_match(
         self, mock_extract: MagicMock
     ) -> None:
@@ -223,7 +223,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(txt_out.is_file())
             self.assertTrue(staging.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_reject_preserves_existing_month_outputs(
         self, mock_extract: MagicMock
     ) -> None:
@@ -250,7 +250,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(txt_out.is_file())
             self.assertTrue(staging.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_rejects_when_both_match_identifier_with_different_content(
         self, mock_extract: MagicMock
     ) -> None:
@@ -281,7 +281,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(first.is_file())
             self.assertTrue(second.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_hash_dedupe_staging_siblings_all_removed(
         self, mock_extract: MagicMock
     ) -> None:
@@ -320,7 +320,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertFalse(starred.exists())
             self.assertFalse(important.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_reject_leaves_staging_duplicates_in_place(
         self, mock_extract: MagicMock
     ) -> None:
@@ -355,7 +355,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(second.is_file())
             self.assertTrue(third.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_writes_paired_outputs_for_uppercase_pdf_extension(
         self, mock_extract: MagicMock
     ) -> None:
@@ -379,7 +379,7 @@ class PrepareMonthTests(unittest.TestCase):
             self.assertTrue(txt_out.is_file())
             self.assertFalse(staging.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_leaves_wrong_identifier_sibling_in_staging(
         self, mock_extract: MagicMock
     ) -> None:
@@ -408,7 +408,7 @@ class PrepareMonthTests(unittest.TestCase):
 
 
 class CollectMonthGroupsTests(unittest.TestCase):
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_groups_uppercase_staging_pdfs_by_filename_fallback(
         self, mock_extract: MagicMock
     ) -> None:
@@ -428,7 +428,7 @@ class CollectMonthGroupsTests(unittest.TestCase):
                 sorted([first.name, second.name]),
             )
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_groups_by_statement_date_not_email_filename(
         self, mock_extract: MagicMock
     ) -> None:
@@ -448,7 +448,7 @@ class CollectMonthGroupsTests(unittest.TestCase):
             self.assertEqual(collected.groups["2023-04"], [staging])
             self.assertEqual(collected.path_month[staging], "2023-04")
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_manual_upload_uses_filename_month_over_pdf_text(
         self, mock_extract: MagicMock
     ) -> None:
@@ -475,8 +475,8 @@ class RunCleanupTests(unittest.TestCase):
         _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
         return path
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.decrypt_pdfs_in_place", return_value=0)
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.pipeline.cleanup.staging.decrypt_pdfs_in_place", return_value=0)
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_run_skips_unknown_month_leaving_files_in_staging(
         self, mock_extract: MagicMock, _mock_decrypt: MagicMock
     ) -> None:
@@ -495,8 +495,8 @@ class RunCleanupTests(unittest.TestCase):
             self.assertEqual(result.prepared, 0)
             self.assertEqual(result.rejected, 0)
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.decrypt_pdfs_in_place", return_value=0)
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.pipeline.cleanup.staging.decrypt_pdfs_in_place", return_value=0)
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_run_upload_scope_processes_only_manual_pdf(
         self, mock_extract: MagicMock, _mock_decrypt: MagicMock
     ) -> None:
@@ -522,8 +522,8 @@ class RunCleanupTests(unittest.TestCase):
 
 
 class AmbiguousStatementCleanupTests(unittest.TestCase):
-    @patch("networthcsv.pipeline.cleanup.cleanup.logger")
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.pipeline.cleanup.prepare_month.logger")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_ambiguous_warning_lists_conflicting_filenames(
         self, mock_extract: MagicMock, mock_logger: MagicMock
     ) -> None:
@@ -560,7 +560,7 @@ class TextNotContainsCleanupTests(unittest.TestCase):
         _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
         return path
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_deletes_staging_pdf_when_text_not_contains_violated(
         self, mock_extract: MagicMock
     ) -> None:
@@ -590,7 +590,7 @@ class TextNotContainsCleanupTests(unittest.TestCase):
             self.assertFalse(txt_out.is_file())
             self.assertFalse(staging.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_keeps_valid_candidate_when_false_positive_excluded(
         self, mock_extract: MagicMock
     ) -> None:
@@ -627,7 +627,7 @@ class TextNotContainsCleanupTests(unittest.TestCase):
             self.assertFalse(false_positive.is_file())
             self.assertFalse(valid.is_file())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_manual_upload_bypasses_text_not_contains(
         self, mock_extract: MagicMock
     ) -> None:
@@ -657,7 +657,7 @@ class TextNotContainsCleanupTests(unittest.TestCase):
             self.assertTrue(txt_out.is_file())
             self.assertFalse(staging.exists())
 
-    @patch("networthcsv.pipeline.cleanup.cleanup.extract_pdf_text_plumber")
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
     def test_run_removes_canonical_outputs_when_text_not_contains_violated(
         self, mock_extract: MagicMock
     ) -> None:

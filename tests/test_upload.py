@@ -6,22 +6,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from networthcsv.pipeline.metadata.metadata import build_account_metadata
+from networthcsv.pipeline.metadata import build_account_metadata
 from networthcsv.pipeline.upload import (
     StatementFileExistsError,
     period_from_manual_upload,
     save_uploaded_csv,
     save_uploaded_pdf,
 )
-from networthcsv.settings import (
-    ResolvedAccount,
-    RunSettings,
-    Settings,
-    ThunderbirdSource,
-    ThunderbirdSourceSettings,
+from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.path import (
     account_download_path,
+    statement_csv_path,
+    statement_pdf_path,
 )
-from networthcsv.utils.path import statement_csv_path, statement_pdf_path
 
 
 def _account() -> ResolvedAccount:
@@ -34,18 +31,6 @@ def _account() -> ResolvedAccount:
             "mail": {"subjects": ["BOB"]},
             "statement": {"text_contains": ["5678"]},
         }
-    )
-
-
-def _settings(download_path: Path) -> Settings:
-    return Settings(
-        source=ThunderbirdSource(
-            thunderbird=ThunderbirdSourceSettings(profile=Path("."))
-        ),
-        download_path=download_path,
-        accounts=[],
-        alerts=None,
-        run=RunSettings(),
     )
 
 
@@ -62,8 +47,7 @@ class UploadHelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
             account = _account()
-            settings = _settings(download_path)
-            staging_dir = account_download_path(settings, account)
+            staging_dir = account_download_path(download_path, account)
             path = save_uploaded_pdf(
                 staging_dir,
                 download_path,
@@ -81,8 +65,7 @@ class UploadHelperTests(unittest.TestCase):
             canonical = statement_pdf_path(download_path, account, "2024-02")
             _ = canonical.parent.mkdir(parents=True, exist_ok=True)
             _ = canonical.write_bytes(b"%PDF")
-            settings = _settings(download_path)
-            staging_dir = account_download_path(settings, account)
+            staging_dir = account_download_path(download_path, account)
             _ = staging_dir.mkdir(parents=True, exist_ok=True)
 
             with self.assertRaises(StatementFileExistsError):

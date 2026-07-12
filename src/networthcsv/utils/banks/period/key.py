@@ -1,4 +1,4 @@
-"""Extract statement dates from credit card statement text."""
+"""Resolve statement period keys (YYYY-MM, yearly-…) from bank statement text."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Literal
 
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
+from networthcsv.utils.banks.base import BankHandler
 from networthcsv.utils.statement_period import (
     month_period_from_filename,
     yearly_period_from_dates,
@@ -25,8 +26,8 @@ __all__ = [
     "extract_statement_period",
     "resolve_month_period",
     "resolve_month_period_with_source",
-    "resolve_statement_period",
-    "resolve_statement_period_with_source",
+    "resolve_period_key",
+    "resolve_period_key_with_source",
 ]
 
 
@@ -42,14 +43,24 @@ def extract_statement_period(
     return handler.get_statement_period(text)
 
 
+def _yearly_period_with_source(
+    handler: BankHandler, text: str
+) -> tuple[str, PeriodSource] | None:
+    if not handler.is_yearly_statement(text):
+        return None
+    period = handler.get_yearly_period(text)
+    if period is None:
+        return None
+    return yearly_period_from_dates(period[0], period[1]), "yearly"
+
+
 def resolve_month_period_with_source(
     text: str, filename: str, *, account: ResolvedAccount
 ) -> tuple[str, PeriodSource]:
     handler = get_handler(account.bank, account.variant)
-    if handler.is_yearly_statement(text):
-        period = handler.get_yearly_period(text)
-        if period is not None:
-            return yearly_period_from_dates(period[0], period[1]), "yearly"
+    yearly = _yearly_period_with_source(handler, text)
+    if yearly is not None:
+        return yearly
     parsed = handler.get_statement_date(text)
     if parsed is not None:
         return parsed.strftime("%Y-%m"), "content_date"
@@ -64,25 +75,21 @@ def resolve_month_period_with_source(
     return "unknown-month", "unknown"
 
 
-def resolve_statement_period_with_source(
+def resolve_period_key_with_source(
     text: str, filename: str, *, account: ResolvedAccount
 ) -> tuple[str, PeriodSource]:
     handler = get_handler(account.bank, account.variant)
     if handler.is_yearly_statement(text):
-        period = handler.get_yearly_period(text)
-        if period is not None:
-            return yearly_period_from_dates(period[0], period[1]), "yearly"
+        yearly = _yearly_period_with_source(handler, text)
+        if yearly is not None:
+            return yearly
         logger.warning("yearly statement in %s but period not found", filename)
         return "unknown-month", "unknown"
     return resolve_month_period_with_source(text, filename, account=account)
 
 
-def resolve_statement_period(
-    text: str, filename: str, *, account: ResolvedAccount
-) -> str:
-    period, _source = resolve_statement_period_with_source(
-        text, filename, account=account
-    )
+def resolve_period_key(text: str, filename: str, *, account: ResolvedAccount) -> str:
+    period, _source = resolve_period_key_with_source(text, filename, account=account)
     return period
 
 

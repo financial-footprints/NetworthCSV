@@ -281,9 +281,7 @@ def build_calendar_year_sections(
         )
         months = tuple(
             _month_cell(month_key)
-            for month_key in reversed(
-                covered_months_between(period_start, period_end)
-            )
+            for month_key in reversed(covered_months_between(period_start, period_end))
         )
         sections.append(
             CalendarYearSection(

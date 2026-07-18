@@ -12,7 +12,6 @@
 
 
 
-
      Rs. 2,100.50                         01 May  2021
 
 
@@ -35,25 +34,22 @@
 
 
 
+                     Opening Balance  22/03/2021  Rs. 0.00
 
-                     22/03/2021                                         Rs. 0.00
+                     Spends  Rs. 2,100.50
 
-                                                                     Rs. 2,100.50
+                     Cash Advances  Rs. 0.00
 
-                                                                        Rs. 0.00
-
-                                                                        Rs. 0.00
+                     Fees & Charges  Rs. 0.00
 
 
-                                                                        Rs. 0.00
+                     Interest Charges  Rs. 0.00
 
-                                                                        Rs. 0.00
+                     Repayments & Refunds  Rs. 0.00
 
-                                                                        Rs. 0.00
+                     Paid via points  Rs. 0.00
 
-                                                                        Rs. 0.00
-
-                                                                     Rs. 2,100.50
+                     Total Amount Due  Rs. 2,100.50
 
 
 
@@ -72,22 +68,22 @@
 
 
 
-   24 Mar 21 MUNICIPAL SERVICE FEE                                       Rs. 612.40
+   24 Mar 21 MUNICIPAL SERVICE FEE                                       Rs. 612.40 Dr
    11:18 am
 
-   30 Mar 21 REGISTRATION OFFICE FEE                                        Rs. 905
+   30 Mar 21 REGISTRATION OFFICE FEE                                        Rs. 905 Dr
    09:42 am
 
-   06 Apr 21 PUBLIC UTILITY PAYMENT                                        Rs. 115.60
+   06 Apr 21 PUBLIC UTILITY PAYMENT                                        Rs. 115.60 Dr
    04:07 pm
 
-   08 Apr 21 GOVT FACILITY REGISTRATION                                    Rs. 52.40
+   08 Apr 21 GOVT FACILITY REGISTRATION                                    Rs. 52.40 Dr
    02:14 pm
 
-   09 Apr 21 STAMP DUTY CHARGE                                             Rs. 187.25
+   09 Apr 21 STAMP DUTY CHARGE                                             Rs. 187.25 Dr
    07:55 pm
 
-   14 Apr 21 DOCUMENT PROCESSING FEE                                       Rs. 227.85
+   14 Apr 21 DOCUMENT PROCESSING FEE                                       Rs. 227.85 Dr
    06:33 am
 
 

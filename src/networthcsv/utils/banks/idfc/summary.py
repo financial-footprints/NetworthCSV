@@ -15,8 +15,6 @@ from networthcsv.utils.banks.helpers.tables import (
     _summary_row_amounts,
     _summary_table_header_seen,
     amounts_with_positions,
-    equation_first_after,
-    label_single_amount,
 )
 from networthcsv.utils.banks.idfc.wow.common import is_stacked_boundary
 
@@ -400,6 +398,39 @@ def _stacked_opening_from_amounts(text: str) -> str | None:
 
 def _stacked_closing_from_amounts(text: str) -> str | None:
     window = _stacked_summary_window(text)
+    if window is None:
+        return None
+    amounts = _stacked_amount_lines(window)
+    return amounts[-1] if amounts else None
+
+
+def _leading_stacked_window(text: str) -> str | None:
+    """Header region before YOUR TRANSACTIONS (pre-Statement-Summary stacked layout)."""
+    txn_match = label_regex("YOUR TRANSACTIONS").search(text)
+    end = txn_match.start() if txn_match is not None else min(len(text), 3000)
+    head = text[:end]
+    collected: list[str] = []
+    for line in head.split("\n"):
+        if is_stacked_boundary(line):
+            break
+        collected.append(line)
+    window = "\n".join(collected).strip()
+    return window or None
+
+
+def _leading_stacked_opening(text: str) -> str | None:
+    window = _leading_stacked_window(text)
+    if window is None:
+        return None
+    amounts = _stacked_amount_lines(window)
+    for amount in amounts:
+        if amount != "0.00":
+            return amount
+    return amounts[0] if amounts else None
+
+
+def _leading_stacked_closing(text: str) -> str | None:
+    window = _leading_stacked_window(text)
     if window is None:
         return None
     amounts = _stacked_amount_lines(window)

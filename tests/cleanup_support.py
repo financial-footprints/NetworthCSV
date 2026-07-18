@@ -27,8 +27,14 @@ DEFAULT_OPENING_DATE = "01-01-2020"
 
 def extract_side_effect(
     mapping: dict[Path, str],
-) -> Callable[[Path, list[str]], str]:
-    def side_effect(path: Path, _passwords: list[str]) -> str:
+) -> Callable[..., str]:
+    def side_effect(
+        path: Path,
+        _passwords: list[str],
+        *,
+        annotate_edge_amount_colors: bool = False,
+    ) -> str:
+        _ = annotate_edge_amount_colors
         return mapping[path]
 
     return side_effect

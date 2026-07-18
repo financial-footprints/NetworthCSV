@@ -32,6 +32,7 @@ from networthcsv.pipeline.upload import period_from_manual_upload
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.account import account_label
 from networthcsv.utils.alerts.service import AlertService
+from networthcsv.utils.banks.helpers.jupiter import uses_edge_color_extract
 from networthcsv.utils.banks.helpers.text import (
     check_text_contains,
     text_contains_present,
@@ -62,10 +63,15 @@ def prepare_month(
         return 0, 0
 
     unique = dedupe_paths_by_hash(existing, path_hash=path_hash)
+    annotate_edge = uses_edge_color_extract(account.bank, account.variant)
     raw_by_path = load_or_use_raw(
         unique,
         raw_by_path,
-        lambda path: pdf.extract_pdf_text_plumber(path, account.passwords),
+        lambda path: pdf.extract_pdf_text_plumber(
+            path,
+            account.passwords,
+            annotate_edge_amount_colors=annotate_edge,
+        ),
     )
     sanitized_by_path = {
         path: sanitized_text(raw_by_path[path], account) for path in unique

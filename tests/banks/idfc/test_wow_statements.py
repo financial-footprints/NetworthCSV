@@ -41,9 +41,9 @@ class IdfcWowStatementTests(unittest.TestCase):
         cls.v2_rewards_sidecar = (
             _FIXTURES / "v2-rewards-sidecar-2025-01.txt"
         ).read_text(encoding="utf-8")
-        cls.v3_modern_stacked = (
-            _FIXTURES / "v3-modern-stacked-2026-06.txt"
-        ).read_text(encoding="utf-8")
+        cls.v3_modern_stacked = (_FIXTURES / "v3-modern-stacked-2026-06.txt").read_text(
+            encoding="utf-8"
+        )
         cls.account = make_account(
             bank="idfc",
             variant="wow",

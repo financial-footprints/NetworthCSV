@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import date
 
 from networthcsv.utils.banks import register
-from networthcsv.utils.banks.idfc.default import IdfcDefaultHandler
-from networthcsv.utils.banks.idfc.wow import get_layout
 from networthcsv.utils.banks.helpers.dates import (
     first_not_none_date,
     label_range_period,
@@ -14,6 +12,9 @@ from networthcsv.utils.banks.helpers.dates import (
     top_range_end,
     top_range_period,
 )
+from networthcsv.utils.banks.idfc.default import IdfcDefaultHandler
+from networthcsv.utils.banks.idfc.summary import normalize_cr_dr_layout
+from networthcsv.utils.banks.idfc.wow import get_layout
 
 
 @register("idfc", "wow")
@@ -69,7 +70,9 @@ class IdfcWowHandler(IdfcDefaultHandler):
         return None, None
 
     def get_opening_balance(self, text: str) -> str | None:
-        return get_layout(text).get_opening_balance(text)
+        normalized = normalize_cr_dr_layout(text)
+        return get_layout(normalized).get_opening_balance(normalized)
 
     def get_closing_balance(self, text: str) -> str | None:
-        return get_layout(text).get_closing_balance(text)
+        normalized = normalize_cr_dr_layout(text)
+        return get_layout(normalized).get_closing_balance(normalized)

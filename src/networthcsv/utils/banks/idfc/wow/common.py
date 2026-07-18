@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from networthcsv.utils.banks.helpers.amounts import first_amount_in_text
-from networthcsv.utils.banks.helpers.dates import find_label, label_regex
+from networthcsv.utils.banks.helpers.dates import label_regex
 
 _INLINE_HEADER_ROW = re.compile(
     r"Total Amount Due.*Minimum Amount Due.*Credit Limit",

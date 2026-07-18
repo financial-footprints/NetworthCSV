@@ -14,6 +14,7 @@ from networthcsv.utils.banks.period import (
     resolve_csv_period_key_with_source,
     resolve_period_key_with_source,
 )
+from networthcsv.utils.banks.helpers.jupiter import uses_edge_color_extract
 from networthcsv.utils.path import is_csv_path, is_pdf_path, iter_csvs, iter_pdfs
 import networthcsv.utils.pdf as pdf
 
@@ -118,10 +119,15 @@ def collect_staging_groups(
         pdf_paths=pdf_paths,
         csv_paths=csv_paths,
     )
+    annotate_edge = uses_edge_color_extract(account.bank, account.variant)
     pdf_groups = _collect_groups(
         resolved_pdfs,
         account,
-        read_raw=lambda path: pdf.extract_pdf_text_plumber(path, account.passwords),
+        read_raw=lambda path: pdf.extract_pdf_text_plumber(
+            path,
+            account.passwords,
+            annotate_edge_amount_colors=annotate_edge,
+        ),
         resolve_period=lambda raw, name: resolve_period_key_with_source(
             raw, name, account=account
         ),
@@ -144,10 +150,15 @@ def collect_month_groups(
     paths: list[Path] | None = None,
 ) -> MonthGroups:
     pdf_paths = paths if paths is not None else list(iter_pdfs(staging_dir))
+    annotate_edge = uses_edge_color_extract(account.bank, account.variant)
     return _collect_groups(
         pdf_paths,
         account,
-        read_raw=lambda path: pdf.extract_pdf_text_plumber(path, account.passwords),
+        read_raw=lambda path: pdf.extract_pdf_text_plumber(
+            path,
+            account.passwords,
+            annotate_edge_amount_colors=annotate_edge,
+        ),
         resolve_period=lambda raw, name: resolve_period_key_with_source(
             raw, name, account=account
         ),

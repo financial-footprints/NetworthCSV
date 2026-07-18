@@ -10,6 +10,7 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError, PdfStreamError
 
 from networthcsv.errors import StageError
+from networthcsv.utils.banks.helpers.jupiter import annotate_page_text_from_chars
 
 
 def pdf_is_encrypted(path: Path) -> bool:
@@ -19,7 +20,12 @@ def pdf_is_encrypted(path: Path) -> bool:
         return False
 
 
-def _open_and_extract(path: Path, password: str | None) -> str:
+def _open_and_extract(
+    path: Path,
+    password: str | None,
+    *,
+    annotate_edge_amount_colors: bool = False,
+) -> str:
     if password is None:
         pdf_open = pdfplumber.open(str(path))
     else:
@@ -28,22 +34,38 @@ def _open_and_extract(path: Path, password: str | None) -> str:
         pages: list[str] = []
         for page in pdf.pages:
             text = page.extract_text(layout=True)
-            if text:
-                pages.append(text)
+            if not text:
+                continue
+            if annotate_edge_amount_colors:
+                text = annotate_page_text_from_chars(text, page.chars)
+            pages.append(text)
         return "\n\n".join(pages)
 
 
-def extract_pdf_text_plumber(path: Path, passwords: list[str]) -> str:
+def extract_pdf_text_plumber(
+    path: Path,
+    passwords: list[str],
+    *,
+    annotate_edge_amount_colors: bool = False,
+) -> str:
     if not pdf_is_encrypted(path):
         try:
-            return _open_and_extract(path, None)
+            return _open_and_extract(
+                path,
+                None,
+                annotate_edge_amount_colors=annotate_edge_amount_colors,
+            )
         except (PdfReadError, OSError, ValueError) as exc:
             raise StageError(f"could not open {path}: {exc}") from exc
 
     last_error: Exception | None = None
     for password in passwords:
         try:
-            return _open_and_extract(path, password)
+            return _open_and_extract(
+                path,
+                password,
+                annotate_edge_amount_colors=annotate_edge_amount_colors,
+            )
         except (PdfReadError, PdfminerException, OSError, ValueError) as exc:
             last_error = exc
             continue

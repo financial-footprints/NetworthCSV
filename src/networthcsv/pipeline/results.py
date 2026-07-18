@@ -59,8 +59,13 @@ class ParseFyResult:
     fy_name: str
     statements: tuple[ParseStatementResult, ...]
     transaction_count: int
-    output: Path | None
+    outputs: tuple[Path, ...] = ()
     skipped: bool = False
+
+    @property
+    def output(self) -> Path | None:
+        """First output path, if any (compat for single-file callers)."""
+        return self.outputs[0] if self.outputs else None
 
 
 @dataclass(frozen=True)

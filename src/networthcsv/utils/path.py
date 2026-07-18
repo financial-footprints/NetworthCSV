@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,8 +23,11 @@ logger = logging.getLogger(__name__)
 
 _PDF_SUFFIX = ".pdf"
 _CSV_SUFFIX = ".csv"
-
-FISCAL_YEAR_BASENAME = "fiscal_year"
+_FY_KEY_PATTERN = re.compile(r"^FY(\d{2})-(\d{4})$")
+_TRANSACTIONS_PREFIX = "transactions-"
+_MONTH_PERIOD_GLOB = "????-??"
+_YEAR_PERIOD_GLOB = "????"
+_STATEMENT_CSV_SUFFIX = ".csv"
 
 
 def is_pdf_path(path: Path) -> bool:
@@ -32,6 +36,14 @@ def is_pdf_path(path: Path) -> bool:
 
 def is_csv_path(path: Path) -> bool:
     return path.suffix.lower() == _CSV_SUFFIX
+
+
+def is_transactions_csv(path: Path) -> bool:
+    """True when *path* is a parse-output transactions CSV."""
+    name = path.name
+    return name.startswith(_TRANSACTIONS_PREFIX) and name.lower().endswith(
+        _STATEMENT_CSV_SUFFIX
+    )
 
 
 def iter_pdfs(directory: Path, *, recursive: bool = False) -> Iterator[Path]:
@@ -68,11 +80,26 @@ def unique_path(directory: Path, filename: str) -> Path:
         n += 1
 
 
+def annual_file_stem(statement_period: str) -> str:
+    """Return the on-disk stem for an annual period key (four-digit year)."""
+    if is_calendar_year_period(statement_period):
+        return statement_period
+    match = _FY_KEY_PATTERN.fullmatch(statement_period)
+    if match is not None:
+        return match.group(2)
+    return statement_period
+
+
 def statement_basename(statement_period: str) -> str:
     """Return the on-disk filename stem for a statement period key."""
     if is_annual_period(statement_period):
-        return FISCAL_YEAR_BASENAME
+        return annual_file_stem(statement_period)
     return statement_period
+
+
+def transactions_csv_name(period_stem: str) -> str:
+    """Return the processed transactions CSV filename for a period stem."""
+    return f"{_TRANSACTIONS_PREFIX}{period_stem}{_STATEMENT_CSV_SUFFIX}"
 
 
 def fy_folder_name(statement_period: str) -> str:
@@ -123,11 +150,16 @@ def statement_csv_path(
 
 def fy_folder_name_from_statement_path(path: Path) -> str | None:
     """Return the FY folder name for a canonical statement file path."""
-    if path.stem == FISCAL_YEAR_BASENAME:
-        fy_name = path.parent.parent.parent.name
-        if is_fy_period(fy_name) or is_calendar_year_period(fy_name):
-            return fy_name
-    if is_annual_period(path.stem):
+    fy_name = path.parent.parent.parent.name
+    if is_calendar_year_period(path.stem):
+        if is_fy_period(fy_name):
+            end_year = annual_file_stem(fy_name)
+            if path.stem == end_year:
+                return fy_name
+        if is_calendar_year_period(fy_name) and fy_name == path.stem:
+            return path.stem
+        return None
+    if is_fy_period(path.stem):
         return path.stem
     return None
 
@@ -140,11 +172,6 @@ def statement_period_from_path(path: Path) -> str | None:
     if fy_name is not None:
         return fy_name
     return None
-
-
-_MONTH_PERIOD_GLOB = "????-??"
-_STATEMENT_CSV_SUFFIX = ".csv"
-_TRANSACTIONS_CSV = "transactions.csv"
 
 
 def discover_account_fy_dirs(
@@ -208,22 +235,40 @@ def iter_statement_csvs(
     account: ResolvedAccount,
     fy_limit: Path | None = None,
 ) -> Iterator[Path]:
-    """Yield per-period statement CSV paths (excludes transactions.csv)."""
+    """Yield per-period unprocessed statement CSV paths (excludes transactions-*.csv)."""
     for folder in discover_account_fy_dirs(download_path, account, fy_limit):
         patterns = (
             f"{_MONTH_PERIOD_GLOB}{_STATEMENT_CSV_SUFFIX}",
-            f"{FISCAL_YEAR_BASENAME}{_STATEMENT_CSV_SUFFIX}",
+            f"{_YEAR_PERIOD_GLOB}{_STATEMENT_CSV_SUFFIX}",
         )
         seen: set[Path] = set()
         for pattern in patterns:
             for path in sorted(folder.glob(pattern)):
                 if (
                     path.is_file()
-                    and path.name != _TRANSACTIONS_CSV
+                    and not is_transactions_csv(path)
                     and path not in seen
+                    and (
+                        parse_month_period(path.stem) is not None
+                        or is_calendar_year_period(path.stem)
+                    )
                 ):
                     seen.add(path)
                     yield path
+
+
+def iter_transactions_csvs(
+    download_path: Path,
+    account: ResolvedAccount,
+    fy_limit: Path | None = None,
+) -> Iterator[Path]:
+    """Yield parse-output transactions-*.csv paths in account FY folders."""
+    for folder in discover_account_fy_dirs(download_path, account, fy_limit):
+        for path in sorted(
+            folder.glob(f"{_TRANSACTIONS_PREFIX}*{_STATEMENT_CSV_SUFFIX}")
+        ):
+            if path.is_file() and is_transactions_csv(path):
+                yield path
 
 
 def resolve_fy_limit(

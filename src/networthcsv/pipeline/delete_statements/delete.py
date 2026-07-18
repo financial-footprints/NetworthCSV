@@ -16,11 +16,10 @@ from networthcsv.utils.path import (
     discover_account_fy_dirs,
     iter_statement_csvs,
     iter_statement_pairs,
+    iter_transactions_csvs,
 )
 
 logger = logging.getLogger(__name__)
-
-_TRANSACTIONS_CSV = "transactions.csv"
 
 
 def collect_account_output_paths(
@@ -40,10 +39,8 @@ def collect_account_output_paths(
         if csv_path.is_file():
             files[csv_path] = None
 
-    for fy_dir in discover_account_fy_dirs(download_path, account):
-        transactions_csv = fy_dir / _TRANSACTIONS_CSV
-        if transactions_csv.is_file():
-            files[transactions_csv] = None
+    for transactions_csv in iter_transactions_csvs(download_path, account):
+        files[transactions_csv] = None
 
     metadata_path = account_metadata_path(download_path, account)
     if metadata_path.is_file():

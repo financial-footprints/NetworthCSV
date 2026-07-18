@@ -53,7 +53,7 @@ class CollectAccountOutputPathsTests(unittest.TestCase):
             _write_cleanup_outputs(download_path, account, "2024-05")
             fy_dir = account_fy_dir(download_path, account, fy_folder_name("2024-05"))
             _ = (fy_dir / "2024-05.csv").write_text("date,amount\n", encoding="utf-8")
-            _ = (fy_dir / "transactions.csv").write_text(
+            _ = (fy_dir / "transactions-2024-05.csv").write_text(
                 "date,amount\n", encoding="utf-8"
             )
 
@@ -67,7 +67,7 @@ class CollectAccountOutputPathsTests(unittest.TestCase):
                     "2024-05.pdf",
                     "2024-05.txt",
                     "metadata.json",
-                    "transactions.csv",
+                    "transactions-2024-05.csv",
                 },
             )
 
@@ -88,7 +88,7 @@ class DeleteAccountStatementsTests(unittest.TestCase):
             _write_cleanup_outputs(download_path, account, "2024-05")
             fy_dir = account_fy_dir(download_path, account, fy_folder_name("2024-05"))
             _ = (fy_dir / "2024-05.csv").write_text("date,amount\n", encoding="utf-8")
-            _ = (fy_dir / "transactions.csv").write_text(
+            _ = (fy_dir / "transactions-2024-05.csv").write_text(
                 "date,amount\n", encoding="utf-8"
             )
             metadata_path = account_metadata_path(download_path, account)

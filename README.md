@@ -1,6 +1,6 @@
 # NetworthCSV
 
-Parse credit card and bank statement PDFs from email into CSV files. The pipeline extracts statement attachments from Thunderbird local mail or live IMAP, decrypts PDFs, extracts text, writes metadata, and writes `transactions.csv` per financial year folder.
+Parse credit card and bank statement PDFs from email into CSV files. The pipeline extracts statement attachments from Thunderbird local mail or live IMAP, decrypts PDFs, extracts text, writes metadata, and writes per-period `transactions-YYYY-MM.csv` / `transactions-YYYY.csv` files.
 
 ## Setup
 
@@ -80,7 +80,7 @@ Or run stages individually:
 python -m networthcsv.pipeline.get_statements   # extract PDFs from email
 python -m networthcsv.pipeline.cleanup          # decrypt PDFs, extract text
 python -m networthcsv.pipeline.metadata         # write metadata.json
-python -m networthcsv.pipeline.parse            # write transactions.csv
+python -m networthcsv.pipeline.parse            # write transactions-*.csv
 ```
 
 Delete cleanup, metadata, and parse outputs for a single account:
@@ -94,10 +94,13 @@ Output layout:
 ```bash
 {download_path}/FY23-2024/{account_type}/{account_number}/2024-01.pdf
 {download_path}/FY23-2024/{account_type}/{account_number}/2024-01.txt
-{download_path}/FY23-2024/{account_type}/{account_number}/transactions.csv
+{download_path}/FY23-2024/{account_type}/{account_number}/2024-01.csv
+{download_path}/FY23-2024/{account_type}/{account_number}/transactions-2024-01.csv
+{download_path}/FY23-2024/{account_type}/{account_number}/2024.pdf
+{download_path}/FY23-2024/{account_type}/{account_number}/transactions-2024.csv
 ```
 
-Example: `{download_path}/FY23-2024/credit_card/5678/2024-01.pdf`
+Unprocessed period files use `YYYY-MM.*` (monthly) or `YYYY.*` (annual). Parse adds `transactions-` prefixed CSVs and never removes the unprocessed originals.
 
 ## Development
 

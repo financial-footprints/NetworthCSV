@@ -1,35 +1,36 @@
-"""Parse statement text/CSV files in FY folders into transactions.csv."""
+"""Parse statement text/CSV files into per-period transactions-*.csv."""
 
 from __future__ import annotations
 
 import csv
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 from networthcsv.context import RunContext
+from networthcsv.pipeline.parse.statement import parse_statement_text
 from networthcsv.pipeline.results import (
     ParseAccountResult,
     ParseFyResult,
     ParseStatementResult,
 )
-from networthcsv.pipeline.parse.statement import parse_statement_text
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.account_dates import parse_account_date
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.path import (
     account_download_path,
-    account_fy_dir,
     discover_account_fy_dirs,
-    fy_folder_name,
     iter_statement_csvs,
     iter_statement_pairs,
     resolve_fy_limit,
+    statement_period_from_path,
+    transactions_csv_name,
 )
-from networthcsv.utils.transactions import Transaction
 from networthcsv.utils.statement_period import is_annual_period
+from networthcsv.utils.transactions import Transaction
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class _StatementSource:
     source_name: str
     text: str
     statement_period: str
+    period_stem: str
     is_annual: bool
     period_start: date | None
     period_end: date | None
@@ -108,6 +110,10 @@ def _parse_csv_period_dates(
     return handler.resolve_csv_period_bounds(csv_text, account=account)
 
 
+def _resolve_statement_period(path: Path) -> str:
+    return statement_period_from_path(path) or path.stem
+
+
 def _collect_statement_sources(
     download_path: Path,
     account: ResolvedAccount,
@@ -118,17 +124,19 @@ def _collect_statement_sources(
     csv_periods: set[str] = set()
 
     for csv_path in iter_statement_csvs(download_path, account, fy_limit):
-        statement_period = csv_path.stem
+        statement_period = _resolve_statement_period(csv_path)
         text = csv_path.read_text(encoding="utf-8", errors="replace")
         period_start, period_end = _parse_csv_period_dates(text, account=account)
-        csv_periods.add(statement_period)
+        csv_periods.add(csv_path.stem)
         sources.append(
             _StatementSource(
                 source_path=csv_path,
                 source_name=csv_path.name,
                 text=text,
                 statement_period=statement_period,
-                is_annual=is_annual_period(statement_period),
+                period_stem=csv_path.stem,
+                is_annual=is_annual_period(statement_period)
+                or is_annual_period(csv_path.stem),
                 period_start=period_start,
                 period_end=period_end,
                 from_csv=True,
@@ -136,17 +144,17 @@ def _collect_statement_sources(
         )
 
     for pdf_path, txt_path in iter_statement_pairs(download_path, account, fy_limit):
-        statement_period = pdf_path.stem
-        # CSV wins over TXT for the same period.
-        if statement_period in csv_periods:
+        # CSV wins over TXT for the same period stem.
+        if pdf_path.stem in csv_periods:
             logger.debug(
                 "skipping txt %s; CSV present for period %s",
                 txt_path.name,
-                statement_period,
+                pdf_path.stem,
             )
             continue
         if not _should_parse_txt(pdf_path, txt_path):
             continue
+        statement_period = _resolve_statement_period(pdf_path)
         text = txt_path.read_text(encoding="utf-8")
         period_start, period_end = _parse_period_dates(text, account=account)
         sources.append(
@@ -155,7 +163,9 @@ def _collect_statement_sources(
                 source_name=txt_path.name,
                 text=text,
                 statement_period=statement_period,
-                is_annual=is_annual_period(statement_period),
+                period_stem=pdf_path.stem,
+                is_annual=is_annual_period(statement_period)
+                or is_annual_period(pdf_path.stem),
                 period_start=period_start,
                 period_end=period_end,
                 from_csv=False,
@@ -193,82 +203,74 @@ def _select_sources(sources: list[_StatementSource]) -> list[_StatementSource]:
     return [*annual_sources, *selected_monthlies]
 
 
-def _fy_name_for_transaction(txn_date: date) -> str:
-    return fy_folder_name(txn_date.strftime("%Y-%m"))
+@dataclass(frozen=True)
+class _ParsedSource:
+    source: _StatementSource
+    rows: list[Transaction]
+    output: Path
 
 
-def _parse_selected_sources(
+def _parse_and_write_sources(
     selected_sources: list[_StatementSource],
     *,
     account: ResolvedAccount,
-) -> tuple[dict[str, list[Transaction]], dict[str, list[ParseStatementResult]]]:
-    transactions_by_fy: dict[str, list[Transaction]] = {}
-    statements_by_fy: dict[str, list[ParseStatementResult]] = {}
-
+) -> list[_ParsedSource]:
+    parsed: list[_ParsedSource] = []
     for source in selected_sources:
         rows = parse_statement_text(
             source.text,
             account=account,
             source_file=source.source_path.name,
         )
-        if source.is_annual:
-            grouped: dict[str, list[Transaction]] = {}
-            for txn in rows:
-                fy_name = _fy_name_for_transaction(txn.date)
-                grouped.setdefault(fy_name, []).append(txn)
-            for fy_name, fy_rows in grouped.items():
-                transactions_by_fy.setdefault(fy_name, []).extend(fy_rows)
-                statements_by_fy.setdefault(fy_name, []).append(
-                    ParseStatementResult(
-                        txt_name=source.source_name,
-                        transaction_count=len(fy_rows),
-                    )
-                )
-            continue
+        output = source.source_path.parent / transactions_csv_name(source.period_stem)
+        _write_csv(output, rows)
+        parsed.append(_ParsedSource(source=source, rows=rows, output=output))
+    return parsed
 
-        fy_name = source.source_path.parent.parent.parent.name
-        transactions_by_fy.setdefault(fy_name, []).extend(rows)
-        statements_by_fy.setdefault(fy_name, []).append(
-            ParseStatementResult(
-                txt_name=source.source_name,
-                transaction_count=len(rows),
-            )
-        )
 
-    return transactions_by_fy, statements_by_fy
+def _fy_name_for_source(source: _StatementSource) -> str:
+    return source.source_path.parent.parent.parent.name
 
 
 def process_fy_folder(
     account_fy_dir: Path,
-    account: ResolvedAccount,
     ctx: RunContext,
     *,
-    transactions_by_fy: dict[str, list[Transaction]],
-    statements_by_fy: dict[str, list[ParseStatementResult]],
+    parsed_by_fy: dict[str, list[_ParsedSource]],
 ) -> ParseFyResult:
     fy_name = account_fy_dir.parent.parent.name
-    transactions = transactions_by_fy.get(fy_name, [])
-    statements = statements_by_fy.get(fy_name, [])
-    if not transactions and not statements:
+    parsed = parsed_by_fy.get(fy_name, [])
+    if not parsed:
         ctx.reporter.parse_fy_skipped(fy_name)
         return ParseFyResult(
             fy_name=fy_name,
             statements=(),
             transaction_count=0,
-            output=None,
+            outputs=(),
             skipped=True,
         )
 
-    for statement in statements:
-        ctx.reporter.parse_statement(statement.txt_name, statement.transaction_count)
+    statements: list[ParseStatementResult] = []
+    outputs: list[Path] = []
+    total = 0
+    for item in parsed:
+        count = len(item.rows)
+        total += count
+        statements.append(
+            ParseStatementResult(
+                txt_name=item.source.source_name,
+                transaction_count=count,
+            )
+        )
+        outputs.append(item.output)
+        ctx.reporter.parse_statement(item.source.source_name, count)
 
-    output = account_fy_dir / "transactions.csv"
-    _write_csv(output, transactions)
     result = ParseFyResult(
         fy_name=fy_name,
         statements=tuple(statements),
-        transaction_count=len(transactions),
-        output=output,
+        transaction_count=total,
+        outputs=tuple(outputs),
+        skipped=False,
     )
     ctx.reporter.parse_fy_done(result)
     return result
@@ -298,21 +300,11 @@ def run(
         ctx.settings.download_path, account, fy_limit=fy_limit
     )
     selected_sources = _select_sources(all_sources)
-    transactions_by_fy, statements_by_fy = _parse_selected_sources(
-        selected_sources,
-        account=account,
-    )
+    parsed_sources = _parse_and_write_sources(selected_sources, account=account)
 
-    # Ensure FY dirs exist for annual CSV splits that created new FY buckets.
-    known_fy = {path.parent.parent.name for path in account_fy_dirs}
-    for fy_name in transactions_by_fy:
-        if fy_name in known_fy:
-            continue
-        new_dir = account_fy_dir(ctx.settings.download_path, account, fy_name)
-        _ = new_dir.mkdir(parents=True, exist_ok=True)
-        account_fy_dirs.append(new_dir)
-        known_fy.add(fy_name)
-    account_fy_dirs = sorted(account_fy_dirs, key=lambda p: p.as_posix())
+    parsed_by_fy: dict[str, list[_ParsedSource]] = defaultdict(list)
+    for item in parsed_sources:
+        parsed_by_fy[_fy_name_for_source(item.source)].append(item)
 
     total_txts = 0
     all_transactions = 0
@@ -323,10 +315,8 @@ def run(
         ctx.reporter.parse_fy_started(fy_name)
         fy_result = process_fy_folder(
             fy_dir,
-            account,
             ctx,
-            transactions_by_fy=transactions_by_fy,
-            statements_by_fy=statements_by_fy,
+            parsed_by_fy=parsed_by_fy,
         )
         fy_results.append(fy_result)
         total_txts += len(fy_result.statements)

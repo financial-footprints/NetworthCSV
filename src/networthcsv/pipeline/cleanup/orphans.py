@@ -7,6 +7,7 @@ import logging
 from networthcsv.settings import AppSettings, ResolvedAccount
 from networthcsv.utils.path import (
     discover_account_fy_dirs,
+    is_transactions_csv,
     iter_pdfs,
     pdf_path_for_txt,
     txt_path_for_pdf,
@@ -26,7 +27,7 @@ def sweep_orphans(settings: AppSettings, account: ResolvedAccount) -> int:
             logger.debug("removed (orphan pdf): %s", pdf_path)
             removed += 1
         for txt_path in sorted(account_fy_dir.glob("*.txt")):
-            if txt_path.name == "transactions.csv":
+            if is_transactions_csv(txt_path):
                 continue
             pdf_path = pdf_path_for_txt(txt_path)
             if pdf_path.is_file():

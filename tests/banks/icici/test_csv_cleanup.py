@@ -86,7 +86,7 @@ class IciciCsvCleanupTests(unittest.TestCase):
             self.assertEqual(rejected, 0)
             out = statement_csv_path(download_path, resolved, period)
             self.assertTrue(out.is_file())
-            self.assertEqual(out.name, "fiscal_year.csv")
+            self.assertEqual(out.name, "2025.csv")
 
     def test_manual_period_staging_honored_for_csv(self) -> None:
         resolved = account(

@@ -724,7 +724,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
             _ = (fy_dir / "2024-01.txt").write_text("x", encoding="utf-8")
-            _ = (fy_dir / "transactions.csv").write_text(
+            _ = (fy_dir / "transactions-2024-01.csv").write_text(
                 "Date,Description\n", encoding="utf-8"
             )
 
@@ -851,7 +851,7 @@ class AnnualCsvYearKeyMetadataTests(unittest.TestCase):
             download_path = Path(tmp)
             target = statement_csv_path(download_path, account, period)
             self.assertIn("FY25-2026", target.as_posix())
-            self.assertTrue(target.name.endswith("fiscal_year.csv"))
+            self.assertTrue(target.name.endswith("2026.csv"))
             _ = target.parent.mkdir(parents=True, exist_ok=True)
             _ = target.write_text(text, encoding="utf-8")
 

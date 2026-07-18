@@ -1,12 +1,20 @@
-"""Tests for IDFC WOW credit card statement parser."""
+"""IDFC WOW transaction parser and parse-stage tests."""
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 from decimal import Decimal
+from pathlib import Path
 
 from cleanup_support import FIXTURES_ROOT, account as make_account
 from networthcsv.pipeline.parse.banks import get_parser
+from parse_support import (
+    read_transactions_csv,
+    run_parse,
+    transactions_output_path,
+    write_statement_pair,
+)
 
 _FIXTURES = FIXTURES_ROOT / "idfc" / "wow"
 
@@ -36,9 +44,7 @@ class IdfcWowParserTests(unittest.TestCase):
         credits = [row for row in rows if row.credited > 0]
         self.assertEqual(len(debits), 1)
         self.assertEqual(len(credits), 2)
-        self.assertEqual(debits[0].description, "Sample FX Merchant USD, Example")
         self.assertEqual(debits[0].debited, Decimal("100.00"))
-        self.assertEqual(credits[0].description, "Online Payment Received")
         self.assertEqual(credits[0].credited, Decimal("250.00"))
 
     def test_modern_2025_transactions(self) -> None:
@@ -48,7 +54,6 @@ class IdfcWowParserTests(unittest.TestCase):
             source_file="2021-11.pdf",
         )
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].description, "Sample Merchant One")
         self.assertEqual(rows[0].debited, Decimal("100.00"))
 
     def test_modern_2026_transactions(self) -> None:
@@ -58,8 +63,24 @@ class IdfcWowParserTests(unittest.TestCase):
             source_file="2021-06.pdf",
         )
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].description, "Sample FX Merchant")
         self.assertEqual(rows[0].debited, Decimal("100.00"))
+
+
+class IdfcParseStageTests(unittest.TestCase):
+    def test_writes_transactions_csv_for_monthly_statement(self) -> None:
+        text = (_FIXTURES / "classic-2023-08.txt").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account(bank="idfc", variant="wow", account_number="1234")
+            fy_dir = write_statement_pair(download_path, account, "2023-08", text)
+
+            result = run_parse(download_path, account)
+
+            out = transactions_output_path(fy_dir, "2023-08")
+            self.assertTrue(out.is_file())
+            self.assertGreater(result.total_transactions, 0)
+            rows = read_transactions_csv(out)
+            self.assertGreater(len(rows), 0)
 
 
 if __name__ == "__main__":

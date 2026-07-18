@@ -16,7 +16,6 @@ from networthcsv.settings import (
     ThunderbirdSourceSettings,
 )
 from networthcsv.utils.path import (
-    FISCAL_YEAR_BASENAME,
     account_fy_dir,
     account_metadata_path,
     discover_account_fy_dirs,
@@ -26,6 +25,7 @@ from networthcsv.utils.path import (
     statement_csv_path,
     statement_pdf_path,
     statement_period_from_path,
+    transactions_csv_name,
     txt_is_current,
     txt_path_for_pdf,
     unique_path,
@@ -72,7 +72,7 @@ class PathTests(unittest.TestCase):
         account = make_account()
         self.assertEqual(
             statement_pdf_path(download_path, account, "FY24-2025"),
-            Path("/data/FY24-2025/credit_card/5678/fiscal_year.pdf"),
+            Path("/data/FY24-2025/credit_card/5678/2025.pdf"),
         )
 
     def test_statement_csv_path_annual(self) -> None:
@@ -80,13 +80,16 @@ class PathTests(unittest.TestCase):
         account = make_account()
         self.assertEqual(
             statement_csv_path(download_path, account, "FY24-2025"),
-            Path("/data/FY24-2025/credit_card/5678/fiscal_year.csv"),
+            Path("/data/FY24-2025/credit_card/5678/2025.csv"),
         )
 
     def test_statement_period_from_path_annual(self) -> None:
-        path = Path("/data/FY24-2025/credit_card/5678/fiscal_year.pdf")
+        path = Path("/data/FY24-2025/credit_card/5678/2025.pdf")
         self.assertEqual(statement_period_from_path(path), "FY24-2025")
-        self.assertEqual(FISCAL_YEAR_BASENAME, "fiscal_year")
+
+    def test_transactions_csv_name(self) -> None:
+        self.assertEqual(transactions_csv_name("2024-05"), "transactions-2024-05.csv")
+        self.assertEqual(transactions_csv_name("2025"), "transactions-2025.csv")
 
     def test_txt_path_for_pdf(self) -> None:
         pdf_path = Path("/data/FY23-2024/credit_card/5678/2024-01.pdf")

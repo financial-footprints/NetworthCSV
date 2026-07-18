@@ -20,10 +20,9 @@ from networthcsv.utils.account_dates import (
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.period import resolve_period_bounds
 from networthcsv.utils.path import (
-    FISCAL_YEAR_BASENAME,
-    discover_account_fy_dirs,
     iter_statement_csvs,
     iter_statement_pairs,
+    iter_transactions_csvs,
     statement_csv_path,
     statement_period_from_path,
     txt_path_for_pdf,
@@ -32,6 +31,7 @@ from networthcsv.utils.statement_period import (
     YearDisplay,
     covered_months_between,
     is_annual_period,
+    is_calendar_year_period,
     period_for_year_key,
     year_key_label,
 )
@@ -55,9 +55,8 @@ def statement_formats(
 
 
 def has_transactions_csv(download_path: Path, account: ResolvedAccount) -> bool:
-    for account_fy_dir in discover_account_fy_dirs(download_path, account):
-        if (account_fy_dir / "transactions.csv").is_file():
-            return True
+    for _path in iter_transactions_csvs(download_path, account):
+        return True
     return False
 
 
@@ -122,7 +121,9 @@ def build_annual_statement_summaries(
 def _count_annual_csvs_on_disk(download_path: Path, account: ResolvedAccount) -> int:
     count = 0
     for csv_path in iter_statement_csvs(download_path, account):
-        if csv_path.stem == FISCAL_YEAR_BASENAME:
+        if is_calendar_year_period(csv_path.stem) or is_annual_period(
+            statement_period_from_path(csv_path) or ""
+        ):
             count += 1
     return count
 

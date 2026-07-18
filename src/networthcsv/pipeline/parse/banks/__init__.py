@@ -25,3 +25,9 @@ def get_parser(bank: str, variant: str | None = None) -> StatementParser:
 from networthcsv.pipeline.parse.banks import hdfc as _hdfc  # noqa: E402, F401
 from networthcsv.pipeline.parse.banks import icici as _icici  # noqa: E402, F401
 from networthcsv.pipeline.parse.banks import idfc as _idfc  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import indusind as _indusind  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import bob as _bob  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import yes as _yes  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import pnb as _pnb  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import federal as _federal  # noqa: E402, F401
+from networthcsv.pipeline.parse.banks import csb as _csb  # noqa: E402, F401

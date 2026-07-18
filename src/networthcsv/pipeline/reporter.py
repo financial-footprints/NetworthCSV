@@ -223,12 +223,13 @@ class ConsoleRunReporter(RunReporter):
         print(f"  {txt_name}: {transaction_count} transaction(s)")
 
     def parse_fy_done(self, result: ParseFyResult) -> None:
-        if result.skipped or result.output is None:
+        if result.skipped or not result.outputs:
             return
+        for output in result.outputs:
+            print(f"wrote: {output}")
         print(
-            f"wrote: {result.output} "
             f"({result.transaction_count} transaction(s) from "
-            f"{len(result.statements)} txt(s))"
+            f"{len(result.statements)} statement(s))"
         )
 
     def parse_account_done(self, result: ParseAccountResult) -> None:

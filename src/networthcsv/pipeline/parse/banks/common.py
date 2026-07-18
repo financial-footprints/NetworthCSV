@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 
+from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks.helpers.dates import parse_date_string
 from networthcsv.utils.transactions import Transaction
+
+_LineParser = Callable[[str], tuple[date, str, Decimal, str] | None]
 
 _AMOUNT = re.compile(
     r"(?:Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)",
@@ -115,3 +119,36 @@ def parse_dd_mon_rs_dr_cr_line(
     amount = Decimal(match.group(3).replace(",", ""))
     direction = "CR" if match.group(4).upper().startswith("C") else "DR"
     return txn_date, description, amount, direction
+
+
+def parse_stop_at_end_lines(
+    text: str,
+    line_parser: _LineParser,
+    *,
+    account: ResolvedAccount,
+    source_file: str,
+    stop_marker: str = "End of Transactions",
+) -> list[Transaction]:
+    """Parse transaction lines until ``stop_marker`` appears in a line."""
+    _ = account
+    rows: list[Transaction] = []
+    for line in text.splitlines():
+        if stop_marker in line:
+            break
+        parsed = line_parser(line)
+        if parsed is None:
+            continue
+        txn_date, description, amount, direction = parsed
+        description = description.replace("Rs.", "").strip()
+        if not description:
+            continue
+        rows.append(
+            make_transaction(
+                txn_date=txn_date,
+                description=description,
+                amount=amount,
+                direction=direction,
+                source_file=source_file,
+            )
+        )
+    return rows

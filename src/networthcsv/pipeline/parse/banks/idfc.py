@@ -6,6 +6,7 @@ import re
 from decimal import Decimal
 
 from networthcsv.pipeline.parse.banks import register_parser
+from networthcsv.pipeline.parse.banks.common import make_transaction
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks.helpers.dates import parse_date_string
 from networthcsv.utils.string import DECIMAL_AMOUNT_TWO_PLACES
@@ -73,14 +74,12 @@ class IdfcWowStatementParser:
             if parsed is None:
                 continue
             txn_date, description, amount, direction = parsed
-            credited = amount if direction == "CR" else Decimal("0")
-            debited = amount if direction == "DR" else Decimal("0")
             rows.append(
-                Transaction(
-                    date=txn_date,
+                make_transaction(
+                    txn_date=txn_date,
                     description=description,
-                    credited=credited,
-                    debited=debited,
+                    amount=amount,
+                    direction=direction,
                     source_file=source_file,
                 )
             )

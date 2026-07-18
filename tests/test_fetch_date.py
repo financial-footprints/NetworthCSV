@@ -34,9 +34,9 @@ class ExtractFetchDateTests(unittest.TestCase):
 
             ctx = run_context(download_path)
             with patch(
-                "networthcsv.pipeline.get_statements.thunderbird.date.today",
-                return_value=date(2026, 1, 20),
-            ):
+                "networthcsv.pipeline.get_statements.thunderbird.date"
+            ) as mock_date:
+                mock_date.today.return_value = date(2026, 1, 20)
                 _ = thunderbird_pipeline.extract_account(
                     profile,
                     resolved_account,
@@ -57,7 +57,9 @@ class ExtractFetchDateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
             resolved_account = make_account()
-            _ = write_last_fetch_date(download_path, resolved_account, date(2026, 1, 20))
+            _ = write_last_fetch_date(
+                download_path, resolved_account, date(2026, 1, 20)
+            )
 
             last_fetch = read_last_fetch_date(download_path, resolved_account)
             start, _end = resolve_account_search_dates(

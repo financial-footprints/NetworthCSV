@@ -28,18 +28,23 @@ def collect_account_output_paths(
 ) -> tuple[Path, ...]:
     """Return cleanup, metadata, and parse output paths for an account."""
     files: dict[Path, None] = {}
+    folders = discover_account_fy_dirs(download_path, account)
 
-    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+    for pdf_path, txt_path in iter_statement_pairs(
+        download_path, account, folders=folders
+    ):
         if pdf_path.is_file():
             files[pdf_path] = None
         if txt_path.is_file():
             files[txt_path] = None
 
-    for csv_path in iter_statement_csvs(download_path, account):
+    for csv_path in iter_statement_csvs(download_path, account, folders=folders):
         if csv_path.is_file():
             files[csv_path] = None
 
-    for transactions_csv in iter_transactions_csvs(download_path, account):
+    for transactions_csv in iter_transactions_csvs(
+        download_path, account, folders=folders
+    ):
         files[transactions_csv] = None
 
     metadata_path = account_metadata_path(download_path, account)
@@ -54,7 +59,7 @@ def delete_account_statements(
     account: ResolvedAccount,
 ) -> DeleteAccountResult:
     """Delete cleanup, metadata, and parse outputs for an account."""
-    staging_dir = download_path / account.account_type / account.account_number
+    staging_dir = account_download_path(download_path, account)
     metadata_path = account_metadata_path(download_path, account)
     files = collect_account_output_paths(download_path, account)
 

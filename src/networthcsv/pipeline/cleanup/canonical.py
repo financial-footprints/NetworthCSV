@@ -12,6 +12,7 @@ from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.helpers.text import statement_text_eligible
 from networthcsv.utils.path import (
+    discover_account_fy_dirs,
     iter_statement_csvs,
     iter_statement_pairs,
     statement_pdf_path,
@@ -98,7 +99,10 @@ def remove_ineligible_canonical_outputs(
     text_not_contains = account.statement.text_not_contains
 
     removed = 0
-    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+    folders = discover_account_fy_dirs(download_path, account)
+    for pdf_path, txt_path in iter_statement_pairs(
+        download_path, account, folders=folders
+    ):
         if not pdf_path.is_file() or not txt_path.is_file():
             continue
         if not txt_is_current(pdf_path, txt_path):
@@ -125,7 +129,7 @@ def remove_ineligible_canonical_outputs(
         _remove_ineligible_canonical_file(txt_path, reason="ineligible statement")
         removed += 1
 
-    for csv_path in iter_statement_csvs(download_path, account):
+    for csv_path in iter_statement_csvs(download_path, account, folders=folders):
         if not csv_path.is_file():
             continue
         csv_content = csv_path.read_text(encoding="utf-8")

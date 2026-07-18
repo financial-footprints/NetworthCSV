@@ -122,8 +122,11 @@ def _collect_statement_sources(
 ) -> list[_StatementSource]:
     sources: list[_StatementSource] = []
     csv_periods: set[str] = set()
+    folders = discover_account_fy_dirs(download_path, account, fy_limit)
 
-    for csv_path in iter_statement_csvs(download_path, account, fy_limit):
+    for csv_path in iter_statement_csvs(
+        download_path, account, fy_limit, folders=folders
+    ):
         statement_period = _resolve_statement_period(csv_path)
         text = csv_path.read_text(encoding="utf-8", errors="replace")
         period_start, period_end = _parse_csv_period_dates(text, account=account)
@@ -143,7 +146,9 @@ def _collect_statement_sources(
             )
         )
 
-    for pdf_path, txt_path in iter_statement_pairs(download_path, account, fy_limit):
+    for pdf_path, txt_path in iter_statement_pairs(
+        download_path, account, fy_limit, folders=folders
+    ):
         # CSV wins over TXT for the same period stem.
         if pdf_path.stem in csv_periods:
             logger.debug(
@@ -258,7 +263,7 @@ def process_fy_folder(
         total += count
         statements.append(
             ParseStatementResult(
-                txt_name=item.source.source_name,
+                source_name=item.source.source_name,
                 transaction_count=count,
             )
         )
@@ -292,7 +297,7 @@ def run(
             download_dir=staging_dir,
             fy_results=(),
             total_transactions=0,
-            total_txts=0,
+            total_statements=0,
         )
 
     ctx.reporter.parse_started(account.bank, staging_dir)
@@ -306,7 +311,7 @@ def run(
     for item in parsed_sources:
         parsed_by_fy[_fy_name_for_source(item.source)].append(item)
 
-    total_txts = 0
+    total_statements = 0
     all_transactions = 0
     fy_results: list[ParseFyResult] = []
 
@@ -319,7 +324,7 @@ def run(
             parsed_by_fy=parsed_by_fy,
         )
         fy_results.append(fy_result)
-        total_txts += len(fy_result.statements)
+        total_statements += len(fy_result.statements)
         all_transactions += fy_result.transaction_count
         ctx.reporter.blank_line()
 
@@ -328,7 +333,7 @@ def run(
         download_dir=staging_dir,
         fy_results=tuple(fy_results),
         total_transactions=all_transactions,
-        total_txts=total_txts,
+        total_statements=total_statements,
     )
     ctx.reporter.parse_account_done(result)
     return result

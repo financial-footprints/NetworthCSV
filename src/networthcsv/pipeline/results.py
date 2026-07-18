@@ -50,7 +50,7 @@ class DeleteAccountResult:
 
 @dataclass(frozen=True)
 class ParseStatementResult:
-    txt_name: str
+    source_name: str
     transaction_count: int
 
 
@@ -62,11 +62,6 @@ class ParseFyResult:
     outputs: tuple[Path, ...] = ()
     skipped: bool = False
 
-    @property
-    def output(self) -> Path | None:
-        """First output path, if any (compat for single-file callers)."""
-        return self.outputs[0] if self.outputs else None
-
 
 @dataclass(frozen=True)
 class ParseAccountResult:
@@ -74,8 +69,7 @@ class ParseAccountResult:
     download_dir: Path
     fy_results: tuple[ParseFyResult, ...]
     total_transactions: int
-    total_txts: int
-    skipped: bool = False
+    total_statements: int
 
 
 @dataclass(frozen=True)

@@ -19,7 +19,6 @@ _LINE = re.compile(
 
 
 @register_parser("bob")
-@register_parser("bob", "default")
 @register_parser("bob", "easy")
 class BobStatementParser:
     def parse(

@@ -20,6 +20,7 @@ from networthcsv.utils.account_dates import (
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.period import resolve_period_bounds
 from networthcsv.utils.path import (
+    discover_account_fy_dirs,
     iter_statement_csvs,
     iter_statement_pairs,
     iter_transactions_csvs,
@@ -163,15 +164,18 @@ def build_account_metadata(
     account: ResolvedAccount,
 ) -> AccountMetadata:
     statements_by_date: dict[str, tuple[Path | None, Path | None, Path | None]] = {}
+    folders = discover_account_fy_dirs(download_path, account)
 
-    for pdf_path, txt_path in iter_statement_pairs(download_path, account):
+    for pdf_path, txt_path in iter_statement_pairs(
+        download_path, account, folders=folders
+    ):
         statement_date = statement_period_from_path(pdf_path)
         if statement_date is None:
             continue
         existing = statements_by_date.get(statement_date, (None, None, None))
         statements_by_date[statement_date] = (pdf_path, txt_path, existing[2])
 
-    for csv_path in iter_statement_csvs(download_path, account):
+    for csv_path in iter_statement_csvs(download_path, account, folders=folders):
         statement_date = statement_period_from_path(csv_path)
         if statement_date is None:
             continue

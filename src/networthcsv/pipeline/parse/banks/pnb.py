@@ -21,7 +21,6 @@ _AMOUNT_TAIL = re.compile(r"([\d,]+\.\d{2})\s*(Cr|Dr|CR|DR)?\s*$", re.IGNORECASE
 
 
 @register_parser("pnb")
-@register_parser("pnb", "default")
 @register_parser("pnb", "platinum")
 class PnbStatementParser:
     def parse(

@@ -12,7 +12,6 @@ from networthcsv.utils.transactions import Transaction
 
 
 @register_parser("yes")
-@register_parser("yes", "default")
 @register_parser("yes", "ace")
 class YesStatementParser:
     def parse(

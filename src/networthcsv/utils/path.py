@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -223,9 +223,16 @@ def iter_statement_pairs(
     download_path: Path,
     account: ResolvedAccount,
     fy_limit: Path | None = None,
+    *,
+    folders: Sequence[Path] | None = None,
 ) -> Iterator[tuple[Path, Path]]:
     """Yield (pdf_path, txt_path) for each statement PDF in account FY folders."""
-    for folder in discover_account_fy_dirs(download_path, account, fy_limit):
+    account_folders = (
+        list(folders)
+        if folders is not None
+        else discover_account_fy_dirs(download_path, account, fy_limit)
+    )
+    for folder in account_folders:
         for pdf_path in iter_pdfs(folder):
             yield pdf_path, txt_path_for_pdf(pdf_path)
 
@@ -234,9 +241,16 @@ def iter_statement_csvs(
     download_path: Path,
     account: ResolvedAccount,
     fy_limit: Path | None = None,
+    *,
+    folders: Sequence[Path] | None = None,
 ) -> Iterator[Path]:
     """Yield per-period unprocessed statement CSV paths (excludes transactions-*.csv)."""
-    for folder in discover_account_fy_dirs(download_path, account, fy_limit):
+    account_folders = (
+        list(folders)
+        if folders is not None
+        else discover_account_fy_dirs(download_path, account, fy_limit)
+    )
+    for folder in account_folders:
         patterns = (
             f"{_MONTH_PERIOD_GLOB}{_STATEMENT_CSV_SUFFIX}",
             f"{_YEAR_PERIOD_GLOB}{_STATEMENT_CSV_SUFFIX}",
@@ -261,9 +275,16 @@ def iter_transactions_csvs(
     download_path: Path,
     account: ResolvedAccount,
     fy_limit: Path | None = None,
+    *,
+    folders: Sequence[Path] | None = None,
 ) -> Iterator[Path]:
     """Yield parse-output transactions-*.csv paths in account FY folders."""
-    for folder in discover_account_fy_dirs(download_path, account, fy_limit):
+    account_folders = (
+        list(folders)
+        if folders is not None
+        else discover_account_fy_dirs(download_path, account, fy_limit)
+    )
+    for folder in account_folders:
         for path in sorted(
             folder.glob(f"{_TRANSACTIONS_PREFIX}*{_STATEMENT_CSV_SUFFIX}")
         ):

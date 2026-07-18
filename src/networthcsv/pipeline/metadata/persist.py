@@ -244,6 +244,8 @@ def read_account_metadata(path: Path) -> AccountMetadata | None:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"metadata must be a JSON object: {path}")
+    if "statements" not in payload:
+        return None
     return metadata_from_dict(payload)
 
 
@@ -273,11 +275,7 @@ def refresh_account_metadata(
     account: ResolvedAccount,
 ) -> Path:
     path = account_metadata_path(download_path, account)
-    existing = read_account_metadata(path)
-    last_fetch_date = existing.last_fetch_date if existing is not None else None
-    if last_fetch_date is None:
-        last_fetch_date_value = read_last_fetch_date(download_path, account)
-        last_fetch_date = format_account_date(last_fetch_date_value)
+    last_fetch_date = format_account_date(read_last_fetch_date(download_path, account))
     metadata = build_account_metadata(download_path, account)
     if last_fetch_date is not None:
         metadata = replace(metadata, last_fetch_date=last_fetch_date)

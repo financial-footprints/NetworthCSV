@@ -103,16 +103,13 @@ class RunReporter:
     def parse_started(self, bank: str, download_dir: Path) -> None:
         pass
 
-    def parse_skipped(self, bank: str, download_dir: Path) -> None:
-        pass
-
     def parse_fy_started(self, fy_name: str) -> None:
         pass
 
     def parse_fy_skipped(self, fy_name: str) -> None:
         pass
 
-    def parse_statement(self, txt_name: str, transaction_count: int) -> None:
+    def parse_statement(self, source_name: str, transaction_count: int) -> None:
         pass
 
     def parse_fy_done(self, result: ParseFyResult) -> None:
@@ -210,17 +207,14 @@ class ConsoleRunReporter(RunReporter):
         print(f"parse: {bank} {download_dir}")
         print()
 
-    def parse_skipped(self, bank: str, download_dir: Path) -> None:
-        print(f"skip (not found): {download_dir}")
-
     def parse_fy_started(self, fy_name: str) -> None:
         print(f"folder: {fy_name}")
 
     def parse_fy_skipped(self, fy_name: str) -> None:
         print(f"skip (no pdfs): {fy_name}")
 
-    def parse_statement(self, txt_name: str, transaction_count: int) -> None:
-        print(f"  {txt_name}: {transaction_count} transaction(s)")
+    def parse_statement(self, source_name: str, transaction_count: int) -> None:
+        print(f"  {source_name}: {transaction_count} transaction(s)")
 
     def parse_fy_done(self, result: ParseFyResult) -> None:
         if result.skipped or not result.outputs:
@@ -233,10 +227,8 @@ class ConsoleRunReporter(RunReporter):
         )
 
     def parse_account_done(self, result: ParseAccountResult) -> None:
-        if result.skipped:
-            return
         print()
         print(
             f"done: {result.total_transactions} transaction(s) from "
-            f"{result.total_txts} txt(s) in {len(result.fy_results)} folder(s)"
+            f"{result.total_statements} statement(s) in {len(result.fy_results)} folder(s)"
         )

@@ -13,7 +13,6 @@ from networthcsv.utils.transactions import Transaction
 
 
 @register_parser("indusind")
-@register_parser("indusind", "default")
 @register_parser("indusind", "auraedge")
 @register_parser("indusind", "amex-epay")
 class IndusindStatementParser:

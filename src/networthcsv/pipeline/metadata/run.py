@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
 
 from networthcsv.context import RunContext
-from networthcsv.pipeline.metadata.build import build_account_metadata
 from networthcsv.pipeline.metadata.persist import (
     read_account_metadata,
-    read_last_fetch_date,
-    write_account_metadata,
+    refresh_account_metadata,
 )
 from networthcsv.pipeline.results import MetadataAccountResult
 from networthcsv.settings import ResolvedAccount
-from networthcsv.utils.account_dates import format_account_date
-from networthcsv.utils.path import account_download_path, account_metadata_path
+from networthcsv.utils.path import account_download_path
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +23,10 @@ def run(
     staging_dir = account_download_path(ctx.settings.download_path, account)
     ctx.reporter.metadata_started(account.bank, staging_dir)
 
-    output = account_metadata_path(ctx.settings.download_path, account)
-    existing = read_account_metadata(output)
-    last_fetch_date = existing.last_fetch_date if existing is not None else None
-    if last_fetch_date is None:
-        last_fetch_date_value = read_last_fetch_date(ctx.settings.download_path, account)
-        last_fetch_date = format_account_date(last_fetch_date_value)
-
-    metadata = build_account_metadata(ctx.settings.download_path, account)
-    if last_fetch_date is not None:
-        metadata = replace(metadata, last_fetch_date=last_fetch_date)
-    write_account_metadata(output, metadata)
+    output = refresh_account_metadata(ctx.settings.download_path, account)
+    metadata = read_account_metadata(output)
+    if metadata is None:
+        raise RuntimeError(f"metadata missing after refresh: {output}")
     logger.debug("wrote metadata: %s", output)
 
     result = MetadataAccountResult(

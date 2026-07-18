@@ -56,7 +56,6 @@ def _parse_icici_txt(text: str, *, source_file: str) -> list[Transaction]:
 
 
 @register_parser("icici")
-@register_parser("icici", "default")
 @register_parser("icici", "coral")
 @register_parser("icici", "platinum")
 @register_parser("icici", "amazon")

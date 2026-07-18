@@ -139,7 +139,7 @@ class RunnerTests(unittest.TestCase):
             download_dir=Path("/tmp"),
             fy_results=(),
             total_transactions=0,
-            total_txts=0,
+            total_statements=0,
         )
         with tempfile.TemporaryDirectory() as tmp:
             results = run_parse(_context(Path(tmp)))
@@ -199,7 +199,7 @@ class RunnerTests(unittest.TestCase):
             download_dir=Path("/tmp"),
             fy_results=(),
             total_transactions=0,
-            total_txts=0,
+            total_statements=0,
         )
         with tempfile.TemporaryDirectory() as tmp:
             result = run_pipeline(_context(Path(tmp)))
@@ -323,8 +323,8 @@ class StageErrorTests(unittest.TestCase):
                 reporter=NullRunReporter(),
             )
             result = parse_run(account, ctx)
-        self.assertFalse(result.skipped)
         self.assertEqual(result.total_transactions, 0)
+        self.assertEqual(result.total_statements, 0)
 
     def test_cleanup_skips_missing_directory(self) -> None:
         account = ResolvedAccount.model_validate(

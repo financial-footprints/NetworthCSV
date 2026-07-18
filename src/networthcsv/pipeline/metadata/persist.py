@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from datetime import date
 from pathlib import Path
 
 from networthcsv.pipeline.metadata.build import build_account_metadata
@@ -16,6 +17,7 @@ from networthcsv.pipeline.metadata.models import (
     StatementMetadata,
 )
 from networthcsv.settings import ResolvedAccount
+from networthcsv.utils.account_dates import format_account_date, parse_account_date
 from networthcsv.utils.path import account_metadata_path
 
 
@@ -195,7 +197,45 @@ def metadata_from_dict(payload: dict[str, object]) -> AccountMetadata:
             payload.get("statement_count"), len(statement_dates)
         ),
         period_covered=period_covered,
+        last_fetch_date=_cast_optional_str(payload.get("last_fetch_date")),
     )
+
+
+def read_last_fetch_date(download_path: Path, account: ResolvedAccount) -> date | None:
+    path = account_metadata_path(download_path, account)
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return None
+    return parse_account_date(payload.get("last_fetch_date"), "last_fetch_date")
+
+
+def write_last_fetch_date(
+    download_path: Path,
+    account: ResolvedAccount,
+    fetch_date: date,
+) -> Path:
+    path = account_metadata_path(download_path, account)
+    formatted = format_account_date(fetch_date)
+    if path.is_file():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            payload = {}
+        payload["last_fetch_date"] = formatted
+        _ = path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_suffix(f"{path.suffix}.tmp")
+        _ = temp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        _ = temp.replace(path)
+        return path
+    _ = path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(f"{path.suffix}.tmp")
+    _ = temp.write_text(
+        json.dumps({"last_fetch_date": formatted}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    _ = temp.replace(path)
+    return path
 
 
 def read_account_metadata(path: Path) -> AccountMetadata | None:
@@ -232,7 +272,14 @@ def refresh_account_metadata(
     download_path: Path,
     account: ResolvedAccount,
 ) -> Path:
-    metadata = build_account_metadata(download_path, account)
     path = account_metadata_path(download_path, account)
+    existing = read_account_metadata(path)
+    last_fetch_date = existing.last_fetch_date if existing is not None else None
+    if last_fetch_date is None:
+        last_fetch_date_value = read_last_fetch_date(download_path, account)
+        last_fetch_date = format_account_date(last_fetch_date_value)
+    metadata = build_account_metadata(download_path, account)
+    if last_fetch_date is not None:
+        metadata = replace(metadata, last_fetch_date=last_fetch_date)
     write_account_metadata(path, metadata)
     return path

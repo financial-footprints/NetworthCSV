@@ -64,15 +64,26 @@ def exclusive_search_end_date(end_date: date) -> date:
     return end_date + timedelta(days=1)
 
 
+def incremental_fetch_start(last_fetch_date: date | None) -> date | None:
+    if last_fetch_date is None:
+        return None
+    return last_fetch_date - timedelta(days=1)
+
+
 def resolve_account_search_dates(
     account: ResolvedAccount,
     global_start_date: date | None,
+    *,
+    last_fetch_date: date | None = None,
 ) -> tuple[date | None, date | None]:
     start_candidates: list[date] = []
     if global_start_date is not None:
         start_candidates.append(global_start_date)
     if account.opening_date is not None:
         start_candidates.append(account.opening_date)
+    incremental_start = incremental_fetch_start(last_fetch_date)
+    if incremental_start is not None:
+        start_candidates.append(incremental_start)
     effective_start = max(start_candidates) if start_candidates else None
     effective_end = (
         exclusive_search_end_date(account.closing_date)

@@ -13,6 +13,10 @@ from pathlib import Path
 
 from networthcsv.context import RunContext
 from networthcsv.errors import StageError
+from networthcsv.pipeline.metadata.persist import (
+    read_last_fetch_date,
+    write_last_fetch_date,
+)
 from networthcsv.pipeline.results import ExtractAccountResult
 from networthcsv.utils.email.email_message import (
     message_matches_account,
@@ -102,9 +106,11 @@ def extract_account(
 
     _ = download_dir.mkdir(parents=True, exist_ok=True)
 
+    last_fetch_date = read_last_fetch_date(ctx.settings.download_path, account)
     effective_start, effective_end = resolve_account_search_dates(
         account,
         global_start_date,
+        last_fetch_date=last_fetch_date,
     )
 
     mbox_files = discover_mbox_files(profile)
@@ -151,6 +157,7 @@ def extract_account(
         attachments_saved=total_attachments,
     )
     ctx.reporter.extract_account_done(result)
+    _ = write_last_fetch_date(ctx.settings.download_path, account, date.today())
     return result
 
 

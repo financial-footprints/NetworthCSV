@@ -19,7 +19,9 @@ from networthcsv.pipeline.metadata.models import (
 from networthcsv.pipeline.metadata.persist import (
     load_account_metadata,
     read_account_metadata,
+    read_last_fetch_date,
     refresh_account_metadata,
+    write_last_fetch_date,
 )
 from networthcsv.pipeline.metadata.run import run, run_account
 
@@ -35,8 +37,10 @@ __all__ = [
     "load_account_metadata",
     "months_between_exclusive",
     "read_account_metadata",
+    "read_last_fetch_date",
     "refresh_account_metadata",
     "run",
     "run_account",
     "statement_date_for_covered_month",
+    "write_last_fetch_date",
 ]

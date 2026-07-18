@@ -13,6 +13,7 @@ from networthcsv.pipeline.cleanup import (
     prepare_month,
     run,
 )
+from networthcsv.pipeline.cleanup.staging import prune_unsupported_staging_files
 from networthcsv.utils.path import statement_pdf_path, txt_path_for_pdf
 
 
@@ -474,6 +475,20 @@ class RunCleanupTests(unittest.TestCase):
         path = directory / name
         _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
         return path
+
+    def test_prune_unsupported_staging_preserves_metadata_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir = Path(tmp)
+            metadata_path = staging_dir / "metadata.json"
+            junk_path = staging_dir / "notes.txt"
+            _ = metadata_path.write_text('{"last_fetch_date": "20-01-2026"}\n')
+            _ = junk_path.write_text("remove me", encoding="utf-8")
+
+            removed = prune_unsupported_staging_files(staging_dir)
+
+            self.assertEqual(removed, 1)
+            self.assertTrue(metadata_path.is_file())
+            self.assertFalse(junk_path.exists())
 
     @patch("networthcsv.pipeline.cleanup.staging.decrypt_pdfs_in_place", return_value=0)
     @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")

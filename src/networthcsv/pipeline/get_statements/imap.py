@@ -8,6 +8,10 @@ from email.message import Message
 
 from networthcsv.context import RunContext
 from networthcsv.errors import StageError
+from networthcsv.pipeline.metadata.persist import (
+    read_last_fetch_date,
+    write_last_fetch_date,
+)
 from networthcsv.pipeline.results import ExtractAccountResult, ExtractStageResult
 from networthcsv.utils.email.email_message import (
     message_matches_account,
@@ -131,9 +135,11 @@ def extract_account(
     download_dir = account_download_path(ctx.settings.download_path, account)
     _ = download_dir.mkdir(parents=True, exist_ok=True)
 
+    last_fetch_date = read_last_fetch_date(ctx.settings.download_path, account)
     effective_start, search_end = resolve_account_search_dates(
         account,
         ctx.settings.start_date,
+        last_fetch_date=last_fetch_date,
     )
 
     ctx.reporter.extract_settings(
@@ -184,6 +190,7 @@ def extract_account(
         attachments_saved=attachments_saved,
     )
     ctx.reporter.extract_account_done(result)
+    _ = write_last_fetch_date(ctx.settings.download_path, account, date.today())
     return result
 
 

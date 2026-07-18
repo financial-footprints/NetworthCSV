@@ -432,6 +432,30 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(start, date(2024, 1, 1))
         self.assertEqual(end, date(2024, 8, 2))
 
+    def test_resolve_account_search_dates_uses_last_fetch_minus_one_day(self) -> None:
+        account = ResolvedAccount.model_validate(
+            {
+                "bank": "bob",
+                "account_number": "1234",
+                "passwords": ["x"],
+                "mail": {"subjects": ["stmt"]},
+                "opening_date": date(2023, 4, 1),
+            }
+        )
+        start, _end = resolve_account_search_dates(
+            account,
+            date(2024, 1, 1),
+            last_fetch_date=date(2026, 1, 20),
+        )
+        self.assertEqual(start, date(2026, 1, 19))
+
+        start, _end = resolve_account_search_dates(
+            account,
+            None,
+            last_fetch_date=date(2026, 1, 20),
+        )
+        self.assertEqual(start, date(2026, 1, 19))
+
     def test_resolve_account_search_dates_uses_day_after_closing(self) -> None:
         account = ResolvedAccount.model_validate(
             {

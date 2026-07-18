@@ -19,6 +19,7 @@ from networthcsv.utils.zip_archive import password_candidates
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_STAGING_SUFFIXES = frozenset({".pdf", ".csv"})
+_METADATA_FILENAME = "metadata.json"
 
 
 def _is_staging_file(
@@ -49,6 +50,8 @@ def prune_unsupported_staging_files(download_dir: Path) -> int:
         if not path.is_file():
             continue
         if path.suffix.lower() in _SUPPORTED_STAGING_SUFFIXES:
+            continue
+        if path.name == _METADATA_FILENAME:
             continue
         _ = path.unlink()
         logger.debug("removed (unsupported staging): %s", path)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -21,10 +22,13 @@ from networthcsv.pipeline.metadata import (
     load_account_metadata,
     months_between_exclusive,
     read_account_metadata,
+    read_last_fetch_date,
     refresh_account_metadata,
     run_account,
     statement_date_for_covered_month,
+    write_last_fetch_date,
 )
+from networthcsv.pipeline.metadata.persist import write_account_metadata
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.settings import (
     AppSettings,
@@ -890,6 +894,83 @@ class RefreshAccountMetadataTests(unittest.TestCase):
             self.assertIn("segments", payload["period_covered"])
             self.assertIn("gaps", payload["period_covered"])
 
+    def test_refresh_preserves_last_fetch_date(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account()
+            fy_dir = account_fy_dir(download_path, account, "FY23-2024")
+            _ = fy_dir.mkdir(parents=True, exist_ok=True)
+            _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
+            _ = (fy_dir / "2024-01.txt").write_text("x", encoding="utf-8")
+            _ = write_last_fetch_date(download_path, account, date(2026, 1, 20))
+
+            path = refresh_account_metadata(download_path, account)
+
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["last_fetch_date"], "20-01-2026")
+            self.assertEqual(payload["statement_count"], 1)
+
+
+class LastFetchDateTests(unittest.TestCase):
+    def test_write_creates_minimal_metadata_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account()
+
+            path = write_last_fetch_date(download_path, account, date(2026, 1, 20))
+
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["last_fetch_date"], "20-01-2026")
+
+    def test_write_patches_existing_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account()
+            metadata_path = account_metadata_path(download_path, account)
+            _ = metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            _ = metadata_path.write_text(
+                json.dumps({"statement_count": 2}) + "\n",
+                encoding="utf-8",
+            )
+
+            _ = write_last_fetch_date(download_path, account, date(2026, 1, 21))
+
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["last_fetch_date"], "21-01-2026")
+            self.assertEqual(payload["statement_count"], 2)
+
+    def test_read_last_fetch_date_from_partial_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account()
+            metadata_path = account_metadata_path(download_path, account)
+            _ = metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            _ = metadata_path.write_text(
+                '{"last_fetch_date": "19-01-2026"}\n',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                read_last_fetch_date(download_path, account),
+                date(2026, 1, 19),
+            )
+
+    def test_round_trip_last_fetch_date_in_full_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account()
+            _write_statement(download_path, account, "2024-01")
+            metadata = replace(
+                build_account_metadata(download_path, account),
+                last_fetch_date="20-01-2026",
+            )
+            path = account_metadata_path(download_path, account)
+            write_account_metadata(path, metadata)
+
+            loaded = read_account_metadata(path)
+            assert loaded is not None
+            self.assertEqual(loaded.last_fetch_date, "20-01-2026")
+
 
 class RunAccountMetadataTests(unittest.TestCase):
     def test_run_account_writes_metadata(self) -> None:
@@ -910,3 +991,20 @@ class RunAccountMetadataTests(unittest.TestCase):
             self.assertTrue(metadata_path.is_file())
             payload = json.loads(metadata_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["statement_count"], 1)
+
+    def test_run_account_preserves_last_fetch_date(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            download_path = Path(tmp)
+            account = make_account()
+            fy_dir = account_fy_dir(download_path, account, "FY23-2024")
+            _ = fy_dir.mkdir(parents=True, exist_ok=True)
+            _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
+            _ = (fy_dir / "2024-01.txt").write_text("x", encoding="utf-8")
+            _ = write_last_fetch_date(download_path, account, date(2026, 1, 20))
+
+            ctx = _run_context(download_path)
+            _ = run_account(ctx, account)
+
+            metadata_path = account_metadata_path(download_path, account)
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["last_fetch_date"], "20-01-2026")

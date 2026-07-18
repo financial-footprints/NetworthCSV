@@ -78,3 +78,4 @@ class AccountMetadata:
     ending: str | None
     statement_count: int
     period_covered: PeriodCovered
+    last_fetch_date: str | None = None

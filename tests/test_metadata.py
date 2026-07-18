@@ -8,6 +8,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from cleanup_support import account as make_account
 from networthcsv.context import RunContext
 from networthcsv.pipeline.metadata import (
     BalanceGap,
@@ -40,34 +41,6 @@ from networthcsv.utils.path import (
     fy_folder_name,
     statement_csv_path,
 )
-
-
-def _account(
-    *,
-    bank: str = "bob",
-    variant: str | None = "easy",
-    account_number: str = "5678",
-    opening_date: date | None = None,
-    closing_date: date | None = None,
-) -> ResolvedAccount:
-    handler = get_handler(bank, variant)
-    defaults = handler.matching_defaults()
-    payload = defaults.model_dump()
-    payload["statement"] = {
-        **payload["statement"],
-        "text_contains": [account_number],
-    }
-    resolved: dict[str, object] = {
-        "bank": bank,
-        "variant": variant,
-        "account_number": account_number,
-        "passwords": ["secret"],
-        "opening_date": opening_date or date(2020, 1, 1),
-        **payload,
-    }
-    if closing_date is not None:
-        resolved["closing_date"] = closing_date
-    return ResolvedAccount.model_validate(resolved)
 
 
 def _run_context(download_path: Path) -> RunContext:
@@ -603,7 +576,7 @@ class ReadAccountMetadataTests(unittest.TestCase):
     def test_read_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             _write_statement(download_path, account, "2024-01")
 
             written = build_account_metadata(download_path, account)
@@ -626,7 +599,7 @@ class ReadAccountMetadataTests(unittest.TestCase):
     def test_load_falls_back_to_build(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             _write_statement(download_path, account, "2024-02")
 
             metadata, from_file = load_account_metadata(download_path, account)
@@ -638,7 +611,7 @@ class ReadAccountMetadataTests(unittest.TestCase):
     def test_load_reads_existing_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             _write_statement(download_path, account, "2024-03")
             refresh_account_metadata(download_path, account)
 
@@ -652,7 +625,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_builds_from_statement_pairs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             _write_statement(download_path, account, "2024-01")
             _write_statement(download_path, account, "2024-02")
 
@@ -671,7 +644,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_extracts_balances_when_statement_text_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
@@ -695,7 +668,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_opening_date_does_not_filter_period_covered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account(opening_date=date(2023, 4, 1))
+            account = make_account(opening_date=date(2023, 4, 1))
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             for month in ("2023-04", "2023-05"):
@@ -709,7 +682,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_opening_date_does_not_truncate_early_statements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account(opening_date=date(2023, 6, 1))
+            account = make_account(opening_date=date(2023, 6, 1))
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             for month in ("2023-04", "2023-05", "2023-06", "2023-07"):
@@ -727,7 +700,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_closing_date_exported_without_filtering_period_covered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account(
+            account = make_account(
                 opening_date=date(2023, 4, 1),
                 closing_date=date(2024, 8, 1),
             )
@@ -746,7 +719,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_csv_detected_in_fy_folder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
@@ -762,7 +735,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_builds_day_level_period_from_statement_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-10.pdf").write_bytes(b"%PDF")
@@ -783,7 +756,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_hdfc_derives_period_from_previous_month_rule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account(bank="hdfc", variant="regalia")
+            account = make_account(bank="hdfc", variant="regalia")
             fy_dir = account_fy_dir(download_path, account, "FY21-2022")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2021-09.pdf").write_bytes(b"%PDF")
@@ -801,7 +774,7 @@ class BuildAccountMetadataTests(unittest.TestCase):
     def test_extracted_period_range_wins_over_statement_period_rule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account(bank="hdfc", variant="regalia")
+            account = make_account(bank="hdfc", variant="regalia")
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-10.pdf").write_bytes(b"%PDF")
@@ -820,7 +793,7 @@ class AnnualCsvYearKeyMetadataTests(unittest.TestCase):
     _ICICI_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "icici" / "csv"
 
     def test_four_icici_annual_csvs_map_to_four_fy_chips(self) -> None:
-        account = _account(
+        account = make_account(
             bank="icici",
             variant="default",
             account_number="7788",
@@ -863,7 +836,7 @@ class AnnualCsvYearKeyMetadataTests(unittest.TestCase):
                 self.assertIn("csv", summary.formats)
 
     def test_fy25_annual_csv_lands_in_fy25_folder(self) -> None:
-        account = _account(
+        account = make_account(
             bank="icici",
             variant="default",
             account_number="6005",
@@ -897,7 +870,7 @@ class RefreshAccountMetadataTests(unittest.TestCase):
     def test_writes_metadata_json_to_staging_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
@@ -922,7 +895,7 @@ class RunAccountMetadataTests(unittest.TestCase):
     def test_run_account_writes_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             fy_dir = account_fy_dir(download_path, account, "FY23-2024")
             _ = fy_dir.mkdir(parents=True, exist_ok=True)
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")

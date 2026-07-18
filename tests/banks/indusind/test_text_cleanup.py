@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.utils.banks import get_handler
-from networthcsv.utils.banks.base import CreditCardHandler
+from cleanup_support import credit_card_handler
 
 
 class IndusindTextCleanupTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.handler = get_handler("indusind", "auraedge")
-        assert isinstance(cls.handler, CreditCardHandler)
+        cls.handler = credit_card_handler("indusind", "auraedge")
 
     def test_drops_collapsed_marketing_and_trims_after_rewards(self) -> None:
         raw = (

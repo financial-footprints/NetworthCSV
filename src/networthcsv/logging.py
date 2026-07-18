@@ -41,7 +41,8 @@ def configure_logging(log_level: LogLevel = "info") -> None:
         root.addHandler(stdout_handler)
         root.addHandler(stderr_handler)
 
-        for name in ("pdfminer", "pdfplumber", "pypdf"):
+        for name in ("pdfminer", "pdfplumber"):
             logging.getLogger(name).setLevel(logging.WARNING)
+        logging.getLogger("pypdf").setLevel(logging.ERROR)
 
     root.setLevel(level)

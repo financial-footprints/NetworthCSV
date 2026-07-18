@@ -1,11 +1,9 @@
-"""PNB credit card handler."""
+"""PNB statement PDF layout v1 (classic, statement block near top)."""
 
 from __future__ import annotations
 
 from datetime import date
 
-from networthcsv.utils.banks import register
-from networthcsv.utils.banks.base import CreditCardHandler
 from networthcsv.utils.banks.helpers.amounts import first_not_none
 from networthcsv.utils.banks.helpers.dates import (
     context_range_end,
@@ -18,31 +16,16 @@ from networthcsv.utils.banks.helpers.tables import (
     label_single_amount,
     summary_table_column,
 )
-
-_PNB_DROP_SECTIONS = [
-    "*TAD for the month consists of current month purchases, charges, cash advances and amount of BT/EMI due for the month if any. Making only the minimum payment if any month would result in the repayment stretching over subsequent Always get MORE with months with consequent interest payment on your outstanding balance. Please examine your statement immediately upon receipt. If no error is reported within 60 days from the date PNB Credit Cards of statement, the account will be considered correct. Place of supply : PNB, Credit Card Processing Center, Ground Floor, C-24, Sec-58, Noida, Uttar Pradesh 201301, State Code : 09 GSTIN No.: 07AAACP0165G3ZP Registered Address : Punjab National Bank, Plot No. 7, East Block Road, Bhikaji Cama Place, New Delhi, New Delhi, Delhi, 110066 State Code : 07",
-    "Presenting Rupay Platinum",
-    "PNB GENIE",
-    "Scan and download",
-    "Always get MORE",
-    "Reward points details",
-    "Why pay in Rupees",
-    "CAUTION :",
-    "Please make all Cheque",
-]
+from networthcsv.utils.banks.pnb.default._text import prepare_statement_text
+from networthcsv.utils.banks.pnb.invoice import extract_invoice_number
 
 
-@register("pnb", "default")
-@register("pnb", "platinum")
-class PnbHandler(CreditCardHandler):
-    def mail_subjects(self) -> list[str]:
-        return ["Your PNB Credit Card Statement for the month"]
+class LayoutV1:
+    def trim_start(self) -> list[str]:
+        return []
 
-    def trim_end(self) -> list[str]:
-        return ["********** End of Statement **********"]
-
-    def drop_sections(self) -> list[str]:
-        return list(_PNB_DROP_SECTIONS)
+    def clean_text(self, raw: str) -> str:
+        return prepare_statement_text(raw, trim_start=self.trim_start())
 
     def get_statement_date(self, text: str) -> date | None:
         return first_not_none_date(
@@ -77,3 +60,6 @@ class PnbHandler(CreditCardHandler):
             label_single_amount(text, "Total Amount Due for Month"),
             label_single_amount(text, "Total Amount Due :"),
         )
+
+    def get_invoice_number(self, text: str) -> str | None:
+        return extract_invoice_number(text)

@@ -132,6 +132,13 @@ _SECTION_BOUNDARY_MARKERS = (
     "STATEMENT SUMMARY",
     "Statement Summary",
     "MOST IMPORTANT TERMS AND CONDITIONS",
+    "Domestic Transactions",
+    "PREVIOUS STATEMENT DUES",
+    "Past Dues",
+    "Account Summary",
+    "TOTAL AMOUNT DUE",
+    "Statement Date",
+    "Billing Period",
 )
 
 

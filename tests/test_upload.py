@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cleanup_support import account as make_account
 from networthcsv.pipeline.metadata import build_account_metadata
 from networthcsv.pipeline.upload import (
     StatementFileExistsError,
@@ -14,27 +15,12 @@ from networthcsv.pipeline.upload import (
     save_uploaded_pdf,
     save_uploaded_zip,
 )
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.path import (
     account_download_path,
     statement_csv_path,
     statement_pdf_path,
 )
 from zip_support import build_zip
-
-
-def _account() -> ResolvedAccount:
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "bob",
-            "variant": "easy",
-            "account_number": "5678",
-            "passwords": ["secret"],
-            "opening_date": "01-01-2020",
-            "mail": {"subjects": ["BOB"]},
-            "statement": {"text_contains": ["5678"]},
-        }
-    )
 
 
 class UploadHelperTests(unittest.TestCase):
@@ -59,7 +45,7 @@ class UploadHelperTests(unittest.TestCase):
     def test_save_uploaded_pdf_writes_staging_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             staging_dir = account_download_path(download_path, account)
             path = save_uploaded_pdf(
                 staging_dir,
@@ -74,7 +60,7 @@ class UploadHelperTests(unittest.TestCase):
     def test_save_uploaded_pdf_rejects_existing_canonical(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             canonical = statement_pdf_path(download_path, account, "2024-02")
             _ = canonical.parent.mkdir(parents=True, exist_ok=True)
             _ = canonical.write_bytes(b"%PDF")
@@ -93,7 +79,7 @@ class UploadHelperTests(unittest.TestCase):
     def test_save_uploaded_csv_writes_fy_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             path = save_uploaded_csv(
                 download_path,
                 account,
@@ -107,7 +93,7 @@ class UploadHelperTests(unittest.TestCase):
     def test_metadata_includes_csv_only_statement(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             _ = save_uploaded_csv(
                 download_path,
                 account,
@@ -122,7 +108,7 @@ class UploadHelperTests(unittest.TestCase):
     def test_save_uploaded_zip_writes_staging_csvs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             staging_dir = account_download_path(download_path, account)
             zip_bytes = build_zip({"statement-one.csv": b"a,b\n"})
             paths = save_uploaded_zip(staging_dir, account, zip_bytes)
@@ -133,7 +119,7 @@ class UploadHelperTests(unittest.TestCase):
     def test_save_uploaded_zip_writes_multiple_staging_csvs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account()
             staging_dir = account_download_path(download_path, account)
             zip_bytes = build_zip(
                 {

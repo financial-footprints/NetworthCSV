@@ -5,30 +5,17 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from cleanup_support import FIXTURES_ROOT
+from cleanup_support import FIXTURES_ROOT, account as make_account
+from networthcsv.pipeline.cleanup.keeper import statement_collapse_key
 from networthcsv.utils.banks.period import (
     extract_statement_date,
     extract_statement_period,
     resolve_period_bounds,
     resolve_period_key,
 )
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
-
-
-def _account(*, variant: str | None) -> ResolvedAccount:
-    handler = get_handler("hdfc", variant)
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "hdfc",
-            "variant": variant,
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
+from networthcsv.utils.banks.hdfc.default import HdfcDefaultHandler
+from networthcsv.utils.banks.hdfc.swiggy import HdfcSwiggyHandler
 
 
 class HdfcStatementBalanceTests(unittest.TestCase):
@@ -40,7 +27,9 @@ class HdfcStatementBalanceTests(unittest.TestCase):
             "                                    Balance   Credits   Debits   Charges\n"
             "                                      0.00     5.00    12,350.67  0.00    12,345.67\n"
         )
-        account = _account(variant="regalia")
+        account = make_account(
+            bank="hdfc", account_number="1234", passwords=["x"], variant="regalia"
+        )
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)
@@ -55,7 +44,12 @@ class HdfcStatementBalanceTests(unittest.TestCase):
             "                                    Balance   Credits   Debits   Charges\n"
             "                                     11,111.11 11,211.11 0.00     0.00     -555.55\n"
         )
-        account = _account(variant="diners-privilege")
+        account = make_account(
+            bank="hdfc",
+            account_number="1234",
+            passwords=["x"],
+            variant="diners-privilege",
+        )
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)
@@ -70,7 +64,12 @@ class HdfcStatementBalanceTests(unittest.TestCase):
             "                                    Balance   Credits   Debits   Charges\n"
             "                                     -2,222.22 0.00    13,333.33  0.00    11,111.11\n"
         )
-        account = _account(variant="diners-privilege")
+        account = make_account(
+            bank="hdfc",
+            account_number="1234",
+            passwords=["x"],
+            variant="diners-privilege",
+        )
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)
@@ -85,7 +84,12 @@ class HdfcStatementBalanceTests(unittest.TestCase):
             "                                    Balance   Credits   Debits   Charges\n"
             "                                     -4,444.44 0.00     2,222.22  0.00    -2,222.22\n"
         )
-        account = _account(variant="diners-privilege")
+        account = make_account(
+            bank="hdfc",
+            account_number="1234",
+            passwords=["x"],
+            variant="diners-privilege",
+        )
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)
@@ -96,7 +100,9 @@ class HdfcStatementBalanceTests(unittest.TestCase):
 class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.account = _account(variant="swiggy")
+        cls.account = make_account(
+            bank="hdfc", account_number="1234", passwords=["x"], variant="swiggy"
+        )
         cls.text = (
             FIXTURES_ROOT / "hdfc/swiggy/sample-collapsed-header.txt"
         ).read_text(encoding="utf-8")
@@ -110,7 +116,7 @@ class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
             self.text,
             account=self.account,
         )
-        self.assertIsNone(period_start)
+        self.assertEqual(period_start, date(2024, 5, 21))
         self.assertEqual(period_end, date(2024, 6, 20))
 
     def test_collapsed_header_resolved_period_bounds(self) -> None:
@@ -123,10 +129,136 @@ class HdfcSwiggyCollapsedHeaderTests(unittest.TestCase):
         self.assertTrue(approximate)
 
 
+class HdfcSwiggyIdentityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.account = make_account(
+            bank="hdfc", account_number="1234", passwords=["x"], variant="swiggy"
+        )
+        handler = get_handler(cls.account.bank, cls.account.variant)
+        assert isinstance(handler, HdfcSwiggyHandler)
+        cls.handler = handler
+        cls.modern = cls.handler.clean_text(
+            (FIXTURES_ROOT / "hdfc/swiggy/modern-may-2026.txt").read_text(
+                encoding="utf-8"
+            )
+        )
+        cls.duplicate = cls.handler.clean_text(
+            (FIXTURES_ROOT / "hdfc/swiggy/duplicate-may-2026.txt").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def test_layout_detection(self) -> None:
+        self.assertEqual(self.handler.swiggy_layout_id(self.modern), "v1")
+        self.assertEqual(self.handler.swiggy_layout_id(self.duplicate), "v2")
+        self.assertEqual(self.handler.hdfc_layout_id(self.modern), "v1")
+        self.assertEqual(self.handler.hdfc_layout_id(self.duplicate), "v2")
+
+    def test_v2_and_v1_balances_after_clean_text(self) -> None:
+        self.assertEqual(self.handler.get_opening_balance(self.modern), "-137.30")
+        self.assertEqual(self.handler.get_closing_balance(self.modern), "277.00")
+        self.assertEqual(self.handler.get_opening_balance(self.duplicate), "-137.30")
+        self.assertEqual(self.handler.get_closing_balance(self.duplicate), "277.00")
+
+    def test_modern_and_duplicate_share_aan_invoice_collapse_key(self) -> None:
+        modern_ref = self.handler.get_statement_reference(self.modern)
+        duplicate_ref = self.handler.get_statement_reference(self.duplicate)
+        self.assertEqual(modern_ref, "0001010610002115678")
+        self.assertEqual(duplicate_ref, modern_ref)
+        modern_key = statement_collapse_key(self.modern, self.account)
+        duplicate_key = statement_collapse_key(self.duplicate, self.account)
+        self.assertEqual(modern_key[0], "invoice")
+        self.assertEqual(modern_key, duplicate_key)
+
+    def test_same_line_total_amount_due_header(self) -> None:
+        text = (
+            "Billing Period\n"
+            "TOTAL AMOUNT DUE C277.00\n"
+            "MINIMUM DUE\n"
+            "C200.00\n"
+            "PREVIOUS STATEMENT DUES\n"
+            "C-,137.30 C45.80 C460.00 C0.00\n"
+        )
+        self.assertEqual(self.handler.swiggy_layout_id(text), "v1")
+        self.assertEqual(self.handler.get_closing_balance(text), "277.00")
+
+    def test_merged_same_line_total_amount_due_takes_first_amount(self) -> None:
+        text = (
+            "Billing Period\n"
+            "TOTAL AMOUNT DUE C277.00 MINIMUM DUE C200.00\n"
+            "PREVIOUS STATEMENT DUES\n"
+            "C-,137.30 C45.80 C460.00 C0.00\n"
+        )
+        self.assertEqual(self.handler.get_closing_balance(text), "277.00")
+
+    def test_merged_next_line_total_amount_due_takes_first_amount(self) -> None:
+        text = (
+            "Billing Period\n"
+            "TOTAL AMOUNT DUE\n"
+            "C277.00 MINIMUM DUE C200.00\n"
+            "PREVIOUS STATEMENT DUES\n"
+            "C-,137.30 C45.80 C460.00 C0.00\n"
+        )
+        self.assertEqual(self.handler.get_closing_balance(text), "277.00")
+
+    def test_split_label_total_amount_due_across_lines(self) -> None:
+        text = (
+            "Billing Period\n"
+            "TOTAL\n"
+            "AMOUNT\n"
+            "DUE\n"
+            "C277.00\n"
+            "MINIMUM DUE\n"
+            "C200.00\n"
+            "PREVIOUS STATEMENT DUES\n"
+            "C-,137.30 C45.80 C460.00 C0.00\n"
+        )
+        self.assertEqual(self.handler.swiggy_layout_id(text), "v1")
+        self.assertEqual(self.handler.get_closing_balance(text), "277.00")
+
+
+class HdfcV2GuidelineLayoutTests(unittest.TestCase):
+    """Bank-wide HDFC v2 styling applies to every variant handler."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.raw = (FIXTURES_ROOT / "hdfc/default/v2-guideline-may-2026.txt").read_text(
+            encoding="utf-8"
+        )
+        cls.variants = (
+            "default",
+            "regalia",
+            "regalia-gold",
+            "diners-privilege",
+            "tata-neu-infinity",
+            "swiggy",
+        )
+
+    def test_all_variants_detect_v2_and_parse_balances(self) -> None:
+        for variant in self.variants:
+            with self.subTest(variant=variant):
+                account = make_account(
+                    bank="hdfc", account_number="1234", passwords=["x"], variant=variant
+                )
+                handler = get_handler(account.bank, account.variant)
+                assert isinstance(handler, HdfcDefaultHandler)
+                text = handler.clean_text(self.raw)
+                self.assertEqual(handler.hdfc_layout_id(text), "v2")
+                self.assertEqual(handler.get_opening_balance(text), "-137.30")
+                self.assertEqual(handler.get_closing_balance(text), "277.00")
+                self.assertEqual(
+                    handler.get_statement_reference(text), "0001017100000593848"
+                )
+                self.assertEqual(handler.get_statement_date(text), date(2026, 5, 20))
+
+
 class HdfcAnnualStatementTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.account = _account(variant="default")
+        cls.account = make_account(
+            bank="hdfc", account_number="1234", passwords=["x"], variant="default"
+        )
         cls.text = (FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
             encoding="utf-8"
         )

@@ -43,6 +43,9 @@ class BankHandler(ABC):
     @abstractmethod
     def get_closing_balance(self, text: str) -> str | None: ...
 
+    def get_statement_reference(self, text: str) -> str | None:
+        return None
+
     def mail_body_contains(self) -> list[str]:
         return []
 

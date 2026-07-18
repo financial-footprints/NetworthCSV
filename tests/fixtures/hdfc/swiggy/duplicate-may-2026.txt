@@ -1,0 +1,45 @@
+In case you wish to update the personal details,please write a letter
+to The Manager, HDFC Bank Cards Division
+Name : SAMPLE HOLDER B
+0001010610002115678
+Email : holder.sample@example.com
+Address : 12 Example Lane Sample City
+SAMPLE CITY-000000 ST
+GST No :
+05/2026
+Note : The "Available Credit Limit" shown in this
+statement takes into account charges incurred but
+not due. Please ensure that at least the "Minimum
+Amount Due" reaches us by the "Due Date".
+If the "Minimum Amount Due" or "Part Amount" less
+than the "Total Amount Due" is paid, Interest
+charges are applicable (including fresh purchases, if
+any) on an average daily reducing balance method.
+To Hotlist your Credit Card, login into Netbanking or
+call our phone banking numbers within 3 grace days.
+Statement for HDFC Bank Credit Card
+Statement
+Date:20/05/2026
+Card No: 4412 73XX XXXX 5678
+AAN : 0001010610002115678
+Payment Due Date Total Dues Minimum Amount Due
+09/06/2026 277.00 200.00
+Credit Limit Available Credit Limit Available Cash Limit
+8,00,000 7,99,723 3,20,000
+Account Summary
+Opening
+Balance
+Payment/
+Credits
+Purchase/
+Debits
+Finance
+Charges Total Dues
+-137.30 45.80 460.00 0.00 277.00
+Domestic Transactions
+Date Transaction Description Amount (in Rs.)
+SAMPLE HOLDER B
+09/05/2026 SAMPLE MERCHANT PURCHASE 2.00
+19/05/2026 10% Swiggy CashBack 45.80 Cr
+DUPLICATE STATEMENT
+HSN Code - 997113	HDFC Bank Credit Cards GSTIN : 33AAACH2702H2Z6

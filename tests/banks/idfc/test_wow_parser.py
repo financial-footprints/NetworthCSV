@@ -5,34 +5,22 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from cleanup_support import FIXTURES_ROOT
+from cleanup_support import FIXTURES_ROOT, account as make_account
 from networthcsv.pipeline.parse.banks import get_parser
-from networthcsv.settings import ResolvedAccount
-from networthcsv.utils.banks import get_handler
 
 _FIXTURES = FIXTURES_ROOT / "idfc" / "wow"
-
-
-def _account() -> ResolvedAccount:
-    handler = get_handler("idfc", "wow")
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "idfc",
-            "variant": "wow",
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class IdfcWowParserTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.parser = get_parser("idfc", "wow")
-        cls.account = _account()
+        cls.account = make_account(
+            bank="idfc",
+            variant="wow",
+            account_number="1234",
+            passwords=["x"],
+        )
         cls.classic = (_FIXTURES / "classic-2023-08.txt").read_text(encoding="utf-8")
         cls.modern_2025 = (_FIXTURES / "modern-2025-11.txt").read_text(encoding="utf-8")
         cls.modern_2026 = (_FIXTURES / "modern-2026-04.txt").read_text(encoding="utf-8")

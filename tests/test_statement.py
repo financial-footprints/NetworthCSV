@@ -4,28 +4,16 @@ from __future__ import annotations
 
 import unittest
 
+from cleanup_support import account as make_account
 from networthcsv.pipeline.parse.statement import parse_statement_text
-from networthcsv.settings import ResolvedAccount
-
-
-def _account() -> ResolvedAccount:
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "bob",
-            "variant": "easy",
-            "account_number": "5678",
-            "passwords": ["secret"],
-            "opening_date": "01-01-2020",
-            "mail": {"subjects": ["BOB"], "body_contains": [], "from": []},
-            "statement": {"text_contains": ["5678"]},
-        }
-    )
 
 
 class ParseStatementTextTests(unittest.TestCase):
     def test_empty_text_returns_no_rows(self) -> None:
         self.assertEqual(
-            parse_statement_text("   ", account=_account(), source_file="empty.txt"),
+            parse_statement_text(
+                "   ", account=make_account(), source_file="empty.txt"
+            ),
             [],
         )
 
@@ -33,7 +21,7 @@ class ParseStatementTextTests(unittest.TestCase):
         self.assertEqual(
             parse_statement_text(
                 "some statement lines\n",
-                account=_account(),
+                account=make_account(),
                 source_file="2024-01.txt",
             ),
             [],

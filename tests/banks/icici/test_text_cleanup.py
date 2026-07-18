@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.utils.banks import get_handler
-from networthcsv.utils.banks.base import CreditCardHandler
+from cleanup_support import credit_card_handler
 
 
 class IciciTextCleanupTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.handler = get_handler("icici", "platinum")
-        assert isinstance(cls.handler, CreditCardHandler)
+        cls.handler = credit_card_handler("icici", "platinum")
 
     def test_drops_spends_overview_and_offers(self) -> None:
         raw = (

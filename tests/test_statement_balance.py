@@ -27,6 +27,12 @@ class ParseAmountStringTests(unittest.TestCase):
     def test_c_prefix(self) -> None:
         self.assertEqual(parse_amount_string("C1,234.56"), "1234.56")
 
+    def test_c_prefix_negative_with_comma_after_sign(self) -> None:
+        self.assertEqual(parse_amount_string("C-,137.30"), "-137.30")
+
+    def test_c_prefix_positive_decimal(self) -> None:
+        self.assertEqual(parse_amount_string("C276.90"), "276.90")
+
     def test_negative(self) -> None:
         self.assertEqual(parse_amount_string("-1119"), "-1119")
 

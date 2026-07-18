@@ -146,5 +146,101 @@ class HdfcInboxCleanupTests(unittest.TestCase):
             self.assertFalse(fallback_pdf.exists())
 
 
+class HdfcSwiggyDuplicateCleanupTests(unittest.TestCase):
+    def _write_pdf(self, directory: Path, name: str) -> Path:
+        path = directory / name
+        _ = path.write_bytes(b"%PDF-1.4\n" + name.encode("utf-8"))
+        return path
+
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
+    def test_modern_and_duplicate_statement_collapse_for_month(
+        self, mock_extract: MagicMock
+    ) -> None:
+        modern_text = (FIXTURES_ROOT / "hdfc/swiggy/modern-may-2026.txt").read_text(
+            encoding="utf-8"
+        )
+        duplicate_text = (
+            FIXTURES_ROOT / "hdfc/swiggy/duplicate-may-2026.txt"
+        ).read_text(encoding="utf-8")
+        resolved_account = account(
+            bank="hdfc",
+            variant="swiggy",
+            text_contains=["123454XXXXXX7890"],
+            account_number="5678",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, download_path, resolved_account = staging_layout(
+                tmp, resolved_account
+            )
+            original = self._write_pdf(staging_dir, "INBOX__2026-05-21.pdf")
+            duplicate = self._write_pdf(staging_dir, "INBOX__2026-07-11.pdf")
+            mock_extract.side_effect = extract_side_effect(
+                {
+                    original: modern_text,
+                    duplicate: duplicate_text,
+                }
+            )
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2026-05",
+                [original, duplicate],
+                resolved_account,
+            )
+
+            pdf_out = statement_pdf_path(download_path, resolved_account, "2026-05")
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertTrue(pdf_out.is_file())
+            self.assertFalse(original.exists())
+            self.assertFalse(duplicate.exists())
+
+    @patch("networthcsv.utils.pdf.extract_pdf_text_plumber")
+    def test_aan_collapses_even_when_modern_closing_missing(
+        self, mock_extract: MagicMock
+    ) -> None:
+        modern_text = (FIXTURES_ROOT / "hdfc/swiggy/modern-may-2026.txt").read_text(
+            encoding="utf-8"
+        )
+        # Simulate live extract where the modern TOTAL AMOUNT DUE block is absent.
+        modern_text = modern_text.replace(
+            "TOTAL AMOUNT DUE\nC277.00\nMINIMUM DUE\nC200.00\n",
+            "",
+        )
+        duplicate_text = (
+            FIXTURES_ROOT / "hdfc/swiggy/duplicate-may-2026.txt"
+        ).read_text(encoding="utf-8")
+        resolved_account = account(
+            bank="hdfc",
+            variant="swiggy",
+            text_contains=["123454XXXXXX7890"],
+            account_number="5678",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            staging_dir, download_path, resolved_account = staging_layout(
+                tmp, resolved_account
+            )
+            original = self._write_pdf(staging_dir, "INBOX__2026-05-21.pdf")
+            duplicate = self._write_pdf(staging_dir, "INBOX__2026-07-11.pdf")
+            mock_extract.side_effect = extract_side_effect(
+                {
+                    original: modern_text,
+                    duplicate: duplicate_text,
+                }
+            )
+
+            prepared, rejected = prepare_month(
+                staging_dir,
+                download_path,
+                "2026-05",
+                [original, duplicate],
+                resolved_account,
+            )
+
+            self.assertEqual((prepared, rejected), (1, 0))
+            self.assertFalse(original.exists())
+            self.assertFalse(duplicate.exists())
+
+
 if __name__ == "__main__":
     _ = unittest.main()

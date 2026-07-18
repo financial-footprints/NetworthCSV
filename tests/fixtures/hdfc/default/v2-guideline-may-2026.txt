@@ -1,0 +1,33 @@
+Statement for HDFC Bank Credit Card
+Statement
+Date:20/05/2026
+Card No: 5522 60XX XXXX 3848
+AAN : 0001017100000593848
+Payment Due Date Total Dues Minimum Amount Due
+09/06/2026 277.00 200.00
+Credit Limit Available Credit Limit Available Cash Limit
+5,00,000 4,99,723 2,00,000
+Account Summary
+Opening
+Balance
+Payment/
+Credits
+Purchase/
+Debits
+Finance
+Charges Total Dues
+-137.30 45.80 460.00 0.00 277.00
+Past Dues (If any)
+Overlimit 3 Months+ 2 Months 1 Month Current
+Dues
+Minimum
+Amount Due
+0.00 0.00 0.00 0.00 200.00 200.00
+Domestic Transactions
+Date Transaction Description Amount (in Rs.)
+SAMPLE CARDHOLDER R
+09/05/2026 SAMPLE MERCHANT ALPHA 2.00
+17/05/2026 SAMPLE MERCHANT BETA 458.00
+19/05/2026 SAMPLE CASHBACK CREDIT 45.80 Cr
+DUPLICATE STATEMENT
+HSN Code - 997113	HDFC Bank Credit Cards GSTIN : 33AAACH2702H2Z6

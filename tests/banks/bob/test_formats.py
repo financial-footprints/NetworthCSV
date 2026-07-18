@@ -4,29 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from cleanup_support import FIXTURES_ROOT
-from networthcsv.utils.banks.period import resolve_month_period
+from cleanup_support import FIXTURES_ROOT, account as make_account
+from networthcsv.utils.banks.period import resolve_period_key
 from networthcsv.utils.banks.helpers.text import trim_by_markers
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.base import CreditCardHandler
 
 _FIXTURES = FIXTURES_ROOT / "bob" / "easy"
-
-
-def _account(*, bank: str = "bob", variant: str | None = "easy") -> ResolvedAccount:
-    handler = get_handler(bank, variant)
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": bank,
-            "variant": variant,
-            "account_number": "4829",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class BobFormatFixtureTests(unittest.TestCase):
@@ -34,7 +18,12 @@ class BobFormatFixtureTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.format2 = (_FIXTURES / "format2.txt").read_text(encoding="utf-8")
         cls.format1 = (_FIXTURES / "format1.txt").read_text(encoding="utf-8")
-        cls.account = _account()
+        cls.account = make_account(
+            bank="bob",
+            variant="easy",
+            account_number="4829",
+            passwords=["x"],
+        )
         cls.handler = get_handler(cls.account.bank, cls.account.variant)
         assert isinstance(cls.handler, CreditCardHandler)
         end_markers = list(cls.handler.trim_end())
@@ -43,7 +32,7 @@ class BobFormatFixtureTests(unittest.TestCase):
 
     def test_format2_month_from_content_not_filename(self) -> None:
         self.assertEqual(
-            resolve_month_period(
+            resolve_period_key(
                 self.format2,
                 "attachment__2025-08-20.pdf",
                 account=self.account,
@@ -53,7 +42,7 @@ class BobFormatFixtureTests(unittest.TestCase):
 
     def test_format1_month_from_labels(self) -> None:
         self.assertEqual(
-            resolve_month_period(
+            resolve_period_key(
                 self.format1,
                 "attachment__2025-01-01.pdf",
                 account=self.account,

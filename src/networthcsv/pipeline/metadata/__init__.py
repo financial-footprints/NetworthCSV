@@ -21,7 +21,7 @@ from networthcsv.pipeline.metadata.persist import (
     read_account_metadata,
     refresh_account_metadata,
 )
-from networthcsv.pipeline.metadata.run import main, run, run_account
+from networthcsv.pipeline.metadata.run import run, run_account
 
 __all__ = [
     "AccountMetadata",
@@ -33,7 +33,6 @@ __all__ = [
     "compute_balance_gaps",
     "covered_month",
     "load_account_metadata",
-    "main",
     "months_between_exclusive",
     "read_account_metadata",
     "refresh_account_metadata",

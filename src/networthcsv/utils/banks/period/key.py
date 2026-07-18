@@ -24,8 +24,6 @@ __all__ = [
     "PeriodSource",
     "extract_statement_date",
     "extract_statement_period",
-    "resolve_month_period",
-    "resolve_month_period_with_source",
     "resolve_period_key",
     "resolve_period_key_with_source",
 ]
@@ -86,15 +84,4 @@ def resolve_period_key_with_source(
 
 def resolve_period_key(text: str, filename: str, *, account: ResolvedAccount) -> str:
     period, _source = resolve_period_key_with_source(text, filename, account=account)
-    return period
-
-
-def resolve_month_period_with_source(
-    text: str, filename: str, *, account: ResolvedAccount
-) -> tuple[str, PeriodSource]:
-    return resolve_period_key_with_source(text, filename, account=account)
-
-
-def resolve_month_period(text: str, filename: str, *, account: ResolvedAccount) -> str:
-    period, _source = resolve_month_period_with_source(text, filename, account=account)
     return period

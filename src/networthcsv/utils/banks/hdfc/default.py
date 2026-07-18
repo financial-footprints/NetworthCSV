@@ -20,6 +20,15 @@ from networthcsv.utils.banks.helpers.tables import (
     summary_table_column,
     summary_table_row,
 )
+from networthcsv.utils.banks.hdfc.layouts import (
+    account_summary_opening,
+    account_summary_total_dues,
+    approximate_period_if_needed,
+    detect_hdfc_layout,
+    extract_aan,
+    is_hdfc_v2,
+    payment_due_total_dues,
+)
 from networthcsv.utils.banks.mixins.dates import ContextRangePeriodMixin
 from networthcsv.utils.statement_period import parse_month_year_token
 
@@ -116,9 +125,14 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
             period = self.get_annual_period(text)
             if period is not None:
                 return period
-        return super().get_statement_period(text)
+        period_start, period_end = super().get_statement_period(text)
+        if is_hdfc_v2(text):
+            return approximate_period_if_needed(period_start, period_end)
+        return period_start, period_end
 
     def get_opening_balance(self, text: str) -> str | None:
+        if is_hdfc_v2(text):
+            return account_summary_opening(text)
         return first_not_none(
             summary_table_column(
                 text, context="Account Summary", column="Opening Balance"
@@ -127,7 +141,15 @@ class HdfcDefaultHandler(ContextRangePeriodMixin, CreditCardHandler):
         )
 
     def get_closing_balance(self, text: str) -> str | None:
+        if is_hdfc_v2(text):
+            return account_summary_total_dues(text) or payment_due_total_dues(text)
         return first_not_none(
             summary_table_column(text, context="Account Summary", column="Total Dues"),
             summary_table_row(text, after="Account Summary", which=1, column="closing"),
         )
+
+    def get_statement_reference(self, text: str) -> str | None:
+        return extract_aan(text)
+
+    def hdfc_layout_id(self, text: str) -> str:
+        return detect_hdfc_layout(text)

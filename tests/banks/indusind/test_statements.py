@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from cleanup_support import FIXTURES_ROOT
-from networthcsv.settings import ResolvedAccount
+from cleanup_support import FIXTURES_ROOT, account as make_account
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.helpers.text import text_not_contains_violated
 
@@ -14,21 +13,6 @@ _ANNUAL_SUMMARY_MARKERS = [
     "CARD WISE SUMMARY FOR ACCOUNT OF",
     "MONTH WISE SPENDS ON YOUR ACCOUNT",
 ]
-
-
-def _account(*, variant: str | None = "default") -> ResolvedAccount:
-    handler = get_handler("indusind", variant)
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "indusind",
-            "variant": variant,
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class IndusindStatementBalanceTests(unittest.TestCase):
@@ -42,7 +26,12 @@ class IndusindStatementBalanceTests(unittest.TestCase):
             "(Including Loans)\n"
             "990.00 CR\n"
         )
-        account = _account()
+        account = make_account(
+            bank="indusind",
+            variant="default",
+            account_number="1234",
+            passwords=["x"],
+        )
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)

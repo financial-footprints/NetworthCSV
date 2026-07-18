@@ -1,6 +1,7 @@
-"""Alert dispatch for pipeline validation failures."""
+"""Alert dispatch for pipeline validation failures.
 
-from networthcsv.utils.alerts.models import Alert, AlertKind
-from networthcsv.utils.alerts.service import AlertService, build_alert_service
+Import from ``networthcsv.utils.alerts.models`` and
+``networthcsv.utils.alerts.service`` directly.
+"""
 
-__all__ = ["Alert", "AlertKind", "AlertService", "build_alert_service"]
+__all__: list[str] = []

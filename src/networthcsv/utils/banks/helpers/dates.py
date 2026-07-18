@@ -10,6 +10,7 @@ _DATE_FORMATS = (
     "%d/%m/%Y",
     "%d-%m-%Y",
     "%d/%b/%Y",
+    "%d/%b/%y",
     "%d %b, %Y",
     "%d %b %Y",
     "%d %b %y",
@@ -33,6 +34,17 @@ _DATE_CANDIDATE = re.compile(
     r")",
     re.IGNORECASE,
 )
+
+# PDF text extraction sometimes splits the day digit: ``1 6-MAR-2024``.
+_SPACED_DAY_BEFORE_MONTH = re.compile(
+    r"(\d)\s+(\d-[A-Za-z]{3}-\d{4})",
+    re.IGNORECASE,
+)
+
+
+def normalize_spaced_date_text(text: str) -> str:
+    """Collapse split day digits before month-abbrev dates (e.g. ``1 6-MAR-2024``)."""
+    return _SPACED_DAY_BEFORE_MONTH.sub(r"\1\2", text)
 
 
 def parse_date_string(value: str) -> date | None:
@@ -68,7 +80,8 @@ def find_label(text: str, label: str, *, limit: int = 4000) -> re.Match[str] | N
 
 
 def first_date_in_text(text: str) -> date | None:
-    for match in _DATE_CANDIDATE.finditer(text):
+    normalized = normalize_spaced_date_text(text)
+    for match in _DATE_CANDIDATE.finditer(normalized):
         parsed = parse_date_string(match.group(0))
         if parsed is not None:
             return parsed
@@ -76,8 +89,9 @@ def first_date_in_text(text: str) -> date | None:
 
 
 def last_date_in_text(text: str) -> date | None:
+    normalized = normalize_spaced_date_text(text)
     last: date | None = None
-    for match in _DATE_CANDIDATE.finditer(text):
+    for match in _DATE_CANDIDATE.finditer(normalized):
         parsed = parse_date_string(match.group(0))
         if parsed is not None:
             last = parsed

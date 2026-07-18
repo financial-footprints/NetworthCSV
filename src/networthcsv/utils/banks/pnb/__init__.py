@@ -1,5 +1,5 @@
 """PNB bank handlers."""
 
-from networthcsv.utils.banks.pnb import default
+from networthcsv.utils.banks.pnb import handler
 
-__all__ = ["default"]
+__all__ = ["handler"]

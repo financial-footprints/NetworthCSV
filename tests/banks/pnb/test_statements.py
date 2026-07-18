@@ -5,16 +5,15 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from cleanup_support import FIXTURES_ROOT
+from cleanup_support import FIXTURES_ROOT, account as make_account
 from networthcsv.utils.banks.period import (
     extract_statement_period,
-    resolve_month_period,
+    resolve_period_key,
 )
 from networthcsv.pipeline.metadata import (
     StatementMetadata,
     compute_balance_gaps,
 )
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 
 _FIXTURES = FIXTURES_ROOT / "pnb" / "platinum"
@@ -31,25 +30,15 @@ _CHAIN_FIXTURES = (
 )
 
 
-def _account(*, variant: str | None = "platinum") -> ResolvedAccount:
-    handler = get_handler("pnb", variant)
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "pnb",
-            "variant": variant,
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
-
-
 class PnbStatementFixtureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.account = _account()
+        cls.account = make_account(
+            bank="pnb",
+            variant="platinum",
+            account_number="1234",
+            passwords=["x"],
+        )
         cls.handler = get_handler(cls.account.bank, cls.account.variant)
 
     def test_statements_have_no_balance_discontinuities(self) -> None:
@@ -107,7 +96,12 @@ class PnbStatementFixtureTests(unittest.TestCase):
 class PnbStatementPeriodTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.account = _account()
+        cls.account = make_account(
+            bank="pnb",
+            variant="platinum",
+            account_number="1234",
+            passwords=["x"],
+        )
         cls.handler = get_handler(cls.account.bank, cls.account.variant)
 
     def test_fixture_extracts_statement_period_bounds(self) -> None:
@@ -126,6 +120,15 @@ class PnbStatementPeriodTests(unittest.TestCase):
                 self.assertEqual(period_start, expected_start)
                 self.assertEqual(period_end, expected_end)
 
+    def test_spaced_period_end_day_fixture(self) -> None:
+        text = (_FIXTURES / "layout_spaced_period_end_day.txt").read_text(
+            encoding="utf-8"
+        )
+        period_start, period_end = self.handler.get_statement_period(text)
+        self.assertEqual(period_start, date(2024, 2, 17))
+        self.assertEqual(period_end, date(2024, 3, 16))
+        self.assertEqual(self.handler.get_statement_date(text), date(2024, 3, 16))
+
     def test_extract_statement_period_via_pipeline(self) -> None:
         text = (_FIXTURES / "2024-03.txt").read_text(encoding="utf-8")
         period_start, period_end = extract_statement_period(text, account=self.account)
@@ -136,7 +139,12 @@ class PnbStatementPeriodTests(unittest.TestCase):
 class PnbStatementBalanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.account = _account(variant="default")
+        cls.account = make_account(
+            bank="pnb",
+            variant="default",
+            account_number="1234",
+            passwords=["x"],
+        )
         cls.handler = get_handler(cls.account.bank, cls.account.variant)
 
     def test_integer_account_summary_amounts(self) -> None:
@@ -168,14 +176,19 @@ class PnbStatementBalanceTests(unittest.TestCase):
 class PnbStatementDateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.account = _account()
+        cls.account = make_account(
+            bank="pnb",
+            variant="platinum",
+            account_number="1234",
+            passwords=["x"],
+        )
 
     def test_same_line_invoice_date(self) -> None:
         text = (_FIXTURES / "layout_same_line_invoice_date.txt").read_text(
             encoding="utf-8"
         )
         self.assertEqual(
-            resolve_month_period(text, "attachment.pdf", account=self.account),
+            resolve_period_key(text, "attachment.pdf", account=self.account),
             "2024-03",
         )
 
@@ -184,9 +197,64 @@ class PnbStatementDateTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertEqual(
-            resolve_month_period(text, "attachment.pdf", account=self.account),
+            resolve_period_key(text, "attachment.pdf", account=self.account),
             "2024-02",
         )
+
+
+class PnbMarketingPrefixLayoutTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.account = make_account(
+            bank="pnb",
+            variant="platinum",
+            account_number="1234",
+            passwords=["x"],
+        )
+        cls.handler = get_handler(cls.account.bank, cls.account.variant)
+        cls.text = (_FIXTURES / "layout_marketing_prefix.txt").read_text(
+            encoding="utf-8"
+        )
+
+    def test_marketing_prefix_month_from_invoice_date(self) -> None:
+        self.assertEqual(
+            resolve_period_key(
+                self.text,
+                "All Mail__2024-03-19.pdf",
+                account=self.account,
+            ),
+            "2024-03",
+        )
+
+    def test_marketing_prefix_statement_date(self) -> None:
+        self.assertEqual(self.handler.get_statement_date(self.text), date(2024, 3, 16))
+
+    def test_marketing_prefix_statement_period_bounds(self) -> None:
+        period_start, period_end = self.handler.get_statement_period(self.text)
+        self.assertEqual(period_start, date(2024, 2, 17))
+        self.assertEqual(period_end, date(2024, 3, 16))
+
+    def test_marketing_prefix_closing_balance(self) -> None:
+        self.assertEqual(self.handler.get_closing_balance(self.text), "250")
+
+    def test_marketing_prefix_clean_text_retains_card_marker(self) -> None:
+        cleaned = self.handler.clean_text(self.text)
+        self.assertIn("441299XXXXXX5678", cleaned)
+        self.assertNotIn("Presenting Rupay Platinum", cleaned)
+
+
+class PnbInvoiceReferenceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.handler = get_handler("pnb", "platinum")
+
+    def test_v1_fixture_invoice_reference(self) -> None:
+        text = (_FIXTURES / "2024-03.txt").read_text(encoding="utf-8")
+        self.assertEqual(self.handler.get_statement_reference(text), "2024CC0100456")
+
+    def test_v2_marketing_fixture_invoice_reference(self) -> None:
+        text = (_FIXTURES / "layout_marketing_prefix.txt").read_text(encoding="utf-8")
+        self.assertEqual(self.handler.get_statement_reference(text), "2024CC0100999")
 
 
 if __name__ == "__main__":

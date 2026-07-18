@@ -5,25 +5,8 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from cleanup_support import FIXTURES_ROOT
+from cleanup_support import FIXTURES_ROOT, account as make_account
 from networthcsv.pipeline.parse.banks import get_parser
-from networthcsv.settings import ResolvedAccount
-from networthcsv.utils.banks import get_handler
-
-
-def _account() -> ResolvedAccount:
-    handler = get_handler("hdfc", "default")
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "hdfc",
-            "variant": "default",
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class HdfcYearlyParserTests(unittest.TestCase):
@@ -32,7 +15,12 @@ class HdfcYearlyParserTests(unittest.TestCase):
         cls.text = (FIXTURES_ROOT / "hdfc/default/yearly-sample.txt").read_text(
             encoding="utf-8"
         )
-        cls.account = _account()
+        cls.account = make_account(
+            bank="hdfc",
+            variant="default",
+            account_number="1234",
+            passwords=["x"],
+        )
 
     def test_parses_sample_transactions(self) -> None:
         parser = get_parser("hdfc", "default")

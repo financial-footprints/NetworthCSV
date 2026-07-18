@@ -7,6 +7,7 @@ import unittest
 from cleanup_support import FIXTURES_ROOT
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.base import CreditCardHandler
+from networthcsv.utils.banks.helpers.text import text_contains_present
 
 _FIXTURES = FIXTURES_ROOT / "icici" / "amazon"
 
@@ -18,6 +19,9 @@ class IciciAmazonTrimTests(unittest.TestCase):
         assert isinstance(cls.handler, CreditCardHandler)
         cls.sample = (_FIXTURES / "sample.txt").read_text(encoding="utf-8")
         cls.with_earnings = (_FIXTURES / "with_earnings.txt").read_text(
+            encoding="utf-8"
+        )
+        cls.multicolumn = (_FIXTURES / "multicolumn_earnings_first.txt").read_text(
             encoding="utf-8"
         )
 
@@ -45,3 +49,33 @@ class IciciAmazonTrimTests(unittest.TestCase):
         cleaned = self.handler.clean_text(self.sample)
         self.assertIn("15/09/2021 88472910561 COOPERATIVE STORE MEMBERSHIP IN", cleaned)
         self.assertIn("Page 1 of 7", cleaned)
+
+    def test_multicolumn_earnings_before_spends_uses_mitc_trim(self) -> None:
+        cleaned = self.handler.clean_text(self.multicolumn)
+        self.assertIn("123454XXXXXX7890", cleaned)
+        self.assertIn("13/08/2022 6477712643 SAMPLE MERCHANT PURCHASE IN", cleaned)
+        self.assertIn("Invoice No: 2099120900019246", cleaned)
+        self.assertIn("MOST IMPORTANT TERMS AND CONDITIONS (MITC)", cleaned)
+        self.assertNotIn("SPENDS OVERVIEW", cleaned)
+        self.assertNotIn("# International Spends", cleaned)
+        self.assertNotIn("legal footer text", cleaned)
+
+    def test_multicolumn_fixture_matches_text_contains(self) -> None:
+        cleaned = self.handler.clean_text(self.multicolumn)
+        self.assertTrue(text_contains_present(cleaned, ["7148"]))
+
+
+class IciciAmazonInvoiceReferenceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.handler = get_handler("icici", "amazon")
+
+    def test_multicolumn_fixture_invoice_reference(self) -> None:
+        text = (_FIXTURES / "multicolumn_earnings_first.txt").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(self.handler.get_statement_reference(text), "2099120900019246")
+
+    def test_sample_fixture_invoice_reference(self) -> None:
+        text = (_FIXTURES / "sample.txt").read_text(encoding="utf-8")
+        self.assertEqual(self.handler.get_statement_reference(text), "2091101200013852")

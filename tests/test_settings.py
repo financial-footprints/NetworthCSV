@@ -50,21 +50,11 @@ from networthcsv.utils.banks._matching_validators import (
     normalize_text_not_contains,
 )
 from networthcsv.utils.path import account_download_path
+from fixtures.helpers import complete_email_alert_settings
 
 
 _DEFAULT_PROFILE = Path("/profile")
 _DEFAULT_DOWNLOAD_PATH = Path("/statements")
-
-
-def _complete_email_alert_settings() -> EmailAlertSettings:
-    return EmailAlertSettings(
-        smtp_host="smtp.example.com",
-        smtp_port=587,
-        username="user@example.com",
-        password="secret",
-        from_address="user@example.com",
-        to=["alerts@example.com"],
-    )
 
 
 class SettingsTests(unittest.TestCase):
@@ -954,7 +944,7 @@ class SettingsTests(unittest.TestCase):
             _ = ConsoleAlertSettings.model_validate(
                 {
                     "type": "console",
-                    "email": _complete_email_alert_settings().model_dump(),
+                    "email": complete_email_alert_settings().model_dump(),
                 }
             )
 

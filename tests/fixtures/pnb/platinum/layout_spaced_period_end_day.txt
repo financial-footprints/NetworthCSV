@@ -1,0 +1,28 @@
+                                                            CREDIT CARD (ORIGINAL)
+ TAYLOR SAMPLE
+ S/O SAMPLE PARENT HNO 88 OAK LANE
+ ,SAMPLE CITY-560001
+ 09 Mobile No: 9000004321 GSTIN:
+ Invoice No :
+                      2024CC0100888
+ Card No :                                For efficient & prompt
+                      441299XXXXXX5678
+                                          customer service,
+ Invoice Date :
+                      16-MAR-2024
+ Payment Due Date :   05-APR-2024
+ Total Amount Due :   250
+ Total Amount Due for Month : 250
+ Minimum Amount Due : 12.5
+                         Account Summary
+  Previous Balance Purchases and other charges Cash Advances Payments and Other Credits / Shadow Credits Total Amount Due for Month
+    100         150         0         0          250
+   Transaction Date Post Date Trnx Details From 17-FEB-2024 to 1 6-MAR-2024 Amount in Rs.
+   28-FEB-2024 02-MAR-2024 TEST MERCHANT ONE          80.00
+   10-MAR-2024 12-MAR-2024 TEST MERCHANT TWO           70.00
+                   Total Purchase                 250
+                   Total Taxable Value              0
+                   Total GST                        0
+                   Total Charges Reversed           0
+                   Total GST Reversed               0
+                        ********** End of Statement **********

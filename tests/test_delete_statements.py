@@ -9,33 +9,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cleanup_support import account as make_account
 from networthcsv.pipeline.delete_statements.delete import (
     _build_parser,
     collect_account_output_paths,
     delete_account_statements,
 )
 from networthcsv.settings import ResolvedAccount
-from networthcsv.utils.banks import get_handler
 from networthcsv.utils.path import account_fy_dir, account_metadata_path, fy_folder_name
-
-
-def _account(*, account_number: str = "5678") -> ResolvedAccount:
-    handler = get_handler("bob", "easy")
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "bob",
-            "variant": "easy",
-            "account_number": account_number,
-            "passwords": ["secret"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-            "statement": {
-                **defaults.statement.model_dump(),
-                "text_contains": [account_number],
-            },
-        }
-    )
 
 
 def _write_cleanup_outputs(
@@ -59,7 +40,12 @@ class CollectAccountOutputPathsTests(unittest.TestCase):
     def test_collects_cleanup_metadata_and_parse_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account(
+                bank="bob",
+                variant="easy",
+                account_number="5678",
+                text_contains=["5678"],
+            )
             staging_dir = download_path / "credit_card" / account.account_number
             _ = staging_dir.mkdir(parents=True)
             _ = (staging_dir / "unparsed.pdf").write_bytes(b"%PDF-1.4")
@@ -90,7 +76,12 @@ class DeleteAccountStatementsTests(unittest.TestCase):
     def test_deletes_cleanup_metadata_and_parse_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            account = _account()
+            account = make_account(
+                bank="bob",
+                variant="easy",
+                account_number="5678",
+                text_contains=["5678"],
+            )
             staging_dir = download_path / "credit_card" / account.account_number
             _ = staging_dir.mkdir(parents=True)
             _ = (staging_dir / "manual__2024-05.pdf").write_bytes(b"%PDF-1.4")
@@ -117,8 +108,18 @@ class DeleteAccountStatementsTests(unittest.TestCase):
     def test_leaves_other_accounts_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             download_path = Path(tmp)
-            target = _account(account_number="5678")
-            other = _account(account_number="9999")
+            target = make_account(
+                bank="bob",
+                variant="easy",
+                account_number="5678",
+                text_contains=["5678"],
+            )
+            other = make_account(
+                bank="bob",
+                variant="easy",
+                account_number="9999",
+                text_contains=["9999"],
+            )
             _write_cleanup_outputs(download_path, target, "2024-05")
             _write_cleanup_outputs(download_path, other, "2024-05")
 

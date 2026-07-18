@@ -23,6 +23,7 @@
                              20/09/2021 88472910562 BBPS Payment received 0 1,380.00 CR
                              08/10/2021 88472910563 CARD PAYMENT RECEIVED, THANK YOU 0 2,970.19 CR
      Statement period : September 13, 2021 to October 12, 2021
+     Invoice No: 2091101200013852
      ICICI Bank Credit Card GST Number: 27AAACI1195H3ZK
      HSN Code: 997113 Credit Granting Services including
                                Previous Balance Purchases / Charges Cash Advances Payments / Credits

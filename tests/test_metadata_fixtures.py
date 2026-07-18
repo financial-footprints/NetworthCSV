@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.utils.banks.period import resolve_month_period, resolve_period_bounds
+from cleanup_support import account as make_account
+from networthcsv.utils.banks.period import resolve_period_key, resolve_period_bounds
 from networthcsv.utils.banks.helpers.amounts import balances_match
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from fixtures.helpers import (
     FIXTURES_ROOT,
@@ -17,21 +17,6 @@ from fixtures.helpers import (
 )
 
 _DUMMY_FILENAME = "dummy__2099-99-99.pdf"
-
-
-def _account(*, bank: str, variant: str | None) -> ResolvedAccount:
-    handler = get_handler(bank, variant)
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": bank,
-            "variant": variant,
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class MetadataFixtureManifestTests(unittest.TestCase):
@@ -80,12 +65,17 @@ class MetadataFixtureGoldenTests(unittest.TestCase):
 
             bank, variant = parts[0], parts[1]
             text = sample_path.read_text(encoding="utf-8")
-            account = _account(bank=bank, variant=variant)
+            account = make_account(
+                bank=bank,
+                variant=variant,
+                account_number="1234",
+                passwords=["x"],
+            )
             handler = get_handler(account.bank, account.variant)
 
             expected_month = expected.get("statement_month")
             if expected_month:
-                actual_month = resolve_month_period(
+                actual_month = resolve_period_key(
                     text, _DUMMY_FILENAME, account=account
                 )
                 if actual_month != expected_month:

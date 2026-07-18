@@ -89,9 +89,6 @@ class BillingCycle:
         start_day = _clamp_day(start_year, start_month, self._anchor_day)
         return date(start_year, start_month, start_day)
 
-    def period_ending_on(self, end: date) -> BillingPeriod:
-        return BillingPeriod(self.period_start_from_end(end), end)
-
     def end_month_key(self, period: BillingPeriod) -> str:
         """Return ``YYYY-MM`` for the month of the period end."""
         return period.end.strftime("%Y-%m")

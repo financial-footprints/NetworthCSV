@@ -4,23 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.settings import ResolvedAccount
+from cleanup_support import account as make_account
 from networthcsv.utils.banks import get_handler
-
-
-def _account(*, variant: str | None = "easy") -> ResolvedAccount:
-    handler = get_handler("bob", variant)
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "bob",
-            "variant": variant,
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class BobStatementBalanceTests(unittest.TestCase):
@@ -35,7 +20,12 @@ class BobStatementBalanceTests(unittest.TestCase):
             "Opening Balance Earned    Redeemed/Expired Closing Balance\n"
             "    0             0            0            0\n"
         )
-        account = _account()
+        account = make_account(
+            bank="bob",
+            variant="easy",
+            account_number="1234",
+            passwords=["x"],
+        )
         handler = get_handler(account.bank, account.variant)
         opening = handler.get_opening_balance(text)
         closing = handler.get_closing_balance(text)

@@ -116,7 +116,10 @@ class BillingCycleEdgeTests(unittest.TestCase):
 
     def test_anchor_day_1_end_of_january_start_is_first(self) -> None:
         cycle = BillingCycle(1)
-        period = cycle.period_ending_on(date(2025, 1, 31))
+        end = date(2025, 1, 31)
+        start = cycle.period_start_from_end(end)
+        self.assertEqual(start, date(2025, 1, 1))
+        period = BillingPeriod(start, end)
         self.assertEqual(period.start, date(2025, 1, 1))
         self.assertEqual(period.end, date(2025, 1, 31))
 

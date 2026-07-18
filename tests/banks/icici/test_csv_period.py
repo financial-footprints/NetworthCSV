@@ -6,6 +6,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from cleanup_support import account as make_account
 from pydantic import ValidationError
 
 from networthcsv.settings import ResolvedAccount
@@ -16,24 +17,6 @@ from networthcsv.utils.banks.icici.csv import (
 )
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "icici" / "csv"
-
-
-def _account(*, opening: date) -> ResolvedAccount:
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "icici",
-            "variant": "default",
-            "account_number": "7788",
-            "passwords": ["secret"],
-            "opening_date": opening,
-            "mail": {
-                "subjects": ["ICICI Bank Credit Card Statement for the period"],
-                "body_contains": [],
-                "from": [],
-            },
-            "statement": {"text_contains": ["7788"]},
-        }
-    )
 
 
 def _csv_with_txns(rows: list[tuple[str, str]]) -> str:
@@ -76,7 +59,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
     def test_monthly_sample_single_billing_period(self) -> None:
         text = (FIXTURES / "monthly-sample.csv").read_text(encoding="utf-8")
         # Anchor day 1 → April 2026 is one calendar month.
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "INBOX__2026-04-10.csv", account=account
         )
@@ -85,7 +73,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_annual_sample_spans_multiple_billing_periods(self) -> None:
         text = (FIXTURES / "annual-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "INBOX__2024-05-20.csv", account=account
         )
@@ -94,7 +87,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_annual_filename_forces_annual_when_txns_are_monthly(self) -> None:
         text = (FIXTURES / "monthly-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "INBOX__2026-04-10__annual.csv", account=account
         )
@@ -104,7 +102,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
     def test_content_statement_period_monthly(self) -> None:
         base = (FIXTURES / "monthly-sample.csv").read_text(encoding="utf-8")
         text = f'"Statement period :","01-APR-2026 to 30-APR-2026"\n{base}'
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "opaque-name.csv", account=account
         )
@@ -116,7 +119,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
             "Statement Period: 01/04/2026 to 30/04/2026,",
             [("02/04/2026", "200.00")],
         )
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "opaque-name.csv", account=account
         )
@@ -132,7 +140,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
             "Statement Period: 01/04/2025 to 31/03/2026,",
             [("14-APR-25", "1,599.00")],
         )
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "opaque-name.csv", account=account
         )
@@ -145,7 +158,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_txn_period_with_opening_date(self) -> None:
         text = (FIXTURES / "monthly-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "INBOX__2026-04-10.csv", account=account
         )
@@ -154,28 +172,48 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_period_bounds_from_monthly(self) -> None:
         text = (FIXTURES / "monthly-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         start, end = resolve_icici_csv_period_bounds(text, account=account)
         self.assertEqual(start, date(2026, 4, 1))
         self.assertEqual(end, date(2026, 4, 30))
 
     def test_period_bounds_from_annual_sample(self) -> None:
         text = (FIXTURES / "annual-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         start, end = resolve_icici_csv_period_bounds(text, account=account)
         self.assertEqual(start, date(2024, 4, 1))
         self.assertEqual(end, date(2025, 3, 31))
 
     def test_period_bounds_from_annual_fy22_sample(self) -> None:
         text = (FIXTURES / "annual-fy22-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         start, end = resolve_icici_csv_period_bounds(text, account=account)
         self.assertEqual(start, date(2022, 4, 1))
         self.assertEqual(end, date(2023, 3, 31))
 
     def test_period_bounds_from_annual_fy25_sample(self) -> None:
         text = (FIXTURES / "annual-fy25-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         start, end = resolve_icici_csv_period_bounds(text, account=account)
         self.assertEqual(start, date(2025, 4, 1))
         self.assertEqual(end, date(2026, 3, 31))
@@ -183,7 +221,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
     def test_period_bounds_from_content_statement_period(self) -> None:
         base = (FIXTURES / "monthly-sample.csv").read_text(encoding="utf-8")
         text = f'"Statement period :","01-APR-2026 to 30-APR-2026"\n{base}'
-        account = _account(opening=date(2020, 1, 1))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2020, 1, 1),
+        )
         start, end = resolve_icici_csv_period_bounds(text, account=account)
         self.assertEqual(start, date(2026, 4, 1))
         self.assertEqual(end, date(2026, 4, 30))
@@ -203,7 +246,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
             '"SRNO,LAST_UPD_DT,MESSAGE"\n'
             '"1","2018-07-05 00:00:00.0","Safe Banking Tips - sample message only."\n'
         )
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text,
             "export.csv",
@@ -218,7 +266,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_anchor_day_17_mar_and_apr_same_cycle_is_monthly(self) -> None:
         text = _csv_with_txns([("25-MAR-26", "100.00"), ("05-APR-26", "200.00")])
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "export.csv", account=account
         )
@@ -227,7 +280,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_anchor_day_17_apr_and_may_distinct_cycles_is_annual(self) -> None:
         text = _csv_with_txns([("20-APR-26", "100.00"), ("20-MAY-26", "200.00")])
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text, "export.csv", account=account
         )
@@ -248,7 +306,12 @@ class IciciCsvPeriodTests(unittest.TestCase):
 
     def test_annual_fy25_sample_maps_to_fy25_year_key(self) -> None:
         text = (FIXTURES / "annual-fy25-sample.csv").read_text(encoding="utf-8")
-        account = _account(opening=date(2023, 5, 17))
+        account = make_account(
+            bank="icici",
+            variant="default",
+            account_number="7788",
+            opening_date=date(2023, 5, 17),
+        )
         period, source = resolve_icici_csv_period_key_with_source(
             text,
             "export.csv",

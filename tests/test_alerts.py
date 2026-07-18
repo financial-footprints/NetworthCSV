@@ -14,9 +14,9 @@ from networthcsv.utils.alerts.service import AlertService, build_alert_service
 from networthcsv.utils.banks.helpers.text import check_text_contains
 from networthcsv.settings import (
     ConsoleAlertSettings,
-    EmailAlertSettings,
     EmailAlertsSettings,
 )
+from fixtures.helpers import complete_email_alert_settings
 
 
 class _RecordingHandler:
@@ -104,7 +104,7 @@ class AlertServiceTests(unittest.TestCase):
         mock_console_cls.assert_called_once()
 
     def test_build_alert_service_email_when_configured(self) -> None:
-        alerts = EmailAlertsSettings(email=_complete_email_settings())
+        alerts = EmailAlertsSettings(email=complete_email_alert_settings())
         with patch(
             "networthcsv.utils.alerts.service.SmtpEmailAlertHandler"
         ) as mock_handler_cls:
@@ -148,7 +148,7 @@ class SmtpEmailAlertHandlerTests(unittest.TestCase):
         mock_client = MagicMock()
         mock_smtp_cls.return_value = mock_client
         cast(MagicMock, mock_client.__enter__).return_value = mock_smtp
-        handler = SmtpEmailAlertHandler(_complete_email_settings())
+        handler = SmtpEmailAlertHandler(complete_email_alert_settings())
         alert = Alert(
             kind=AlertKind.TEXT_CONTAINS_MISSING,
             message="text_contains ['1234'] not found in 2024-01.pdf",
@@ -182,17 +182,6 @@ class CheckTextContainsAlertIntegrationTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(len(handler.sent), 1)
         self.assertEqual(handler.sent[0].kind, AlertKind.TEXT_CONTAINS_MISSING)
-
-
-def _complete_email_settings() -> EmailAlertSettings:
-    return EmailAlertSettings(
-        smtp_host="smtp.example.com",
-        smtp_port=587,
-        username="user@example.com",
-        password="secret",
-        from_address="user@example.com",
-        to=["alerts@example.com"],
-    )
 
 
 if __name__ == "__main__":

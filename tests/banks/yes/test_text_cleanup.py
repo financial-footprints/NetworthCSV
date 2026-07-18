@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from networthcsv.utils.banks import get_handler
-from networthcsv.utils.banks.base import CreditCardHandler
+from cleanup_support import credit_card_handler
 
 
 class YesTextCleanupTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.handler = get_handler("yes", "ace")
-        assert isinstance(cls.handler, CreditCardHandler)
+        cls.handler = credit_card_handler("yes", "ace")
 
     def test_drops_footer_boilerplate_without_end_marker(self) -> None:
         raw = (

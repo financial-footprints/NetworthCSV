@@ -68,6 +68,27 @@
     "period_start": "21-05-2024",
     "period_end": "20-06-2024"
   },
+  "hdfc/swiggy/modern-may-2026.txt": {
+    "closing": "277.00",
+    "opening": "-137.30",
+    "statement_month": "2026-05",
+    "period_start": "21-04-2026",
+    "period_end": "20-05-2026"
+  },
+  "hdfc/swiggy/duplicate-may-2026.txt": {
+    "closing": "277.00",
+    "opening": "-137.30",
+    "statement_month": "2026-05",
+    "period_start": "21-04-2026",
+    "period_end": "20-05-2026"
+  },
+  "hdfc/default/v2-guideline-may-2026.txt": {
+    "closing": "277.00",
+    "opening": "-137.30",
+    "statement_month": "2026-05",
+    "period_start": "21-04-2026",
+    "period_end": "20-05-2026"
+  },
   "hdfc/tata-neu-infinity/sample.txt": {
     "closing": "2100.00",
     "opening": "0.00",
@@ -84,6 +105,13 @@
     "closing": "420.00",
     "opening": "0.00",
     "statement_month": "2099-99"
+  },
+  "icici/amazon/multicolumn_earnings_first.txt": {
+    "closing": "275.50",
+    "opening": "0.00",
+    "statement_month": "2022-09",
+    "period_start": "13-08-2022",
+    "period_end": "12-09-2022"
   },
   "icici/coral/sample.txt": {
     "closing": "-150.00",
@@ -223,6 +251,20 @@
     "closing": "1200",
     "opening": "5000",
     "statement_month": "2024-02"
+  },
+  "pnb/platinum/layout_spaced_period_end_day.txt": {
+    "closing": "250",
+    "opening": "100",
+    "statement_month": "2024-03",
+    "period_start": "17-02-2024",
+    "period_end": "16-03-2024"
+  },
+  "pnb/platinum/layout_marketing_prefix.txt": {
+    "closing": "250",
+    "opening": null,
+    "statement_month": "2024-03",
+    "period_start": "17-02-2024",
+    "period_end": "16-03-2024"
   },
   "yes/ace/sample.txt": {
     "closing": "-120.00",

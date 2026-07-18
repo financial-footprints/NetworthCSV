@@ -5,12 +5,11 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from cleanup_support import FIXTURES_ROOT
+from cleanup_support import FIXTURES_ROOT, account as make_account
 from networthcsv.utils.banks.period import (
     extract_statement_date,
     extract_statement_period,
 )
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.base import CreditCardHandler
 from networthcsv.utils.banks.idfc.summary import (
@@ -19,21 +18,6 @@ from networthcsv.utils.banks.idfc.summary import (
 )
 
 _FIXTURES = FIXTURES_ROOT / "idfc" / "wow"
-
-
-def _account() -> ResolvedAccount:
-    handler = get_handler("idfc", "wow")
-    defaults = handler.matching_defaults()
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "idfc",
-            "variant": "wow",
-            "account_number": "1234",
-            "passwords": ["x"],
-            "opening_date": "01-01-2020",
-            **defaults.model_dump(),
-        }
-    )
 
 
 class IdfcWowStatementTests(unittest.TestCase):
@@ -50,7 +34,12 @@ class IdfcWowStatementTests(unittest.TestCase):
         cls.classic_detached_cr_2023 = (
             _FIXTURES / "classic-detached-cr-2023-10.txt"
         ).read_text(encoding="utf-8")
-        cls.account = _account()
+        cls.account = make_account(
+            bank="idfc",
+            variant="wow",
+            account_number="1234",
+            passwords=["x"],
+        )
 
     def test_classic_statement_date_and_period(self) -> None:
         parsed = extract_statement_date(self.classic, account=self.account)

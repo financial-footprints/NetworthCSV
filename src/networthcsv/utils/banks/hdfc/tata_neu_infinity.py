@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from networthcsv.utils.banks import register
 from networthcsv.utils.banks.hdfc.default import HdfcDefaultHandler, _HDFC_DROP_SECTIONS
+from networthcsv.utils.banks.hdfc.layouts import (
+    account_summary_opening,
+    account_summary_total_dues,
+    is_hdfc_v2,
+    payment_due_total_dues,
+)
 from networthcsv.utils.banks.helpers.tables import (
     equation_first_after,
     single_amount_after,
@@ -28,7 +34,11 @@ class HdfcTataNeuInfinityHandler(HdfcDefaultHandler):
         return [*_HDFC_DROP_SECTIONS, *_TATA_NEU_EXTRA_DROP_SECTIONS]
 
     def get_opening_balance(self, text: str) -> str | None:
+        if is_hdfc_v2(text):
+            return account_summary_opening(text)
         return equation_first_after(text, "PREVIOUS STATEMENT DUES")
 
     def get_closing_balance(self, text: str) -> str | None:
+        if is_hdfc_v2(text):
+            return account_summary_total_dues(text) or payment_due_total_dues(text)
         return single_amount_after(text, "TOTAL AMOUNT DUE")

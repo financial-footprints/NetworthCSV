@@ -13,7 +13,12 @@ from networthcsv.pipeline.cleanup.keeper import (
     select_csv_keeper,
 )
 from networthcsv.pipeline.cleanup.period_source import period_source_rank
-from networthcsv.pipeline.cleanup.prepare_common import report_ambiguous_period
+from networthcsv.pipeline.cleanup.prepare_common import (
+    eligible_paths,
+    filter_existing,
+    load_or_use_raw,
+    unlink_excluded,
+)
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.account import account_label
 from networthcsv.utils.alerts.service import AlertService
@@ -41,58 +46,47 @@ def prepare_csv_month(
     alerts: AlertService | None = None,
 ) -> tuple[int, int]:
     """Resolve one statement CSV period. Returns (prepared, rejected) counts."""
-    existing = [path for path in candidates if path.is_file()]
+    existing = filter_existing(candidates)
     if not existing:
         return 0, 0
 
     unique = dedupe_paths_by_hash(existing, path_hash=path_hash)
-    if raw_by_path is None:
-        raw_by_path = {
-            path: path.read_text(encoding="utf-8", errors="replace") for path in unique
-        }
+    raw_by_path = load_or_use_raw(
+        unique,
+        raw_by_path,
+        lambda path: path.read_text(encoding="utf-8", errors="replace"),
+    )
     period_source_lookup = path_period_source or {}
     hash_lookup = path_hash or {}
     label = account_label(account)
     csv_out = statement_csv_path(download_path, account, month)
     text_contains = account.statement.text_contains
 
-    for path in unique:
-        raw = raw_by_path[path]
-        if statement_should_exclude(raw, raw, account=account, is_manual=False):
-            if path.is_file():
-                _ = path.unlink()
-                logger.debug("removed (excluded statement): %s", path)
-
-    eligible = [
-        path
-        for path in unique
-        if path.is_file()
-        and not statement_should_exclude(
+    unlink_excluded(
+        unique,
+        should_exclude=lambda path: statement_should_exclude(
             raw_by_path[path], raw_by_path[path], account=account, is_manual=False
-        )
-    ]
+        ),
+    )
+
+    eligible = eligible_paths(
+        unique,
+        is_eligible=lambda path: (
+            not statement_should_exclude(
+                raw_by_path[path], raw_by_path[path], account=account, is_manual=False
+            )
+        ),
+    )
     if not eligible:
         return 0, 1
 
-    keeper, ambiguous_paths = select_csv_keeper(
+    keeper, _ = select_csv_keeper(
         eligible,
         raw_by_path=raw_by_path,
         path_period_source=period_source_lookup,
         path_hash=hash_lookup,
         text_contains=text_contains,
     )
-
-    if ambiguous_paths:
-        report_ambiguous_period(
-            format_label="CSV",
-            label=label,
-            month=month,
-            ambiguous_paths=ambiguous_paths,
-            period_source_lookup=period_source_lookup,
-            text_contains=text_contains,
-            alerts=alerts,
-        )
-        return 0, 1
 
     if keeper is None:
         rejected_names = ", ".join(path.name for path in eligible)

@@ -8,6 +8,7 @@ from datetime import date
 from email.message import EmailMessage, Message
 from pathlib import Path
 
+from cleanup_support import account as make_account
 from networthcsv.utils.email.email_message import (
     body_matches,
     from_matches,
@@ -20,24 +21,6 @@ from networthcsv.utils.email.email_message import (
 )
 from networthcsv.settings import ResolvedAccount
 from zip_support import build_zip
-
-
-def _account() -> ResolvedAccount:
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "icici",
-            "variant": "amazon",
-            "account_number": "1234",
-            "passwords": ["secret"],
-            "opening_date": "01-01-2020",
-            "mail": {
-                "subjects": ["ICICI Bank Credit Card Statement for the period"],
-                "body_contains": [],
-                "from": ["icicibank.com"],
-            },
-            "statement": {"text_contains": ["1234"]},
-        }
-    )
 
 
 def _statement_msg_with_attachments(
@@ -379,7 +362,9 @@ class MessageDateRangeTests(unittest.TestCase):
     def test_message_matches_account_respects_closing_date(self) -> None:
         account = ResolvedAccount.model_validate(
             {
-                **_account().model_dump(),
+                **make_account(
+                    bank="icici", variant="amazon", account_number="1234"
+                ).model_dump(),
                 "opening_date": date(2024, 1, 1),
                 "closing_date": date(2024, 2, 1),
             }
@@ -409,19 +394,37 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         msg = _statement_msg_with_attachments(
             [("statement.pdf", b"%PDF-1.4", "application/pdf")]
         )
-        self.assertTrue(message_matches_account(msg, _account(), None))
+        self.assertTrue(
+            message_matches_account(
+                msg,
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+                None,
+            )
+        )
 
     def test_message_matches_csv_only_attachment(self) -> None:
         msg = _statement_msg_with_attachments(
             [("transactions.csv", b"a,b,c", "text/csv")]
         )
-        self.assertTrue(message_matches_account(msg, _account(), None))
+        self.assertTrue(
+            message_matches_account(
+                msg,
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+                None,
+            )
+        )
 
     def test_uppercase_pdf_extension_matches(self) -> None:
         msg = _statement_msg_with_attachments(
             [("statement.PDF", b"%PDF-1.4", "application/pdf")]
         )
-        self.assertTrue(message_matches_account(msg, _account(), None))
+        self.assertTrue(
+            message_matches_account(
+                msg,
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+                None,
+            )
+        )
 
     def test_application_pdf_without_filename_matches(self) -> None:
         msg = EmailMessage()
@@ -430,7 +433,13 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         msg["Date"] = "Mon, 15 Jan 2024 10:00:00 +0000"
         msg.set_content("Statement attached.")
         msg.add_attachment(b"%PDF-1.4", maintype="application", subtype="pdf")
-        self.assertTrue(message_matches_account(msg, _account(), None))
+        self.assertTrue(
+            message_matches_account(
+                msg,
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+                None,
+            )
+        )
         parts = list(msg.walk())
         pdf_parts = [part for part in parts if is_pdf_attachment_part(part)]
         self.assertEqual(len(pdf_parts), 1)
@@ -444,7 +453,12 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             download_dir = Path(tmp)
-            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            saved = save_attachments(
+                msg,
+                download_dir,
+                "INBOX",
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+            )
             self.assertEqual(saved, 2)
             self.assertEqual(len(list(download_dir.glob("*.pdf"))), 1)
             self.assertEqual(len(list(download_dir.glob("*.csv"))), 1)
@@ -468,7 +482,12 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             download_dir = Path(tmp)
-            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            saved = save_attachments(
+                msg,
+                download_dir,
+                "INBOX",
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+            )
             self.assertEqual(saved, 1)
             csv_files = list(download_dir.glob("*.csv"))
             self.assertEqual(len(csv_files), 1)
@@ -478,7 +497,13 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         msg = _statement_msg_with_attachments(
             [("statements.zip", build_zip({"a.csv": b"a"}), "application/zip")]
         )
-        self.assertTrue(message_matches_account(msg, _account(), None))
+        self.assertTrue(
+            message_matches_account(
+                msg,
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+                None,
+            )
+        )
 
     def test_save_zip_extracts_multiple_csvs(self) -> None:
         zip_bytes = build_zip(
@@ -492,7 +517,12 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             download_dir = Path(tmp)
-            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            saved = save_attachments(
+                msg,
+                download_dir,
+                "INBOX",
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+            )
             self.assertEqual(saved, 2)
             csv_files = list(download_dir.glob("*.csv"))
             self.assertEqual(len(csv_files), 2)
@@ -503,7 +533,12 @@ class PdfAttachmentFilterTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             download_dir = Path(tmp)
-            saved = save_attachments(msg, download_dir, "INBOX", _account())
+            saved = save_attachments(
+                msg,
+                download_dir,
+                "INBOX",
+                make_account(bank="icici", variant="amazon", account_number="1234"),
+            )
             self.assertEqual(saved, 0)
             self.assertEqual(list(download_dir.glob("*")), [])
 

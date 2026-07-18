@@ -7,6 +7,7 @@ import time
 import unittest
 from pathlib import Path
 
+from cleanup_support import account as make_account
 from networthcsv.settings import (
     AppSettings,
     ResolvedAccount,
@@ -48,20 +49,6 @@ def _settings(
     )
 
 
-def _account(*, account_number: str = "5678") -> ResolvedAccount:
-    return ResolvedAccount.model_validate(
-        {
-            "bank": "bob",
-            "variant": "easy",
-            "account_number": account_number,
-            "passwords": ["secret"],
-            "opening_date": "01-01-2020",
-            "mail": {"subjects": ["BOB"]},
-            "statement": {"text_contains": [account_number]},
-        }
-    )
-
-
 class PathTests(unittest.TestCase):
     def test_unique_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -82,7 +69,7 @@ class PathTests(unittest.TestCase):
 
     def test_statement_pdf_path_annual(self) -> None:
         download_path = Path("/data")
-        account = _account()
+        account = make_account()
         self.assertEqual(
             statement_pdf_path(download_path, account, "FY24-2025"),
             Path("/data/FY24-2025/credit_card/5678/fiscal_year.pdf"),
@@ -90,7 +77,7 @@ class PathTests(unittest.TestCase):
 
     def test_statement_csv_path_annual(self) -> None:
         download_path = Path("/data")
-        account = _account()
+        account = make_account()
         self.assertEqual(
             statement_csv_path(download_path, account, "FY24-2025"),
             Path("/data/FY24-2025/credit_card/5678/fiscal_year.csv"),
@@ -117,7 +104,7 @@ class PathTests(unittest.TestCase):
 
     def test_statement_pdf_path(self) -> None:
         download_path = Path("/data")
-        account = _account()
+        account = make_account()
         self.assertEqual(
             statement_pdf_path(download_path, account, "2024-01"),
             Path("/data/FY23-2024/credit_card/5678/2024-01.pdf"),
@@ -125,7 +112,7 @@ class PathTests(unittest.TestCase):
 
     def test_account_fy_dir(self) -> None:
         download_path = Path("/data")
-        account = _account()
+        account = make_account()
         self.assertEqual(
             account_fy_dir(download_path, account, "FY23-2024"),
             Path("/data/FY23-2024/credit_card/5678"),
@@ -133,7 +120,7 @@ class PathTests(unittest.TestCase):
 
     def test_account_metadata_path(self) -> None:
         download_path = Path("/data")
-        account = _account()
+        account = make_account()
         self.assertEqual(
             account_metadata_path(download_path, account),
             Path("/data/credit_card/5678/metadata.json"),
@@ -142,7 +129,7 @@ class PathTests(unittest.TestCase):
     def test_discover_account_fy_dirs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            account = _account()
+            account = make_account()
             first = root / "FY23-2024" / "credit_card" / "5678"
             second = root / "FY24-2025" / "credit_card" / "5678"
             _ = first.mkdir(parents=True)
@@ -156,7 +143,7 @@ class PathTests(unittest.TestCase):
     def test_account_fy_path(self) -> None:
         settings = _settings(
             download_path=Path("/statements"),
-            accounts=[_account()],
+            accounts=[make_account()],
         )
         self.assertEqual(
             account_fy_dir(settings.download_path, settings.accounts[0], "FY23-2024"),

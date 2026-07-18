@@ -9,7 +9,7 @@ AMOUNT_TOKEN = re.compile(
     r"\(?\s*"
     r"(?:Rs\.?|INR|₹|[rC])\s*"
     r")?"
-    r"(-?\d[\d,]*(?:\.\d+)?|\.\d+)"
+    r"(-?,?\d[\d,]*(?:\.\d+)?|\.\d+)"
     r"\s*"
     r"(?:Cr|Dr|CR|DR)?"
     r"\s*\)?",
@@ -21,7 +21,7 @@ CURRENCY_AMOUNT_TOKEN = re.compile(
     r"\(?\s*"
     r"(?:Rs\.?|INR|₹|[rC])\s*"
     r")?"
-    r"(-?\d[\d,]*\.\d+|\.\d+)"
+    r"(-?,?\d[\d,]*\.\d+|\.\d+)"
     r"\s*"
     r"(?:Cr|Dr|CR|DR)?"
     r"\s*\)?",

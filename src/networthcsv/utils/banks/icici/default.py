@@ -17,6 +17,7 @@ from networthcsv.utils.banks.helpers.tables import (
     label_next_line_amount,
     summary_table_column,
 )
+from networthcsv.utils.banks.icici.invoice import extract_invoice_number
 
 if TYPE_CHECKING:
     from networthcsv.settings import ResolvedAccount
@@ -96,6 +97,9 @@ class IciciDefaultHandler(CreditCardHandler):
 
     def get_closing_balance(self, text: str) -> str | None:
         return label_next_line_amount(text, "Total Amount due")
+
+    def get_statement_reference(self, text: str) -> str | None:
+        return extract_invoice_number(text)
 
     def resolve_csv_period_key_with_source(
         self,

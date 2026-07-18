@@ -24,11 +24,14 @@ def parse_amount_string(value: str) -> str | None:
     if stripped.startswith("(") and stripped.endswith(")"):
         negative = True
         stripped = stripped[1:-1].strip()
+
+    # Currency before sign so HDFC tokens like C-137.30 / C-,137.30 parse.
+    stripped = re.sub(r"^(?:Rs\.?|INR|₹|[rC])\s*", "", stripped, flags=re.IGNORECASE)
     if stripped.startswith("-"):
         negative = True
         stripped = stripped[1:].strip()
+    stripped = stripped.lstrip(",")
 
-    stripped = re.sub(r"^(?:Rs\.?|INR|₹|[rC])\s*", "", stripped, flags=re.IGNORECASE)
     credit = bool(re.search(r"\bCr\b", stripped, re.IGNORECASE))
     debit = bool(re.search(r"\bDr\b", stripped, re.IGNORECASE))
     stripped = re.sub(

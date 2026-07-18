@@ -12,16 +12,22 @@ from networthcsv.pipeline.cleanup.canonical import (
 from networthcsv.pipeline.cleanup.exclusion import statement_should_exclude
 from networthcsv.pipeline.cleanup.grouping import dedupe_paths_by_hash, file_hash
 from networthcsv.pipeline.cleanup.keeper import (
+    collapse_is_strong,
     delete_staging_duplicates_for_month,
-    identity_is_strong,
     select_keeper,
-    statement_identity_key,
+    statement_collapse_key,
 )
 from networthcsv.pipeline.cleanup.period_source import (
     period_source_for_path,
     period_source_rank,
 )
-from networthcsv.pipeline.cleanup.prepare_common import report_ambiguous_period
+from networthcsv.pipeline.cleanup.prepare_common import (
+    eligible_paths,
+    filter_existing,
+    load_or_use_raw,
+    report_ambiguous_period,
+    unlink_excluded,
+)
 from networthcsv.pipeline.upload import period_from_manual_upload
 from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.account import account_label
@@ -51,16 +57,16 @@ def prepare_month(
     alerts: AlertService | None = None,
 ) -> tuple[int, int]:
     """Resolve one statement month. Returns (prepared, rejected) counts."""
-    existing = [path for path in candidates if path.is_file()]
+    existing = filter_existing(candidates)
     if not existing:
         return 0, 0
 
     unique = dedupe_paths_by_hash(existing, path_hash=path_hash)
-    if raw_by_path is None:
-        raw_by_path = {
-            path: pdf.extract_pdf_text_plumber(path, account.passwords)
-            for path in unique
-        }
+    raw_by_path = load_or_use_raw(
+        unique,
+        raw_by_path,
+        lambda path: pdf.extract_pdf_text_plumber(path, account.passwords),
+    )
     sanitized_by_path = {
         path: sanitized_text(raw_by_path[path], account) for path in unique
     }
@@ -75,24 +81,22 @@ def prepare_month(
         path for path in unique if period_from_manual_upload(path.name)
     ]
     manual_paths = frozenset(manual_candidates)
-    for path in unique:
-        if path in manual_paths:
-            continue
-        if statement_should_exclude(
-            raw_by_path[path],
-            sanitized_by_path[path],
-            account=account,
-            is_manual=False,
-        ):
-            if path.is_file():
-                _ = path.unlink()
-                logger.debug("removed (excluded statement): %s", path)
+    unlink_excluded(
+        unique,
+        should_exclude=lambda path: (
+            path not in manual_paths
+            and statement_should_exclude(
+                raw_by_path[path],
+                sanitized_by_path[path],
+                account=account,
+                is_manual=False,
+            )
+        ),
+    )
 
-    eligible = [
-        path
-        for path in unique
-        if path.is_file()
-        and (
+    eligible = eligible_paths(
+        unique,
+        is_eligible=lambda path: (
             path in manual_paths
             or not statement_should_exclude(
                 raw_by_path[path],
@@ -100,8 +104,8 @@ def prepare_month(
                 account=account,
                 is_manual=False,
             )
-        )
-    ]
+        ),
+    )
     if not eligible:
         return 0, 1
 
@@ -147,7 +151,7 @@ def prepare_month(
         period_source_for_path(keeper, period_source_lookup)
     )
     keeper_digest = hash_lookup.get(keeper) or file_hash(keeper)
-    keeper_identity = statement_identity_key(sanitized_by_path[keeper], account)
+    keeper_collapse = statement_collapse_key(sanitized_by_path[keeper], account)
     preserve: frozenset[Path] = frozenset()
     if text_contains and not keeper_is_manual:
         preserve = frozenset(
@@ -176,9 +180,9 @@ def prepare_month(
         )
         path_digest = hash_lookup.get(path) or file_hash(path)
         same_identity = (
-            identity_is_strong(keeper_identity)
-            and statement_identity_key(sanitized_by_path[path], account)
-            == keeper_identity
+            collapse_is_strong(keeper_collapse)
+            and statement_collapse_key(sanitized_by_path[path], account)
+            == keeper_collapse
         )
         if path_digest == keeper_digest or path_rank > keeper_rank or same_identity:
             if path.is_file():

@@ -1,0 +1,19 @@
+Credit Card Statement
+18/01/2025 - 17/02/2025
+<Fake Name B>
+Primary Card No.:  XXXX4512
+Customer Relationship No. 7100000042
+Statement Date:   17/02/2025
+Statement Summary
+Total Amount Due Minimum Amount Due Credit Limit Payment Due Date Statement Period
+r5,200.00 CR r0.00      r2,000        04 Mar 25    18 Jan 25 - 17 Feb 25
+                         r6,100.00 CR Rewards Summary
+Opening Balance
+                                  Opening Balance               303
+Purchases       +       r100.00
+EMI & Other Debits +      r0.00
+Payments & Refunds -      r0.00
+Total Amount Due =   r5,200.00 CR
+YOUR TRANSACTIONS
+15 Feb 25       SAMPLE MERCHANT               100.00 DR
+IMPORTANT INFORMATION

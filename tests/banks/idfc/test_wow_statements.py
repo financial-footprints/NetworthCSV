@@ -16,6 +16,7 @@ from networthcsv.utils.banks.idfc.summary import (
     join_orphan_cr_dr,
     normalize_cr_dr_layout,
 )
+from networthcsv.utils.banks.idfc.wow import detect_layout
 
 _FIXTURES = FIXTURES_ROOT / "idfc" / "wow"
 
@@ -33,6 +34,15 @@ class IdfcWowStatementTests(unittest.TestCase):
         )
         cls.classic_detached_cr_2023 = (
             _FIXTURES / "classic-detached-cr-2023-10.txt"
+        ).read_text(encoding="utf-8")
+        cls.v1_classic = (_FIXTURES / "v1-classic-2023-04.txt").read_text(
+            encoding="utf-8"
+        )
+        cls.v2_rewards_sidecar = (
+            _FIXTURES / "v2-rewards-sidecar-2025-01.txt"
+        ).read_text(encoding="utf-8")
+        cls.v3_modern_stacked = (
+            _FIXTURES / "v3-modern-stacked-2026-06.txt"
         ).read_text(encoding="utf-8")
         cls.account = make_account(
             bank="idfc",
@@ -97,6 +107,37 @@ class IdfcWowStatementTests(unittest.TestCase):
         closing = self.handler.get_closing_balance(self.classic_detached_cr_2023)
         self.assertEqual(opening, "-12345.67")
         self.assertEqual(closing, "-10000.00")
+
+    def test_detect_layout_v1(self) -> None:
+        self.assertEqual(detect_layout(self.v1_classic), "v1")
+        self.assertEqual(detect_layout(self.classic), "v1")
+        self.assertEqual(detect_layout(self.scrambled_2023), "v1")
+
+    def test_detect_layout_v2(self) -> None:
+        self.assertEqual(detect_layout(self.v2_rewards_sidecar), "v2")
+        self.assertEqual(detect_layout(self.modern_2026), "v2")
+
+    def test_detect_layout_v3(self) -> None:
+        self.assertEqual(detect_layout(self.v3_modern_stacked), "v3")
+        self.assertEqual(detect_layout(self.modern_2025), "v3")
+
+    def test_v1_classic_balances(self) -> None:
+        opening = self.handler.get_opening_balance(self.v1_classic)
+        closing = self.handler.get_closing_balance(self.v1_classic)
+        self.assertEqual(opening, "-500.00")
+        self.assertEqual(closing, "-350.00")
+
+    def test_v2_rewards_sidecar_balances(self) -> None:
+        opening = self.handler.get_opening_balance(self.v2_rewards_sidecar)
+        closing = self.handler.get_closing_balance(self.v2_rewards_sidecar)
+        self.assertEqual(opening, "-6100.00")
+        self.assertEqual(closing, "-5200.00")
+
+    def test_v3_modern_stacked_balances(self) -> None:
+        opening = self.handler.get_opening_balance(self.v3_modern_stacked)
+        closing = self.handler.get_closing_balance(self.v3_modern_stacked)
+        self.assertEqual(opening, "-1500.00")
+        self.assertEqual(closing, "-1500.00")
 
     def test_join_orphan_cr_dr(self) -> None:
         raw = "r12,345.67\nCR\nr10,000.00 CR"

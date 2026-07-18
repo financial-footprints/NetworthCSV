@@ -1,4 +1,4 @@
-"""make test entry: silence expected log noise, then unittest discover."""
+"""make check / make ci entry: silence expected log noise, then unittest discover."""
 
 from __future__ import annotations
 

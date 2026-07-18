@@ -1,4 +1,4 @@
-.PHONY: help install dev upgrade test lint format ci dev-ci clean
+.PHONY: help install dev upgrade check ci clean
 
 UV := uv
 PYTHON := $(UV) run python
@@ -9,11 +9,8 @@ help:
 	@echo "  dev       Run the full pipeline (optional: IDENTIFIER=account_number)"
 	@echo "  upgrade   Upgrade locked dependencies"
 	@echo "  clean     Remove Python build artifacts and caches"
-	@echo "  test      Run unit tests"
-	@echo "  lint      Autofix with ruff; type-check with basedpyright"
-	@echo "  format    Format Python sources with ruff"
-	@echo "  ci        Check-only: format, lint, then test"
-	@echo "  dev-ci    Autofix format and lint, then test"
+	@echo "  check     Autofix format and lint, then verify (lint, typecheck, tests)"
+	@echo "  ci        Check-only: format, lint, typecheck, then test"
 
 install:
 	$(UV) venv --allow-existing
@@ -26,23 +23,18 @@ dev:
 upgrade:
 	$(UV) sync --upgrade --group dev
 
-test:
-	$(PYTHON) tests/run.py
-
-lint:
-	$(UV) run ruff check --fix src tests
-	$(UV) run basedpyright
-
-format:
+check:
 	$(UV) run ruff format src tests
+	$(UV) run ruff check --fix src tests
+	$(UV) run ruff check src tests
+	$(UV) run basedpyright
+	$(PYTHON) tests/run.py
 
 ci:
 	$(UV) run ruff format --check src tests
 	$(UV) run ruff check src tests
 	$(UV) run basedpyright
-	$(MAKE) test
-
-dev-ci: format lint test
+	$(PYTHON) tests/run.py
 
 clean:
 	/usr/bin/rm -rf build dist .ruff_cache

@@ -1,0 +1,25 @@
+<Fake Name C>
+Credit Card Statement
+Statement Date 18/May/2026 to 17/Jun/2026
+EMI & Other Debits
+Total Amount Due
+Purchases
+Payment Due Date
+Opening Balance
+Total Amount Due
+Payments & Refunds
+02/Jul/2026
+r0.00
+r0.00
+r1,500.00 CR
+r100.00
+r1,600.00 CR
+r1,500.00 CR
+Minimum Amount Due
+r0.00
+Statement Period
+18/May/2026 - 17/Jun/2026
+FIRST WOW! Statement Summary
+YOUR TRANSACTIONS
+17/05/2026 SAMPLE MERCHANT USD 5.46 100.00 DR
+IMPORTANT INFORMATION

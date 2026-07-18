@@ -6,10 +6,7 @@ from datetime import date
 
 from networthcsv.utils.banks import register
 from networthcsv.utils.banks.idfc.default import IdfcDefaultHandler
-from networthcsv.utils.banks.idfc.summary import (
-    idfc_closing_balance,
-    idfc_opening_balance,
-)
+from networthcsv.utils.banks.idfc.wow import get_layout
 from networthcsv.utils.banks.helpers.dates import (
     first_not_none_date,
     label_range_period,
@@ -72,7 +69,7 @@ class IdfcWowHandler(IdfcDefaultHandler):
         return None, None
 
     def get_opening_balance(self, text: str) -> str | None:
-        return idfc_opening_balance(text)
+        return get_layout(text).get_opening_balance(text)
 
     def get_closing_balance(self, text: str) -> str | None:
-        return idfc_closing_balance(text)
+        return get_layout(text).get_closing_balance(text)

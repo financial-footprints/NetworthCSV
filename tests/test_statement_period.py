@@ -6,6 +6,7 @@ import unittest
 from datetime import date
 
 from networthcsv.utils.statement_period import (
+    build_calendar_year_sections,
     calendar_bounds_for_period_key,
     covered_months_between,
     email_date_from_staging_filename,
@@ -95,6 +96,54 @@ class StatementPeriodTests(unittest.TestCase):
         self.assertEqual(
             covered_months_between(date(2024, 4, 1), date(2024, 6, 30)),
             ("2024-04", "2024-05", "2024-06"),
+        )
+
+    def test_build_calendar_year_sections_calendar_year(self) -> None:
+        sections = build_calendar_year_sections(
+            date(2023, 4, 1),
+            date(2024, 12, 1),
+            year_display="calendar_year",
+        )
+        self.assertEqual([section.year_key for section in sections], ["2024", "2023"])
+        self.assertEqual(len(sections[0].months), 12)
+        self.assertEqual(len(sections[1].months), 12)
+        self.assertEqual(sections[0].months[0].month_key, "2024-12")
+        self.assertEqual(sections[0].months[-1].month_key, "2024-01")
+        self.assertEqual(sections[1].months[0].month_key, "2023-12")
+        self.assertEqual(sections[1].months[-1].month_key, "2023-01")
+
+    def test_build_calendar_year_sections_fiscal_year(self) -> None:
+        sections = build_calendar_year_sections(
+            date(2024, 2, 1),
+            date(2024, 8, 1),
+            year_display="fiscal_year",
+        )
+        self.assertEqual(
+            [section.year_key for section in sections],
+            ["FY24-2025", "FY23-2024"],
+        )
+        self.assertEqual(sections[0].months[0].month_key, "2025-03")
+        self.assertEqual(sections[0].months[-1].month_key, "2024-04")
+        self.assertEqual(sections[1].months[0].month_key, "2024-03")
+        self.assertEqual(sections[1].months[-1].month_key, "2023-04")
+
+    def test_build_calendar_year_sections_fiscal_label(self) -> None:
+        sections = build_calendar_year_sections(
+            date(2023, 4, 1),
+            date(2023, 6, 1),
+            year_display="fiscal_year",
+        )
+        self.assertEqual(len(sections), 1)
+        self.assertEqual(sections[0].label, "FY 2023–2024")
+
+    def test_build_calendar_year_sections_invalid_range(self) -> None:
+        self.assertEqual(
+            build_calendar_year_sections(
+                date(2024, 12, 1),
+                date(2024, 1, 1),
+                year_display="calendar_year",
+            ),
+            (),
         )
 
 

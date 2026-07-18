@@ -6,7 +6,6 @@ import re
 
 from networthcsv.utils.banks.helpers.amounts import (
     first_amount_in_text,
-    first_not_none,
 )
 from networthcsv.utils.string import AMOUNT_TOKEN
 from networthcsv.utils.banks.helpers.dates import find_label, label_regex
@@ -19,11 +18,7 @@ from networthcsv.utils.banks.helpers.tables import (
     equation_first_after,
     label_single_amount,
 )
-
-_STACKED_BOUNDARY = re.compile(
-    r"Minimum Amount Due|^\+$|^-$|^=$",
-    re.IGNORECASE,
-)
+from networthcsv.utils.banks.idfc.wow.common import is_stacked_boundary
 
 _DATE_ONLY_LINE = re.compile(
     r"^\d{1,2}/(?:\d{1,2}|[A-Za-z]{3})/\d{2,4}$",
@@ -284,7 +279,17 @@ def _idfc_classic_summary_amounts(text: str) -> list[tuple[str, int]] | None:
 def classic_opening(text: str) -> str | None:
     amounts = _idfc_classic_summary_amounts(text)
     if amounts is not None and len(amounts) >= 2:
-        return amounts[1][0]
+        opening = amounts[1][0]
+        if opening == "0.00":
+            return None
+        return opening
+    return None
+
+
+def classic_closing(text: str) -> str | None:
+    amounts = _idfc_classic_summary_amounts(text)
+    if amounts is not None and amounts:
+        return amounts[-1][0]
     return None
 
 
@@ -308,7 +313,7 @@ def _stacked_summary_window(text: str) -> str | None:
     lines = tail.split("\n")
     collected: list[str] = []
     for line in lines:
-        if _STACKED_BOUNDARY.search(line.strip()):
+        if is_stacked_boundary(line):
             break
         collected.append(line)
     return "\n".join(collected)
@@ -360,7 +365,7 @@ def stacked_equation_amount(text: str, label: str) -> str | None:
         stripped = line.strip()
         if not stripped or _is_summary_date_line(stripped):
             continue
-        if _STACKED_BOUNDARY.search(stripped):
+        if is_stacked_boundary(stripped):
             break
         if label_regex("Minimum Amount Due").search(stripped):
             break
@@ -402,23 +407,14 @@ def _stacked_closing_from_amounts(text: str) -> str | None:
 
 
 def idfc_opening_balance(text: str) -> str | None:
+    from networthcsv.utils.banks.idfc.wow import get_layout
+
     normalized = normalize_cr_dr_layout(text)
-    return first_not_none(
-        classic_opening(normalized),
-        inline_equation_amount(normalized, "Opening Balance"),
-        stacked_equation_amount(normalized, "Opening Balance"),
-        scrambled_classic_opening(normalized),
-        _stacked_opening_from_amounts(normalized),
-    )
+    return get_layout(normalized).get_opening_balance(normalized)
 
 
 def idfc_closing_balance(text: str) -> str | None:
+    from networthcsv.utils.banks.idfc.wow import get_layout
+
     normalized = normalize_cr_dr_layout(text)
-    return first_not_none(
-        scrambled_classic_closing(normalized),
-        stacked_equation_amount(normalized, "Total Amount Due"),
-        label_single_amount(normalized, "Total Amount Due"),
-        equation_first_after(normalized, "Total Amount Due"),
-        inline_equation_amount(normalized, "Total Amount Due"),
-        _stacked_closing_from_amounts(normalized),
-    )
+    return get_layout(normalized).get_closing_balance(normalized)

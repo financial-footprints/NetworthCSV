@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 import re
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -215,3 +216,80 @@ def parse_month_year_token(token: str) -> tuple[int, int] | None:
     else:
         return None
     return year, month
+
+
+@dataclass(frozen=True)
+class CalendarMonthCell:
+    month: int
+    year: int
+    month_key: str
+
+
+@dataclass(frozen=True)
+class CalendarYearSection:
+    year_key: str
+    label: str
+    months: tuple[CalendarMonthCell, ...]
+
+
+def _year_key_for_month_key(month_key: str, *, year_display: YearDisplay) -> str:
+    if year_display == "fiscal_year":
+        return _fiscal_year_key_from_month_key(month_key)
+    year_str, _ = month_key.split("-", 1)
+    return year_str
+
+
+def _month_cell(month_key: str) -> CalendarMonthCell:
+    year_str, month_str = month_key.split("-", 1)
+    return CalendarMonthCell(
+        month=int(month_str),
+        year=int(year_str),
+        month_key=month_key,
+    )
+
+
+def build_calendar_year_sections(
+    start: date,
+    end: date,
+    *,
+    year_display: YearDisplay = "fiscal_year",
+) -> tuple[CalendarYearSection, ...]:
+    """Build full year grids for each year overlapping *start* through *end*.
+
+    Sections are ordered newest-first (e.g. 2026, then 2025, then 2024).
+    Months within each section are ordered newest-first (e.g. December, then
+    November, …, then January).
+    """
+    if end < start:
+        return ()
+
+    year_keys: list[str] = []
+    seen: set[str] = set()
+    for month_key in covered_months_between(start, end):
+        year_key = _year_key_for_month_key(month_key, year_display=year_display)
+        if year_key in seen:
+            continue
+        seen.add(year_key)
+        year_keys.append(year_key)
+    year_keys.reverse()
+
+    sections: list[CalendarYearSection] = []
+    for year_key in year_keys:
+        period_start, period_end = period_for_year_key(
+            year_key,
+            year_display=year_display,
+        )
+        months = tuple(
+            _month_cell(month_key)
+            for month_key in reversed(
+                covered_months_between(period_start, period_end)
+            )
+        )
+        sections.append(
+            CalendarYearSection(
+                year_key=year_key,
+                label=year_key_label(year_key, year_display=year_display),
+                months=months,
+            )
+        )
+    return tuple(sections)

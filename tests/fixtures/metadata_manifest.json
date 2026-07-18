@@ -167,6 +167,27 @@
     "period_start": "17-09-2023",
     "period_end": "17-10-2023"
   },
+  "idfc/wow/v1-classic-2023-04.txt": {
+    "closing": "-350.00",
+    "opening": "-500.00",
+    "statement_month": "2021-06",
+    "period_start": "18-05-2021",
+    "period_end": "17-06-2021"
+  },
+  "idfc/wow/v2-rewards-sidecar-2025-01.txt": {
+    "closing": "-5200.00",
+    "opening": "-6100.00",
+    "statement_month": "2025-02",
+    "period_start": "18-01-2025",
+    "period_end": "17-02-2025"
+  },
+  "idfc/wow/v3-modern-stacked-2026-06.txt": {
+    "closing": "-1500.00",
+    "opening": "-1500.00",
+    "statement_month": "2026-06",
+    "period_start": "18-05-2026",
+    "period_end": "17-06-2026"
+  },
   "indusind/amex-epay/sample.txt": {
     "closing": "950.00",
     "opening": "0.00",

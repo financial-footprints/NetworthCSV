@@ -19,6 +19,7 @@ from networthcsv.utils.banks._matching_validators import (
     Subjects,
     TextContains,
     TextNotContains,
+    normalize_account_type,
 )
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "MatchingFieldsCore",
     "StatementCleanupConfig",
     "StatementCleanupOverride",
+    "normalize_account_type",
 ]
 
 

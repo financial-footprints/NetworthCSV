@@ -62,31 +62,28 @@ Run `make help` for a short list.
 | `make install` | Create the venv, run `uv lock`, and `uv sync --group dev`                                   |
 | `make dev`     | Run the full pipeline (`uv run python -m networthcsv`)                                      |
 | `make upgrade` | Upgrade locked dependencies and sync the dev group                                          |
-| `make test`    | Run unit tests (`uv run python tests/run.py`)                                               |
-| `make lint`    | Autofix with [ruff](https://docs.astral.sh/ruff/); type-check with [basedpyright](https://docs.basedpyright.com/) |
-| `make format`  | Format `src/` and `tests/` with ruff                                                                  |
-| `make ci`      | Check-only: format check, lint, then test                                                             |
-| `make dev-ci`  | Autofix format and lint, then test                                                                    |
+| `make check`   | Autofix format and lint, then verify (lint, typecheck, tests)                               |
+| `make ci`      | Check-only: format, lint, typecheck, then test                                             |
 | `make clean`   | Remove build artifacts, `__pycache__`, `.pyc` files, egg-info dirs, and `.ruff_cache`                 |
 
 ## Before Submitting
 
-Run the check-only CI target locally:
+Run before committing to autofix and verify your changes:
+
+```bash
+make check
+```
+
+For read-only verification (no file writes), use:
 
 ```bash
 make ci
 ```
 
-To autofix formatting and lint issues before testing (same as the workspace script):
+If you use the shared workspace scripts, you can run `make check` across repos from the workspace root:
 
 ```bash
-make dev-ci
-```
-
-If you use the shared workspace scripts, you can also run from the workspace root:
-
-```bash
-./scripts/ci.sh csv
+./scripts/check.sh csv
 ```
 
 ## Cross-Repo Note

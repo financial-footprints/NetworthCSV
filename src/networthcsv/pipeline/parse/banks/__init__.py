@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from networthcsv.pipeline.parse.banks.base import StatementParser
-from networthcsv.pipeline.parse.banks.stub import StubStatementParser
 from networthcsv.utils.registry import Registry
 
-_DEFAULT_PARSER = StubStatementParser()
-_BANK_PARSERS: Registry[StatementParser] = Registry(default=_DEFAULT_PARSER)
+_BANK_PARSERS: Registry[StatementParser] = Registry()
 
 
 def register_parser(bank: str, variant: str | None = None):

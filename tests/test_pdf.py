@@ -60,7 +60,7 @@ class ExtractPdfTextPlumberTests(unittest.TestCase):
             result = extract_pdf_text_plumber(path, ["wrong-password"])
             self.assertIsInstance(result, str)
 
-    def test_unencrypted_pdf_does_not_try_account_passwords(self) -> None:
+    def test_unencrypted_pdf_falls_back_after_password_failures(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "plain.pdf"
             _write_unencrypted_pdf(path)
@@ -70,13 +70,16 @@ class ExtractPdfTextPlumberTests(unittest.TestCase):
 
             def spy_open(path_str: str, **kwargs: object):
                 calls.append(kwargs)
+                if "password" in kwargs:
+                    raise PdfReadError("bad password")
                 return original_open(path_str, **kwargs)
 
             with patch("networthcsv.utils.pdf.pdfplumber.open", side_effect=spy_open):
                 _ = extract_pdf_text_plumber(path, ["wrong-password"])
 
-            self.assertEqual(len(calls), 1)
-            self.assertNotIn("password", calls[0])
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[0].get("password"), "wrong-password")
+            self.assertNotIn("password", calls[1])
 
     def test_encrypted_pdf_succeeds_with_correct_password(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -85,22 +88,21 @@ class ExtractPdfTextPlumberTests(unittest.TestCase):
             result = extract_pdf_text_plumber(path, ["wrong-password", "secret"])
             self.assertIsInstance(result, str)
 
-    def test_corrupt_unencrypted_pdf_raises_without_password_attempts(self) -> None:
+    def test_corrupt_pdf_tries_passwords_then_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "broken.pdf"
             _ = path.write_bytes(b"%PDF-1.4 not-a-valid-pdf")
-            password_attempts: list[str] = []
+            password_attempts: list[str | None] = []
 
             def spy_open(path_str: str, password: str | None = None):
-                if password is not None:
-                    password_attempts.append(password)
+                password_attempts.append(password)
                 raise PdfReadError("corrupt")
 
             with patch("networthcsv.utils.pdf.pdfplumber.open", side_effect=spy_open):
                 with self.assertRaises(StageError):
                     _ = extract_pdf_text_plumber(path, ["secret"])
 
-            self.assertEqual(password_attempts, [])
+            self.assertEqual(password_attempts, ["secret", None])
 
 
 class DecryptPdfsInPlaceTests(unittest.TestCase):

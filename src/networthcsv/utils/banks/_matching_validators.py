@@ -41,7 +41,6 @@ def normalize_string_list(
     field_name: str,
     required: bool = False,
     allow_empty: bool = True,
-    allow_scalar: bool = True,
     list_only: bool = False,
     case_insensitive_dedupe: bool = False,
     lowercase_items: bool = False,

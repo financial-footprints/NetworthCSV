@@ -18,9 +18,8 @@ from networthcsv.settings._load import (
     resolve_config_path,
 )
 from networthcsv.settings.models import (
+    AlertSettings,
     AppConfig,
-    ConsoleAlertSettings,
-    EmailAlertsSettings,
     EmailSource,
     ResolvedAccount,
     RunSettings,
@@ -43,7 +42,7 @@ class AppSettings:
     source: ThunderbirdSource | EmailSource
     download_path: Path
     accounts: list[ResolvedAccount]
-    alerts: ConsoleAlertSettings | EmailAlertsSettings | None
+    alerts: AlertSettings | None
     run: RunSettings
     log_level: LogLevel = "info"
     start_date: date | None = None

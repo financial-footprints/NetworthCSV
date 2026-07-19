@@ -90,12 +90,6 @@ class BillingCycleEdgeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _ = BillingCycle(32)
 
-    def test_anchor_day_1_period_start_from_end(self) -> None:
-        cycle = BillingCycle(1)
-        self.assertEqual(
-            cycle.period_start_from_end(date(2025, 1, 31)), date(2025, 1, 1)
-        )
-
     def test_anchor_day_31_clamped_in_short_month(self) -> None:
         cycle = BillingCycle(31)
         # Feb 2024 is a leap year (29 days); period starting Jan 31 ends Feb 29.
@@ -107,21 +101,19 @@ class BillingCycleEdgeTests(unittest.TestCase):
         self.assertEqual(period.start, date(2025, 1, 31))
         self.assertEqual(period.end, date(2025, 2, 28))
 
-    def test_period_start_from_end_anchor_17(self) -> None:
-        cycle = BillingCycle(17)
-        self.assertEqual(
-            cycle.period_start_from_end(date(2023, 6, 16)),
-            date(2023, 5, 17),
+    def test_approximate_period_start_from_statement_end(self) -> None:
+        from networthcsv.utils.billing_period import (
+            approximate_period_start_from_statement_end,
         )
 
-    def test_anchor_day_1_end_of_january_start_is_first(self) -> None:
-        cycle = BillingCycle(1)
-        end = date(2025, 1, 31)
-        start = cycle.period_start_from_end(end)
-        self.assertEqual(start, date(2025, 1, 1))
-        period = BillingPeriod(start, end)
-        self.assertEqual(period.start, date(2025, 1, 1))
-        self.assertEqual(period.end, date(2025, 1, 31))
+        self.assertEqual(
+            approximate_period_start_from_statement_end(date(2025, 1, 31)),
+            date(2025, 1, 1),
+        )
+        self.assertEqual(
+            approximate_period_start_from_statement_end(date(2023, 6, 16)),
+            date(2023, 5, 17),
+        )
 
     def test_end_month_key(self) -> None:
         cycle = BillingCycle(17)

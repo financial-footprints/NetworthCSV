@@ -14,6 +14,7 @@ from networthcsv.pipeline.metadata.persist import (
 )
 from networthcsv.pipeline.results import ExtractAccountResult, ExtractStageResult
 from networthcsv.utils.email.email_message import (
+    message_headers_match_account,
     message_matches_account,
     sanitize_filename,
     save_attachments,
@@ -117,6 +118,13 @@ def _message_from_fetch_data(data: list[_ImapFetchItem]) -> Message | None:
     return None
 
 
+def fetch_message_headers(client: ReadOnlyImapClient, uid: str) -> Message | None:
+    typ, data = client.uid_fetch(uid, "(BODY.PEEK[HEADER])")
+    if typ != "OK" or not data:
+        return None
+    return _message_from_fetch_data(data)
+
+
 def fetch_message(client: ReadOnlyImapClient, uid: str) -> Message | None:
     typ, data = client.uid_fetch(uid, "(BODY.PEEK[])")
     if typ != "OK" or not data:
@@ -175,6 +183,13 @@ def extract_account(
     messages_matched = 0
     attachments_saved = 0
     for uid in uids:
+        headers = fetch_message_headers(client, uid)
+        if headers is None:
+            continue
+        if not message_headers_match_account(
+            headers, account, effective_start, search_end
+        ):
+            continue
         msg = fetch_message(client, uid)
         if msg is None:
             continue

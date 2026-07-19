@@ -48,16 +48,7 @@ def extract_pdf_text_plumber(
     *,
     annotate_edge_amount_colors: bool = False,
 ) -> str:
-    if not pdf_is_encrypted(path):
-        try:
-            return _open_and_extract(
-                path,
-                None,
-                annotate_edge_amount_colors=annotate_edge_amount_colors,
-            )
-        except (PdfReadError, OSError, ValueError) as exc:
-            raise StageError(f"could not open {path}: {exc}") from exc
-
+    # Prefer passwords first — most statement PDFs are encrypted.
     last_error: Exception | None = None
     for password in passwords:
         try:
@@ -69,6 +60,15 @@ def extract_pdf_text_plumber(
         except (PdfReadError, PdfminerException, OSError, ValueError) as exc:
             last_error = exc
             continue
+
+    try:
+        return _open_and_extract(
+            path,
+            None,
+            annotate_edge_amount_colors=annotate_edge_amount_colors,
+        )
+    except (PdfReadError, PdfminerException, OSError, ValueError) as exc:
+        last_error = exc
 
     detail = f": {last_error}" if last_error is not None else ""
     raise StageError(f"could not open {path}{detail}")

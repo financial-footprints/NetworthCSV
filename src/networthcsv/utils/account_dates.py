@@ -53,10 +53,7 @@ def format_account_date(value: date | None) -> str | None:
 
 
 def require_account_date_str(value: date) -> str:
-    formatted = format_account_date(value)
-    if formatted is None:
-        raise ValueError("date value is required")
-    return formatted
+    return value.strftime("%d-%m-%Y")
 
 
 def exclusive_search_end_date(end_date: date) -> date:
@@ -79,8 +76,7 @@ def resolve_account_search_dates(
     start_candidates: list[date] = []
     if global_start_date is not None:
         start_candidates.append(global_start_date)
-    if account.opening_date is not None:
-        start_candidates.append(account.opening_date)
+    start_candidates.append(account.opening_date)
     incremental_start = incremental_fetch_start(last_fetch_date)
     if incremental_start is not None:
         start_candidates.append(incremental_start)

@@ -412,12 +412,13 @@ def save_attachments(
     return saved
 
 
-def message_matches_account(
+def message_headers_match_account(
     msg: Message,
     account: ResolvedAccount,
     start_date: date | None,
     end_date: date | None = None,
 ) -> bool:
+    """Filter using Subject/From/Date only (safe for HEADER-only IMAP fetches)."""
     subject = decode_mime_header(msg.get("Subject"))[:80]
     if not subject_matches(msg, account.mail.subjects):
         logger.debug("skip email (subject): %r", subject)
@@ -427,6 +428,18 @@ def message_matches_account(
         return False
     if not message_in_date_range(msg, start_date, end_date):
         logger.debug("skip email (date range): %r", subject)
+        return False
+    return True
+
+
+def message_matches_account(
+    msg: Message,
+    account: ResolvedAccount,
+    start_date: date | None,
+    end_date: date | None = None,
+) -> bool:
+    subject = decode_mime_header(msg.get("Subject"))[:80]
+    if not message_headers_match_account(msg, account, start_date, end_date):
         return False
     has_pdf = bool(list(iter_pdf_attachment_parts(msg)))
     has_csv = bool(list(iter_csv_attachment_parts(msg)))

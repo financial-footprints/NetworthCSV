@@ -65,12 +65,6 @@ def normalize_alert_recipients(value: object) -> list[str]:
     )
 
 
-def _optional_bank(value: object) -> str | None:
-    if value is None or value == "":
-        return None
-    return normalize_bank(value)
-
-
 def _require_non_empty(value: object, *, field_name: str) -> str:
     text = str(value).strip()
     if not text:
@@ -87,7 +81,6 @@ def _require_field(field_name: str) -> Callable[[object], str]:
 
 Marker = Annotated[str | None, BeforeValidator(normalize_marker)]
 BankName = Annotated[str, BeforeValidator(normalize_bank)]
-OptionalBankName = Annotated[str | None, BeforeValidator(_optional_bank)]
 VariantName = Annotated[str | None, BeforeValidator(normalize_variant)]
 AccountNumber = Annotated[str, BeforeValidator(normalize_account_number)]
 OptionalIdentifier = Annotated[

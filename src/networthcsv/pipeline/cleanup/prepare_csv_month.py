@@ -62,20 +62,18 @@ def prepare_csv_month(
     csv_out = statement_csv_path(download_path, account, month)
     text_contains = account.statement.text_contains
 
-    unlink_excluded(
-        unique,
-        should_exclude=lambda path: statement_should_exclude(
+    excluded: set[Path] = {
+        path
+        for path in unique
+        if statement_should_exclude(
             raw_by_path[path], raw_by_path[path], account=account, is_manual=False
-        ),
-    )
+        )
+    }
+    unlink_excluded(unique, should_exclude=lambda path: path in excluded)
 
     eligible = eligible_paths(
         unique,
-        is_eligible=lambda path: (
-            not statement_should_exclude(
-                raw_by_path[path], raw_by_path[path], account=account, is_manual=False
-            )
-        ),
+        is_eligible=lambda path: path not in excluded,
     )
     if not eligible:
         return 0, 1

@@ -39,6 +39,17 @@ from pydantic import (
 )
 
 
+def _require_opening_date(value: object) -> date:
+    parsed = parse_opening_date(value)
+    if parsed is None:
+        raise ValueError("opening_date is required")
+    return parsed
+
+
+OpeningDate = Annotated[date, BeforeValidator(_require_opening_date)]
+ClosingDate = Annotated[date | None, BeforeValidator(parse_closing_date)]
+
+
 class AppConfig(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
@@ -68,23 +79,10 @@ class UserAccountConfig(MatchingFieldsCore):
     variant: VariantName = None
     account_number: AccountNumber
     passwords: Passwords
-    opening_date: date
-    closing_date: date | None = None
+    opening_date: OpeningDate
+    closing_date: ClosingDate = None
     mail: MailMatchOverride | None = None
     statement: StatementCleanupOverride | None = None
-
-    @field_validator("opening_date", mode="before")
-    @classmethod
-    def validate_opening_date(cls, value: object) -> date:
-        parsed = parse_opening_date(value)
-        if parsed is None:
-            raise ValueError("opening_date is required")
-        return parsed
-
-    @field_validator("closing_date", mode="before")
-    @classmethod
-    def validate_closing_date(cls, value: object) -> date | None:
-        return parse_closing_date(value)
 
     @model_validator(mode="after")
     def validate_account_date_range(self) -> UserAccountConfig:
@@ -282,18 +280,5 @@ class ResolvedAccount(MatchingFields):
     variant: str | None = None
     account_number: str
     passwords: list[str] = Field(min_length=1)
-    opening_date: date
-    closing_date: date | None = None
-
-    @field_validator("opening_date", mode="before")
-    @classmethod
-    def validate_opening_date(cls, value: object) -> date:
-        parsed = parse_opening_date(value)
-        if parsed is None:
-            raise ValueError("opening_date is required")
-        return parsed
-
-    @field_validator("closing_date", mode="before")
-    @classmethod
-    def validate_closing_date(cls, value: object) -> date | None:
-        return parse_closing_date(value)
+    opening_date: OpeningDate
+    closing_date: ClosingDate = None

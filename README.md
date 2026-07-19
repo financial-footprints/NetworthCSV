@@ -8,53 +8,48 @@ The application is not ready for usage yet.
 
 ## Configuration
 
-NetworthCSV uses two JSON files:
+NetworthCSV uses two files:
 
-| File               | Purpose                 |
-| ------------------ | ----------------------- |
-| `app.config.json`  | Bank defaults           |
-| `user.config.json` | Secrets and local paths |
+| File            | Purpose                                              |
+| --------------- | ---------------------------------------------------- |
+| `.env`          | Paths, email source, download directory, log level, alerts |
+| `accounts.json` | Bank accounts (passwords, opening dates, matchers)   |
 
-Create a config directory on your machine, then copy the sample files from the repository:
+Copy the sample files from the repository:
 
-- [`user.config.sample.json`](https://github.com/financial-footprints/NetworthCSV/blob/main/user.config.sample.json) → `user.config.json`
-- [`app.config.json`](https://github.com/financial-footprints/NetworthCSV/blob/main/app.config.json)
+- [`.env.example`](.env.example) → `.env`
+- [`accounts.example.json`](accounts.example.json) → `accounts.json`
 
-Edit `user.config.json` with your paths, passwords, and accounts. In `app.config.json`, set `user_config` to the path of your `user.config.json` (relative paths are resolved from the directory that contains `app.config.json`).
+Edit `.env` with your download path, email/Thunderbird source, and optional alert settings. Edit `accounts.json` with your account entries.
 
-Point NetworthCSV at your `app.config.json`:
+Point NetworthCSV at your accounts file via `.env`:
 
 ```bash
-export NETWORTHCSV_CONFIG=/path/to/app.config.json
+ACCOUNT_CONFIG_PATH=./accounts.json
 ```
 
-Or pass `--config /path/to/app.config.json` on the command line.
+Or pass `--config /path/to/accounts.json` on the command line.
 
-Each app-config variant may set an optional `type`: `credit_card` (default) or `bank_account`. Non-default variants inherit `type` from `default` when omitted. The resolved account carries this as metadata and determines the on-disk folder layout.
+**Env file chaining** — by default NetworthCSV loads `<repo>/.env`. To start elsewhere, export `ENV_NETWORTHCSV=/path/to/.env`. To chain additional files, set `ENV_PATH=/path/to/other.env` inside an env file (up to 10 hops). Chained files merge additively: later files override only the keys they define.
 
 Each account needs a `bank`, an `account_number` (globally unique — shown in the UI and used for routing), and a `passwords` list.
 
-**Email source** — set `source.type` in user config:
+**IMAP source** — set `SOURCE_TYPE=email` in `.env`:
 
-- `thunderbird` — reads locally cached mail from a Thunderbird profile. Close Thunderbird before running.
-- `email` — read-only IMAP (Gmail, Outlook, etc.). For Gmail, use folder `[Gmail]/All Mail` and an [App Password](https://myaccount.google.com/apppasswords).
+- `IMAP_HOST`, `IMAP_USERNAME`, `IMAP_PASSWORD`, etc.
+- For Gmail, use `IMAP_FOLDER=[Gmail]/All Mail` and an [App Password](https://myaccount.google.com/apppasswords).
 
-**Run scope** — optional `run` block in user config limits which account or FY folders a run processes:
+**Thunderbird source** — set `SOURCE_TYPE=thunderbird` and `THUNDERBIRD_PROFILE` in `.env`. Close Thunderbird before running.
 
-```json
-"run": {
-  "identifier": "5678",
-  "financial_year": "FY23-2024"
-}
-```
-
-`identifier` matches the account's `account_number`. You can also pass `--identifier` / `-i` on the command line without editing config:
+**Run scope** — limit which account a run processes via CLI (`--identifier`) or NetworthSync.
 
 ```bash
 networthcsv --identifier 5678
 ```
 
-**Alerts** — optional `alerts` block (`"console"` or `"email"`) for pipeline validation failures. See the sample config.
+`identifier` matches the account's `account_number`. Quote the value if it contains special characters.
+
+**Alerts** — set `ALERTS_TYPE=console` or `ALERTS_TYPE=email` in `.env` (with `SMTP_*` vars for email notifications). See `.env.example`.
 
 ## Usage
 
@@ -64,15 +59,15 @@ Full pipeline (extract → cleanup → metadata → parse) for all configured ac
 networthcsv
 ```
 
-Full pipeline for one account with a local app config:
+Full pipeline for one account with a custom accounts file:
 
 ```bash
 uv run networthcsv \
   --identifier '3841' \
-  --config /path/to/app.config.json
+  --config /path/to/accounts.json
 ```
 
-Use the account's exact `account_number` from `user.config.json` as the identifier. Quote the value if it contains special characters.
+Use the account's exact `account_number` from `accounts.json` as the identifier.
 
 Or run stages individually:
 

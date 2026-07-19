@@ -13,7 +13,7 @@ from networthcsv.utils.zip_archive import (
     extract_csvs_from_zip,
     sanitize_zip_member_name,
 )
-from zip_support import build_aes_zip, build_zip
+from helpers import build_aes_zip, build_zip
 
 
 class ZipArchiveTests(unittest.TestCase):

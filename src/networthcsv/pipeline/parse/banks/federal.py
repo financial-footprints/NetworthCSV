@@ -64,6 +64,5 @@ class FederalStatementParser:
         return parse_stop_at_end_lines(
             text,
             _line_parser_for_variant(account.variant),
-            account=account,
             source_file=source_file,
         )

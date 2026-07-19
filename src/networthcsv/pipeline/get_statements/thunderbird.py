@@ -1,6 +1,6 @@
 """Extract attachments from Thunderbird profile mbox folders by subject.
 
-Configure via app.config.json and user.config.json (see networthcsv.settings). Override app config with NETWORTHCSV_CONFIG.
+Configure via accounts.json and .env (see networthcsv.settings).
 Close Thunderbird before running against a live profile path.
 """
 
@@ -98,7 +98,6 @@ def extract_account(
     profile: Path,
     account: ResolvedAccount,
     download_dir: Path,
-    global_start_date: date | None,
     ctx: RunContext,
 ) -> ExtractAccountResult:
     if not profile.is_dir():
@@ -109,7 +108,6 @@ def extract_account(
     last_fetch_date = read_last_fetch_date(ctx.settings.download_path, account)
     effective_start, effective_end = resolve_account_search_dates(
         account,
-        global_start_date,
         last_fetch_date=last_fetch_date,
     )
 
@@ -170,7 +168,6 @@ def run_account(ctx: RunContext, account: ResolvedAccount) -> ExtractAccountResu
         source.thunderbird.profile,
         account,
         account_download_path(ctx.settings.download_path, account),
-        ctx.settings.start_date,
         ctx,
     )
 

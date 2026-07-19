@@ -96,7 +96,7 @@ class BuildImapSearchTests(unittest.TestCase):
                 "closing_date": date(2024, 2, 1),
             }
         )
-        _start, search_end = resolve_account_search_dates(account, None)
+        _start, search_end = resolve_account_search_dates(account)
         if search_end is None:
             self.fail("expected closing-date search end")
         self.assertEqual(search_end, date(2024, 2, 2))

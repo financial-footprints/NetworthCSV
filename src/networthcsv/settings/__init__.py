@@ -1,4 +1,4 @@
-"""Load and merge configuration from app.config.json and user.config.json.
+"""Load configuration from accounts.json and environment variables.
 
 Public surface: AppSettings (runtime), ResolvedAccount, RunSettings, and the
 source/alert models other packages need. Validators and JSON loaders are private.
@@ -18,6 +18,9 @@ from networthcsv.settings.models import (
     RunSettings,
     ThunderbirdSource,
     ThunderbirdSourceSettings,
+    UserAccountConfig,
+    parse_accounts_config,
+    reject_duplicate_accounts,
 )
 
 __all__ = [
@@ -32,4 +35,7 @@ __all__ = [
     "RunSettings",
     "ThunderbirdSource",
     "ThunderbirdSourceSettings",
+    "UserAccountConfig",
+    "parse_accounts_config",
+    "reject_duplicate_accounts",
 ]

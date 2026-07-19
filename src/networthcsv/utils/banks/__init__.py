@@ -1,7 +1,7 @@
 # Adding a new bank variant:
 # 1. Create utils/banks/<bank>/<variant>.py with a handler class (subclass default or CreditCardHandler).
 # 2. Decorate with @register("bank", "variant") or import the module in this package.
-# 3. Add the account to user.config.json (bank + variant; optional mail/text_contains overrides).
+# 3. Add the account to accounts.json (bank + variant; optional mail/text_contains overrides).
 
 from __future__ import annotations
 

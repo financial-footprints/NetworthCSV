@@ -6,12 +6,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cleanup_support import account, run_context, staging_layout
+from helpers import account, build_zip, run_context, staging_layout
 from networthcsv.pipeline.cleanup.run import run
 from networthcsv.pipeline.metadata import build_account_metadata
 from networthcsv.pipeline.upload import save_uploaded_zip
 from networthcsv.utils.path import statement_csv_path
-from zip_support import build_zip
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "icici" / "csv"
 

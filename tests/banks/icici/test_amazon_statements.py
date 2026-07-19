@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from cleanup_support import FIXTURES_ROOT
+from helpers import FIXTURES_ROOT
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.banks.base import CreditCardHandler
 from networthcsv.utils.banks.helpers.text import text_contains_present

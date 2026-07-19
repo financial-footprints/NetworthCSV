@@ -1,10 +1,13 @@
-"""make check / make ci entry: silence expected log noise, then unittest discover."""
+"""Run the test suite: ``uv run python -m tests``."""
 
 from __future__ import annotations
 
 import logging
 import sys
 import unittest
+from pathlib import Path
+
+_TESTS_DIR = Path(__file__).resolve().parent
 
 logging.disable(logging.WARNING)
 for name in ("pdfminer", "pdfplumber", "pypdf"):
@@ -12,7 +15,7 @@ for name in ("pdfminer", "pdfplumber", "pypdf"):
 
 
 def main() -> None:
-    argv = ["unittest", "discover", "-s", "tests", *sys.argv[1:]]
+    argv = ["unittest", "discover", "-s", str(_TESTS_DIR), *sys.argv[1:]]
     unittest.main(module=None, argv=argv)
 
 

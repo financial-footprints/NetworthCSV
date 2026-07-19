@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from cleanup_support import FIXTURES_ROOT
+from helpers import FIXTURES_ROOT
 from networthcsv.utils.banks.pnb.default import detect_layout
 
 _FIXTURES = FIXTURES_ROOT / "pnb" / "platinum"

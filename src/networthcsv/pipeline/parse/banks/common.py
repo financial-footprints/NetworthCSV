@@ -7,7 +7,6 @@ from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 
-from networthcsv.settings import ResolvedAccount
 from networthcsv.utils.banks.helpers.dates import parse_date_string
 from networthcsv.utils.transactions import Transaction
 
@@ -125,12 +124,10 @@ def parse_stop_at_end_lines(
     text: str,
     line_parser: _LineParser,
     *,
-    account: ResolvedAccount,
     source_file: str,
     stop_marker: str = "End of Transactions",
 ) -> list[Transaction]:
     """Parse transaction lines until ``stop_marker`` appears in a line."""
-    _ = account
     rows: list[Transaction] = []
     for line in text.splitlines():
         if stop_marker in line:

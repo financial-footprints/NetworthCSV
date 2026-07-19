@@ -8,7 +8,7 @@ from pathlib import Path
 from networthcsv.settings import EmailAlertSettings
 
 FIXTURES_ROOT = Path(__file__).resolve().parent
-MANIFEST_PATH = FIXTURES_ROOT / "metadata_manifest.json"
+MANIFEST_PATH = FIXTURES_ROOT / "manifest.json"
 REQUIRED_MANIFEST_KEYS = ("statement_month", "opening", "closing")
 
 

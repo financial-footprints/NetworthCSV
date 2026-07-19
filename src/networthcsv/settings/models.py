@@ -1,13 +1,11 @@
-"""Pydantic config models for app.config.json and user.config.json."""
+"""Pydantic config models for accounts.json and environment settings."""
 
 from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-from typing import Annotated, ClassVar, Literal, cast
+from typing import Annotated, ClassVar, Literal
 
-from networthcsv.logging import LogLevel
-from networthcsv.settings._load import resolve_path
 from networthcsv.settings._validators import (
     AccountNumber,
     BankName,
@@ -19,7 +17,6 @@ from networthcsv.settings._validators import (
     normalize_alert_recipients,
 )
 from networthcsv.utils.account_dates import (
-    parse_account_date,
     parse_closing_date,
     parse_opening_date,
 )
@@ -34,7 +31,6 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
-    field_validator,
     model_validator,
 )
 
@@ -48,30 +44,6 @@ def _require_opening_date(value: object) -> date:
 
 OpeningDate = Annotated[date, BeforeValidator(_require_opening_date)]
 ClosingDate = Annotated[date | None, BeforeValidator(parse_closing_date)]
-
-
-class AppConfig(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    user_config: Path
-
-    @field_validator("user_config", mode="before")
-    @classmethod
-    def validate_user_config(cls, value: object) -> object:
-        if value is None or str(value).strip() == "":
-            raise ValueError("user_config is required")
-        return value
-
-    @classmethod
-    def from_json(cls, data: dict[str, object], *, config_path: Path) -> AppConfig:
-        base = config_path.parent
-        return cls.model_validate(
-            {
-                "user_config": resolve_path(data["user_config"], base)
-                if data.get("user_config")
-                else None,
-            }
-        )
 
 
 class UserAccountConfig(MatchingFieldsCore):
@@ -162,113 +134,37 @@ class EmailSource(BaseModel):
     email: EmailSourceSettings
 
 
-SourceSettings = Annotated[
-    ThunderbirdSource | EmailSource,
-    Field(discriminator="type"),
-]
+def reject_duplicate_accounts(accounts: list[UserAccountConfig]) -> None:
+    seen_keys: set[tuple[str, str | None, str]] = set()
+    numbers_by_bank: dict[str, set[str]] = {}
+    for index, account in enumerate(accounts):
+        key = (account.bank, account.variant, account.account_number)
+        if key in seen_keys:
+            raise ValueError(
+                f"accounts[{index}] ({account.account_number}): duplicate account"
+            )
+        seen_keys.add(key)
+
+        banks_for_number = numbers_by_bank.setdefault(account.account_number, set())
+        if banks_for_number and account.bank not in banks_for_number:
+            raise ValueError(
+                f"accounts[{index}] ({account.account_number}): duplicate account"
+            )
+        banks_for_number.add(account.bank)
 
 
-def _resolve_source(raw: object, base: Path) -> ThunderbirdSource | EmailSource:
-    if not isinstance(raw, dict):
-        raise ValueError("source must be an object")
-    data = dict(cast(dict[str, object], raw))
-    source_type = data.get("type")
-    if source_type == "thunderbird":
-        thunderbird_raw = data.get("thunderbird")
-        if isinstance(thunderbird_raw, dict):
-            thunderbird = dict(cast(dict[str, object], thunderbird_raw))
-            profile = thunderbird.get("profile")
-            if profile:
-                thunderbird["profile"] = resolve_path(profile, base)
-            data["thunderbird"] = thunderbird
-        return ThunderbirdSource.model_validate(data)
-    if source_type == "email":
-        return EmailSource.model_validate(data)
-    raise ValueError("source.type must be 'thunderbird' or 'email'")
-
-
-def _prepare_user_config_data(data: dict[str, object], base: Path) -> dict[str, object]:
-    prepared = dict(data)
-    source_raw = data.get("source")
-    if source_raw is not None:
-        prepared["source"] = _resolve_source(source_raw, base)
-    download_raw = data.get("download_path")
-    if download_raw:
-        prepared["download_path"] = resolve_path(download_raw, base)
-    accounts_raw = data.get("accounts")
-    if isinstance(accounts_raw, list):
-        prepared["accounts"] = list(accounts_raw)
-    return prepared
-
-
-def _user_account_matches_run_filter(
-    account: UserAccountConfig, run: RunSettings
-) -> bool:
-    if run.identifier is None:
-        return True
-    return account.account_number == run.identifier
-
-
-class UserConfig(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    source: SourceSettings
-    download_path: Path
-    log_level: LogLevel = "info"
-    start_date: date | None = None
-    accounts: list[UserAccountConfig] = Field(min_length=1)
-    alerts: AlertSettings | None = None
-    run: RunSettings | None = None
-
-    @field_validator("download_path", mode="before")
-    @classmethod
-    def validate_download_path(cls, value: object) -> object:
-        if value is None or str(value).strip() == "":
-            raise ValueError("download_path is required")
-        return value
-
-    @model_validator(mode="after")
-    def validate_run_filter(self) -> UserConfig:
-        if self.run is None or self.run.identifier is None:
-            return self
-        matches = [
-            account
-            for account in self.accounts
-            if _user_account_matches_run_filter(account, self.run)
-        ]
-        if not matches:
-            known = ", ".join(account.account_number for account in self.accounts)
-            raise ValueError(f"run filter matches no account (known: {known})")
-        return self
-
-    @model_validator(mode="after")
-    def reject_duplicate_accounts(self) -> UserConfig:
-        seen_keys: set[tuple[str, str | None, str]] = set()
-        numbers_by_bank: dict[str, set[str]] = {}
-        for index, account in enumerate(self.accounts):
-            key = (account.bank, account.variant, account.account_number)
-            if key in seen_keys:
-                raise ValueError(
-                    f"accounts[{index}] ({account.account_number}): duplicate account"
-                )
-            seen_keys.add(key)
-
-            banks_for_number = numbers_by_bank.setdefault(account.account_number, set())
-            if banks_for_number and account.bank not in banks_for_number:
-                raise ValueError(
-                    f"accounts[{index}] ({account.account_number}): duplicate account"
-                )
-            banks_for_number.add(account.bank)
-        return self
-
-    @field_validator("start_date", mode="before")
-    @classmethod
-    def parse_start_date(cls, value: object) -> date | None:
-        return parse_account_date(value, "start_date")
-
-    @classmethod
-    def from_json(cls, data: dict[str, object], *, config_path: Path) -> UserConfig:
-        return cls.model_validate(_prepare_user_config_data(data, config_path.parent))
+def parse_accounts_config(
+    data: list[object],
+    *,
+    allow_empty: bool = False,
+) -> list[UserAccountConfig]:
+    if not data:
+        if allow_empty:
+            return []
+        raise ValueError("accounts config must contain at least one account")
+    accounts = [UserAccountConfig.model_validate(item) for item in data]
+    reject_duplicate_accounts(accounts)
+    return accounts
 
 
 class ResolvedAccount(MatchingFields):

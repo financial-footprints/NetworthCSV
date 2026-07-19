@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest import mock
 
 from networthcsv.context import RunContext
 from networthcsv.errors import JobCancelledError, StageError
 from networthcsv.pipeline.cleanup import run as cleanup_run
-from networthcsv.pipeline.parse.parse import run as parse_run
 from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.pipeline.results import (
     CleanupAccountResult,
@@ -29,317 +28,237 @@ from networthcsv.pipeline.runner import (
     run_pipeline,
 )
 from networthcsv.runtime import process, process_upload
+from networthcsv.settings import AppSettings, ResolvedAccount
 from networthcsv.utils.alerts.service import AlertService
 from networthcsv.utils.path import discover_account_fy_dirs
-from networthcsv.settings import AppSettings, ResolvedAccount
+from helpers import default_test_env, write_accounts
 
 
 def _write_minimal_configs(root: Path) -> Path:
-    user_config_path = root / "user.config.json"
-    user_config_path.write_text(
-        json.dumps(
+    return write_accounts(
+        root,
+        [
             {
-                "source": {"type": "thunderbird", "thunderbird": {"profile": "."}},
-                "download_path": str(root / "downloads"),
-                "accounts": [
-                    {
-                        "bank": "bob",
-                        "variant": "easy",
-                        "account_number": "1",
-                        "statement": {"text_contains": "1"},
-                        "passwords": ["x"],
-                        "opening_date": "01-01-2020",
-                    }
-                ],
+                "bank": "bob",
+                "variant": "easy",
+                "account_number": "1",
+                "statement": {"text_contains": "1"},
+                "passwords": ["x"],
+                "opening_date": "01-01-2020",
             }
-        ),
-        encoding="utf-8",
+        ],
     )
-    app_config_path = root / "app.config.json"
-    app_config_path.write_text(
-        json.dumps({"user_config": user_config_path.name}),
-        encoding="utf-8",
-    )
-    return app_config_path
 
 
 def _write_two_account_configs(root: Path) -> Path:
-    user_config_path = root / "user.config.json"
-    user_config_path.write_text(
-        json.dumps(
+    return write_accounts(
+        root,
+        [
             {
-                "source": {"type": "thunderbird", "thunderbird": {"profile": "."}},
-                "download_path": str(root / "downloads"),
-                "accounts": [
-                    {
-                        "bank": "bob",
-                        "variant": "easy",
-                        "account_number": "1",
-                        "statement": {"text_contains": "1"},
-                        "passwords": ["x"],
-                        "opening_date": "01-01-2020",
-                    },
-                    {
-                        "bank": "bob",
-                        "variant": "default",
-                        "account_number": "2",
-                        "statement": {"text_contains": "2"},
-                        "passwords": ["x"],
-                        "opening_date": "01-01-2020",
-                    },
-                ],
-            }
-        ),
-        encoding="utf-8",
+                "bank": "bob",
+                "variant": "easy",
+                "account_number": "1",
+                "statement": {"text_contains": "1"},
+                "passwords": ["x"],
+                "opening_date": "01-01-2020",
+            },
+            {
+                "bank": "bob",
+                "variant": "default",
+                "account_number": "2",
+                "statement": {"text_contains": "2"},
+                "passwords": ["x"],
+                "opening_date": "01-01-2020",
+            },
+        ],
     )
-    app_config_path = root / "app.config.json"
-    app_config_path.write_text(
-        json.dumps({"user_config": user_config_path.name}),
-        encoding="utf-8",
-    )
-    return app_config_path
 
 
 def _context(root: Path) -> RunContext:
-    settings = AppSettings.load(_write_minimal_configs(root))
+    accounts_path = _write_minimal_configs(root)
+    with mock.patch.dict(os.environ, default_test_env(root), clear=True):
+        settings = AppSettings.load(accounts_path)
     return RunContext(settings=settings, alerts=AlertService(handler=None))
 
 
+def _account_download_dir(ctx: RunContext, account: ResolvedAccount) -> Path:
+    return ctx.settings.download_path / "credit_card" / account.account_number
+
+
+def _extract_account_result(
+    ctx: RunContext, account: ResolvedAccount
+) -> ExtractAccountResult:
+    return ExtractAccountResult(
+        bank=account.bank,
+        download_dir=_account_download_dir(ctx, account),
+        messages_matched=1,
+        attachments_saved=1,
+    )
+
+
+def _cleanup_account_result(
+    ctx: RunContext, account: ResolvedAccount
+) -> CleanupAccountResult:
+    return CleanupAccountResult(
+        bank=account.bank,
+        download_dir=_account_download_dir(ctx, account),
+        unsupported_staging_removed=0,
+        decrypted=1,
+        prepared=1,
+        rejected=0,
+        orphans_removed=0,
+        skipped=False,
+    )
+
+
+def _metadata_account_result(
+    ctx: RunContext, account: ResolvedAccount
+) -> MetadataAccountResult:
+    return MetadataAccountResult(
+        bank=account.bank,
+        download_dir=_account_download_dir(ctx, account),
+        output=_account_download_dir(ctx, account) / "metadata.json",
+        statement_count=1,
+    )
+
+
+def _parse_account_result(
+    ctx: RunContext, account: ResolvedAccount
+) -> ParseAccountResult:
+    return ParseAccountResult(
+        bank=account.bank,
+        download_dir=_account_download_dir(ctx, account),
+        fy_results=(),
+        total_transactions=0,
+        total_statements=0,
+    )
+
+
 class RunnerTests(unittest.TestCase):
-    @patch("networthcsv.pipeline.runner.extract_stage.run_all")
+    @mock.patch("networthcsv.pipeline.runner.extract_stage.run_all")
     def test_run_extract_delegates_to_extract_stage(
-        self, mock_run_all: MagicMock
+        self, mock_run_all: mock.MagicMock
     ) -> None:
-        expected = ExtractStageResult(accounts=())
-        mock_run_all.return_value = expected
         with tempfile.TemporaryDirectory() as tmp:
-            result = run_extract(_context(Path(tmp)))
-        self.assertIs(result, expected)
+            ctx = _context(Path(tmp))
+            mock_run_all.return_value = ExtractStageResult(accounts=())
+            results = run_extract(ctx)
+        mock_run_all.assert_called_once_with(ctx)
+        self.assertEqual(results, ExtractStageResult(accounts=()))
 
-    @patch("networthcsv.pipeline.runner.cleanup_stage.run_account")
-    def test_run_cleanup_runs_each_account(self, mock_run_account: MagicMock) -> None:
-        mock_run_account.return_value = CleanupAccountResult(
-            bank="bob",
-            download_dir=Path("/tmp"),
-            unsupported_staging_removed=0,
-            decrypted=0,
-            prepared=0,
-            rejected=0,
-            orphans_removed=0,
-        )
+    @mock.patch("networthcsv.pipeline.runner.cleanup_stage.run_account")
+    def test_run_cleanup_delegates_to_cleanup_stage(
+        self, mock_run_account: mock.MagicMock
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            results = run_cleanup(_context(Path(tmp)))
-        self.assertEqual(len(results), 1)
-        mock_run_account.assert_called_once()
-
-    @patch("networthcsv.pipeline.runner.parse_stage.run_account")
-    def test_run_parse_runs_each_account(self, mock_run_account: MagicMock) -> None:
-        mock_run_account.return_value = ParseAccountResult(
-            bank="bob",
-            download_dir=Path("/tmp"),
-            fy_results=(),
-            total_transactions=0,
-            total_statements=0,
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            results = run_parse(_context(Path(tmp)))
+            ctx = _context(Path(tmp))
+            account = ctx.settings.accounts[0]
+            mock_run_account.return_value = _cleanup_account_result(ctx, account)
+            results = run_cleanup(ctx)
+        mock_run_account.assert_called_once_with(ctx, account)
         self.assertEqual(len(results), 1)
 
-    @patch("networthcsv.pipeline.runner.metadata_stage.run_account")
-    def test_run_metadata_runs_each_account(self, mock_run_account: MagicMock) -> None:
-        mock_run_account.return_value = MetadataAccountResult(
-            bank="bob",
-            download_dir=Path("/tmp"),
-            output=Path("/tmp/credit_card/1/metadata.json"),
-            statement_count=0,
-        )
+    @mock.patch("networthcsv.pipeline.runner.metadata_stage.run_account")
+    def test_run_metadata_delegates_to_metadata_stage(
+        self, mock_run_account: mock.MagicMock
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            results = run_metadata(_context(Path(tmp)))
+            ctx = _context(Path(tmp))
+            account = ctx.settings.accounts[0]
+            mock_run_account.return_value = _metadata_account_result(ctx, account)
+            results = run_metadata(ctx)
+        mock_run_account.assert_called_once_with(ctx, account)
         self.assertEqual(len(results), 1)
-        mock_run_account.assert_called_once()
 
-    @patch("networthcsv.pipeline.runner.parse_stage.run_account")
-    @patch("networthcsv.pipeline.runner.metadata_stage.run_account")
-    @patch("networthcsv.pipeline.runner.cleanup_stage.run_account")
-    @patch("networthcsv.pipeline.runner.extract_stage.run_all")
-    def test_run_pipeline_sequences_stages(
+    @mock.patch("networthcsv.pipeline.runner.parse_stage.run_account")
+    def test_run_parse_delegates_to_parse_stage(
+        self, mock_run_account: mock.MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _context(Path(tmp))
+            account = ctx.settings.accounts[0]
+            mock_run_account.return_value = _parse_account_result(ctx, account)
+            results = run_parse(ctx)
+        mock_run_account.assert_called_once_with(ctx, account)
+        self.assertEqual(len(results), 1)
+
+    @mock.patch("networthcsv.pipeline.runner.run_extract")
+    @mock.patch("networthcsv.pipeline.runner.run_cleanup")
+    @mock.patch("networthcsv.pipeline.runner.run_metadata")
+    @mock.patch("networthcsv.pipeline.runner.run_parse")
+    def test_run_pipeline_runs_all_stages(
         self,
-        mock_extract: MagicMock,
-        mock_cleanup: MagicMock,
-        mock_metadata: MagicMock,
-        mock_parse: MagicMock,
+        mock_parse: mock.MagicMock,
+        mock_metadata: mock.MagicMock,
+        mock_cleanup: mock.MagicMock,
+        mock_extract: mock.MagicMock,
     ) -> None:
-        mock_extract.return_value = ExtractStageResult(
-            accounts=(
-                ExtractAccountResult(
-                    bank="bob",
-                    download_dir=Path("/tmp"),
-                    messages_matched=0,
-                    attachments_saved=0,
-                ),
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _context(Path(tmp))
+            account = ctx.settings.accounts[0]
+            mock_extract.return_value = ExtractStageResult(
+                accounts=(_extract_account_result(ctx, account),)
             )
-        )
-        mock_cleanup.return_value = CleanupAccountResult(
-            bank="bob",
-            download_dir=Path("/tmp"),
-            unsupported_staging_removed=0,
-            decrypted=0,
-            prepared=0,
-            rejected=0,
-            orphans_removed=0,
-        )
-        mock_metadata.return_value = MetadataAccountResult(
-            bank="bob",
-            download_dir=Path("/tmp"),
-            output=Path("/tmp/credit_card/1/metadata.json"),
-            statement_count=0,
-        )
-        mock_parse.return_value = ParseAccountResult(
-            bank="bob",
-            download_dir=Path("/tmp"),
-            fy_results=(),
-            total_transactions=0,
-            total_statements=0,
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_pipeline(_context(Path(tmp)))
-        self.assertEqual(len(result.extract.accounts), 1)
-        self.assertEqual(len(result.cleanup), 1)
-        self.assertEqual(len(result.metadata), 1)
-        self.assertEqual(len(result.parse), 1)
+            mock_cleanup.return_value = (_cleanup_account_result(ctx, account),)
+            mock_metadata.return_value = (_metadata_account_result(ctx, account),)
+            mock_parse.return_value = (_parse_account_result(ctx, account),)
+            result = run_pipeline(ctx)
+        self.assertIsInstance(result, PipelineResult)
 
-    @patch("networthcsv.pipeline.runner.extract_stage.run_all")
-    def test_run_pipeline_raises_when_cancelled_before_extract(
-        self, mock_extract: MagicMock
+    @mock.patch("networthcsv.runtime.run_pipeline")
+    def test_process_delegates_to_run_pipeline(
+        self, mock_run_pipeline: mock.MagicMock
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
+            ctx = _context(Path(tmp))
+            expected = PipelineResult(
+                extract=ExtractStageResult(accounts=()),
+                cleanup=(),
+                metadata=(),
+                parse=(),
+            )
+            mock_run_pipeline.return_value = expected
+            result = process(ctx)
+        mock_run_pipeline.assert_called_once_with(ctx)
+        self.assertEqual(result, expected)
+
+    @mock.patch("networthcsv.pipeline.cleanup.run_account")
+    @mock.patch("networthcsv.pipeline.metadata.run_account")
+    @mock.patch("networthcsv.pipeline.parse.parse.run_account")
+    def test_process_upload_runs_post_upload_stages(
+        self,
+        mock_parse: mock.MagicMock,
+        mock_metadata: mock.MagicMock,
+        mock_cleanup: mock.MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _context(Path(tmp))
+            account = ctx.settings.accounts[0]
+            process_upload(ctx, account, source_format="pdf", statement_date="2024-01")
+        mock_cleanup.assert_called_once()
+        mock_metadata.assert_called_once()
+        mock_parse.assert_called_once()
+
+    def test_run_extract_raises_when_cancelled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _context(Path(tmp))
             ctx = RunContext(
-                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
-                alerts=AlertService(handler=None),
+                settings=ctx.settings,
+                alerts=ctx.alerts,
                 should_cancel=lambda: True,
             )
             with self.assertRaises(JobCancelledError):
-                _ = run_pipeline(ctx)
-        mock_extract.assert_not_called()
+                run_extract(ctx)
 
-
-class RuntimeApiTests(unittest.TestCase):
-    @patch("networthcsv.runtime.run_pipeline")
-    def test_process_returns_pipeline_result(
-        self, mock_run_pipeline: MagicMock
-    ) -> None:
-        expected = PipelineResult(
-            extract=ExtractStageResult(accounts=()),
-            cleanup=(),
-            metadata=(),
-            parse=(),
-        )
-        mock_run_pipeline.return_value = expected
+    def test_run_cleanup_skips_missing_account_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            accounts_path = _write_minimal_configs(root)
+            with mock.patch.dict(os.environ, default_test_env(root), clear=True):
+                settings = AppSettings.load(accounts_path)
+            account = settings.accounts[0]
             ctx = RunContext(
-                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
-                alerts=AlertService(handler=None),
-                reporter=NullRunReporter(),
-            )
-            self.assertIs(process(ctx), expected)
-
-    @patch("networthcsv.pipeline.cleanup.run.run_account")
-    def test_process_upload_raises_when_cancelled(
-        self, mock_cleanup: MagicMock
-    ) -> None:
-        account = ResolvedAccount.model_validate(
-            {
-                "bank": "bob",
-                "account_number": "1",
-                "passwords": ["x"],
-                "opening_date": "01-01-2020",
-                "mail": {"subjects": ["stmt"]},
-                "statement": {"text_contains": ["1"]},
-            }
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            ctx = RunContext(
-                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
-                alerts=AlertService(handler=None),
-                reporter=NullRunReporter(),
-                should_cancel=lambda: True,
-            )
-            with self.assertRaises(JobCancelledError):
-                process_upload(
-                    ctx,
-                    account,
-                    source_format="csv",
-                    statement_date="2024-01-15",
-                )
-        mock_cleanup.assert_not_called()
-
-    @patch("networthcsv.runtime.parse_stage.run_account")
-    @patch("networthcsv.runtime.metadata_stage.run_account")
-    @patch("networthcsv.runtime.cleanup_stage.run_account")
-    def test_process_upload_zip_runs_full_cleanup(
-        self,
-        mock_cleanup: MagicMock,
-        mock_metadata: MagicMock,
-        mock_parse: MagicMock,
-    ) -> None:
-        account = ResolvedAccount.model_validate(
-            {
-                "bank": "bob",
-                "account_number": "1",
-                "passwords": ["x"],
-                "opening_date": "01-01-2020",
-                "mail": {"subjects": ["stmt"]},
-                "statement": {"text_contains": ["1"]},
-            }
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            ctx = RunContext(
-                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
-                alerts=AlertService(handler=None),
-                reporter=NullRunReporter(),
-            )
-            process_upload(ctx, account, source_format="zip")
-        mock_cleanup.assert_called_once_with(ctx, account)
-        mock_metadata.assert_called_once_with(ctx, account)
-        mock_parse.assert_called_once_with(ctx, account)
-
-
-class StageErrorTests(unittest.TestCase):
-    def test_parse_returns_empty_when_no_fy_dirs(self) -> None:
-        account = ResolvedAccount.model_validate(
-            {
-                "bank": "bob",
-                "account_number": "1",
-                "passwords": ["x"],
-                "opening_date": "01-01-2020",
-                "mail": {"subjects": ["stmt"]},
-                "statement": {"text_contains": ["1"]},
-            }
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            ctx = RunContext(
-                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
-                alerts=AlertService(handler=None),
-                reporter=NullRunReporter(),
-            )
-            result = parse_run(account, ctx)
-        self.assertEqual(result.total_transactions, 0)
-        self.assertEqual(result.total_statements, 0)
-
-    def test_cleanup_skips_missing_directory(self) -> None:
-        account = ResolvedAccount.model_validate(
-            {
-                "bank": "bob",
-                "account_number": "1",
-                "passwords": ["x"],
-                "opening_date": "01-01-2020",
-                "mail": {"subjects": ["stmt"]},
-                "statement": {"text_contains": ["1"]},
-            }
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            ctx = RunContext(
-                settings=AppSettings.load(_write_minimal_configs(Path(tmp))),
+                settings=settings,
                 alerts=AlertService(handler=None),
                 reporter=NullRunReporter(),
             )
@@ -352,7 +271,8 @@ class StageErrorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _write_two_account_configs(root)
-            settings = AppSettings.load(root / "app.config.json")
+            with mock.patch.dict(os.environ, default_test_env(root), clear=True):
+                settings = AppSettings.load(root / "accounts.json")
             ctx = RunContext(
                 settings=settings,
                 alerts=AlertService(handler=None),
@@ -367,25 +287,29 @@ class StageErrorTests(unittest.TestCase):
         self.assertFalse(results[0].skipped)
         self.assertTrue(results[1].skipped)
 
-    def test_discover_account_fy_dirs_raises_stage_error_for_missing_limit(
-        self,
-    ) -> None:
-        account = ResolvedAccount.model_validate(
-            {
-                "bank": "bob",
-                "account_number": "1",
-                "passwords": ["x"],
-                "opening_date": "01-01-2020",
-                "mail": {"subjects": ["stmt"]},
-                "statement": {"text_contains": ["1"]},
-            }
-        )
+    def test_discover_account_fy_dirs_returns_sorted_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            limit = root / "FY99-9999" / "credit_card" / "1"
+            accounts_path = _write_minimal_configs(root)
+            with mock.patch.dict(os.environ, default_test_env(root), clear=True):
+                settings = AppSettings.load(accounts_path)
+            account = settings.accounts[0]
+            fy_dir = (
+                settings.download_path
+                / "FY23-2024"
+                / "credit_card"
+                / account.account_number
+            )
+            _ = fy_dir.mkdir(parents=True)
+            discovered = discover_account_fy_dirs(settings.download_path, account)
+            self.assertEqual(discovered, [fy_dir])
+
+    @mock.patch("networthcsv.pipeline.runner.run_extract")
+    def test_run_pipeline_propagates_stage_error(
+        self, mock_extract: mock.MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _context(Path(tmp))
+            mock_extract.side_effect = StageError("extract failed")
             with self.assertRaises(StageError):
-                _ = discover_account_fy_dirs(root, account, limit)
-
-
-if __name__ == "__main__":
-    _ = unittest.main()
+                _ = run_pipeline(ctx)

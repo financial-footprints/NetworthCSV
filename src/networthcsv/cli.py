@@ -53,7 +53,7 @@ def _build_run_parser() -> argparse.ArgumentParser:
         "--config",
         dest="config_path",
         metavar="PATH",
-        help="Path to app.config.json (default: repo root or NETWORTHCSV_CONFIG)",
+        help="Path to accounts.json (default: ACCOUNT_CONFIG_PATH)",
     )
     return parser
 
@@ -92,11 +92,13 @@ def apply_run_overrides(
 def load_context(
     *,
     config_path: str | Path | None = None,
+    settings: AppSettings | None = None,
     run_overrides: RunSettings | Mapping[str, object] | None = None,
     reporter: RunReporter | None = None,
     should_cancel: CancelChecker | None = None,
 ) -> RunContext:
-    settings = AppSettings.load(config_path)
+    if settings is None:
+        settings = AppSettings.load(config_path)
     settings = apply_run_overrides(settings, run_overrides)
     configure_logging(settings.log_level)
     return RunContext(

@@ -1,31 +1,30 @@
-"""Runtime AppSettings loaded from app.config.json and user.config.json."""
+"""Runtime AppSettings loaded from accounts.json and environment variables."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from datetime import date
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from networthcsv.logging import LogLevel
 from networthcsv.settings._load import (
     CONFIG_ENV_VAR,
     DEFAULT_CONFIG_PATH,
     config_error,
-    load_app_config_data,
-    load_json_object,
+    load_accounts_json,
     resolve_config_path,
 )
+from networthcsv.settings.env_settings import EnvSettings, load_env_settings
 from networthcsv.settings.models import (
     AlertSettings,
-    AppConfig,
     EmailSource,
     ResolvedAccount,
     RunSettings,
     ThunderbirdSource,
     UserAccountConfig,
-    UserConfig,
+    parse_accounts_config,
+    reject_duplicate_accounts,
 )
 from networthcsv.utils.account import account_label_from_parts
 from networthcsv.utils.banks.account_matching import AccountMatching, MatchingFields
@@ -45,7 +44,6 @@ class AppSettings:
     alerts: AlertSettings | None
     run: RunSettings
     log_level: LogLevel = "info"
-    start_date: date | None = None
 
     @classmethod
     def resolve_config_path(cls, override: str | Path | None = None) -> Path:
@@ -53,17 +51,24 @@ class AppSettings:
 
     @classmethod
     def load(cls, config_path: str | Path | None = None) -> AppSettings:
-        resolved_app_config = resolve_config_path(config_path)
-        app_config = _load_app_config(resolved_app_config)
-        user_config = _load_user_config(app_config.user_config)
+        resolved_config = resolve_config_path(config_path)
         try:
-            return _merge_settings(app_config, user_config)
+            accounts = parse_accounts_config(load_accounts_json(resolved_config))
+            env_settings = load_env_settings()
+            return _build_settings(accounts, env_settings)
         except (ValidationError, ValueError, TypeError) as exc:
-            raise config_error(
-                app_config.user_config,
-                exc,
-                context=f"app: {resolved_app_config}",
-            ) from exc
+            raise config_error(resolved_config, exc) from exc
+
+    @classmethod
+    def from_user_accounts(
+        cls,
+        accounts: Sequence[UserAccountConfig] | Sequence[object],
+        *,
+        allow_empty: bool = False,
+    ) -> AppSettings:
+        parsed = _normalize_user_accounts(accounts, allow_empty=allow_empty)
+        env_settings = load_env_settings()
+        return _build_settings(parsed, env_settings)
 
     def accounts_to_run(self) -> list[ResolvedAccount]:
         if self.run.identifier is None:
@@ -82,6 +87,24 @@ class AppSettings:
         updated = replace(self, run=run)
         updated.validate_run_filter()
         return updated
+
+
+def _normalize_user_accounts(
+    accounts: Sequence[UserAccountConfig] | Sequence[object],
+    *,
+    allow_empty: bool,
+) -> list[UserAccountConfig]:
+    if not accounts:
+        if allow_empty:
+            return []
+        raise ValueError("accounts config must contain at least one account")
+    if isinstance(accounts[0], UserAccountConfig):
+        parsed: list[UserAccountConfig] = list(
+            cast(Sequence[UserAccountConfig], accounts)
+        )
+        reject_duplicate_accounts(parsed)
+        return parsed
+    return parse_accounts_config(list(accounts), allow_empty=allow_empty)
 
 
 def _known_bank_names() -> str:
@@ -128,17 +151,20 @@ def _validate_run_filter(
         raise ValueError(f"run filter matches no account (known: {known})")
 
 
-def _merge_settings(app: AppConfig, user: UserConfig) -> AppSettings:
+def _build_settings(
+    accounts: list[UserAccountConfig],
+    env: EnvSettings,
+) -> AppSettings:
     from networthcsv.utils.banks import get_handler
 
-    accounts: list[ResolvedAccount] = []
-    for index, user_account in enumerate(user.accounts):
+    resolved_accounts: list[ResolvedAccount] = []
+    for index, user_account in enumerate(accounts):
         bank_key = user_account.bank
         label = account_label_from_parts(bank_key, user_account.variant)
         context = f"accounts[{index}] ({label})"
         try:
             defaults = get_handler(bank_key, user_account.variant).matching_defaults()
-            accounts.append(
+            resolved_accounts.append(
                 _resolved_account(user_account, defaults, bank_key=bank_key)
             )
         except KeyError as exc:
@@ -150,29 +176,12 @@ def _merge_settings(app: AppConfig, user: UserConfig) -> AppSettings:
             raise ValueError(f"{context}: {exc}") from exc
 
     settings = AppSettings(
-        source=user.source,
-        download_path=user.download_path,
-        log_level=user.log_level,
-        start_date=user.start_date,
-        accounts=accounts,
-        alerts=user.alerts,
-        run=user.run or RunSettings(),
+        source=env.source,
+        download_path=env.download_path,
+        log_level=env.log_level,
+        accounts=resolved_accounts,
+        alerts=env.alerts,
+        run=RunSettings(),
     )
     settings.validate_run_filter()
     return settings
-
-
-def _load_app_config(config_path: str | Path) -> AppConfig:
-    resolved = Path(config_path).expanduser().resolve()
-    try:
-        return AppConfig.from_json(load_app_config_data(resolved), config_path=resolved)
-    except (ValidationError, ValueError, TypeError) as exc:
-        raise config_error(resolved, exc) from exc
-
-
-def _load_user_config(config_path: str | Path) -> UserConfig:
-    resolved = Path(config_path).expanduser().resolve()
-    try:
-        return UserConfig.from_json(load_json_object(resolved), config_path=resolved)
-    except (ValidationError, ValueError, TypeError) as exc:
-        raise config_error(resolved, exc) from exc

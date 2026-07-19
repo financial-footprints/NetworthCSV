@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from cleanup_support import account as make_account, run_context
+from helpers import account as make_account, run_context
 from networthcsv.pipeline.get_statements import thunderbird as thunderbird_pipeline
 from networthcsv.pipeline.metadata import read_last_fetch_date, write_last_fetch_date
 from networthcsv.utils.account_dates import resolve_account_search_dates
@@ -43,7 +43,6 @@ class ExtractFetchDateTests(unittest.TestCase):
                     download_path
                     / resolved_account.account_type
                     / resolved_account.account_number,
-                    None,
                     ctx,
                 )
 
@@ -64,7 +63,6 @@ class ExtractFetchDateTests(unittest.TestCase):
             last_fetch = read_last_fetch_date(download_path, resolved_account)
             start, _end = resolve_account_search_dates(
                 resolved_account,
-                None,
                 last_fetch_date=last_fetch,
             )
 

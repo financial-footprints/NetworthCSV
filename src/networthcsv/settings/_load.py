@@ -1,4 +1,4 @@
-"""Private JSON/path loading helpers for app and user config."""
+"""Private JSON/path loading helpers for accounts config."""
 
 from __future__ import annotations
 
@@ -7,14 +7,22 @@ import os
 from pathlib import Path
 from typing import cast
 
+from dotenv import dotenv_values
 from networthcsv.errors import ConfigError
 from pydantic import ValidationError
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "app.config.json"
-BASE_APP_CONFIG_FILENAME = "app.config.json"
-LOCAL_APP_CONFIG_FILENAME = "app.config.local.json"
-CONFIG_ENV_VAR = "NETWORTHCSV_CONFIG"
+_DEFAULT_ENV_PATH = _PROJECT_ROOT / ".env"
+DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "accounts.json"
+CONFIG_ENV_VAR = "ACCOUNT_CONFIG_PATH"
+ENV_PATH_VAR = "ENV_NETWORTHCSV"
+ENV_PATH_KEY = "ENV_PATH"
+_MAX_ENV_PATH_DEPTH = 10
+_dotenv_loaded = False
+
+
+def project_root() -> Path:
+    return _PROJECT_ROOT
 
 
 def resolve_path(value: object, base: Path) -> Path:
@@ -22,6 +30,53 @@ def resolve_path(value: object, base: Path) -> Path:
     if not path.is_absolute():
         path = (base / path).resolve()
     return path
+
+
+def _resolve_env_start(override: str | Path | None = None) -> Path:
+    if override is not None:
+        value = str(override).strip()
+        if value:
+            return Path(value).expanduser().resolve()
+
+    env_value = os.environ.get(ENV_PATH_VAR, "").strip()
+    if env_value:
+        return Path(env_value).expanduser().resolve()
+
+    return _DEFAULT_ENV_PATH.resolve()
+
+
+def _load_env_chain(start: Path) -> Path | None:
+    """Load ``start`` and follow ``ENV_PATH`` hops. Returns leaf path, or None if missing."""
+    if not start.is_file():
+        return None
+
+    merged: dict[str, str] = {}
+    leaf = start.resolve()
+    for _ in range(_MAX_ENV_PATH_DEPTH):
+        values = dotenv_values(leaf)
+        for key, value in values.items():
+            if key != ENV_PATH_KEY and value is not None:
+                merged[key] = value
+        hop = (values.get(ENV_PATH_KEY) or "").strip()
+        if not hop:
+            os.environ.update(merged)
+            return leaf
+        leaf = resolve_path(hop, leaf.parent)
+
+    raise ConfigError(f"ENV_PATH chain exceeds maximum depth of {_MAX_ENV_PATH_DEPTH}")
+
+
+def reset_dotenv_state() -> None:
+    global _dotenv_loaded
+    _dotenv_loaded = False
+
+
+def _ensure_dotenv_loaded() -> None:
+    global _dotenv_loaded
+    if _dotenv_loaded:
+        return
+    _ = _load_env_chain(_resolve_env_start())
+    _dotenv_loaded = True
 
 
 def format_exception(exc: Exception) -> str:
@@ -48,7 +103,9 @@ def config_error(
 
 
 def resolve_config_path(override: str | Path | None = None) -> Path:
-    """Resolve app config path: explicit override, then NETWORTHCSV_CONFIG, then default."""
+    """Resolve accounts config path: explicit override, then ACCOUNT_CONFIG_PATH, then default."""
+    _ensure_dotenv_loaded()
+
     if override is not None:
         value = str(override).strip()
         if value:
@@ -61,46 +118,12 @@ def resolve_config_path(override: str | Path | None = None) -> Path:
     return DEFAULT_CONFIG_PATH.resolve()
 
 
-def load_json_object(path: Path) -> dict[str, object]:
+def load_accounts_json(path: Path) -> list[object]:
     if not path.is_file():
         raise ConfigError(f"config not found: {path}")
 
     with path.open(encoding="utf-8") as fh:
         loaded = cast(object, json.load(fh))
-    if not isinstance(loaded, dict):
-        raise ConfigError(f"config must be a JSON object: {path}")
-    return cast(dict[str, object], loaded)
-
-
-def deep_merge_dict(
-    base: dict[str, object],
-    overlay: dict[str, object],
-) -> dict[str, object]:
-    merged = dict(base)
-    for key, overlay_value in overlay.items():
-        base_value = merged.get(key)
-        if isinstance(base_value, dict) and isinstance(overlay_value, dict):
-            merged[key] = deep_merge_dict(
-                cast(dict[str, object], base_value),
-                cast(dict[str, object], overlay_value),
-            )
-        else:
-            merged[key] = overlay_value
-    return merged
-
-
-def is_local_app_config_overlay(path: Path) -> bool:
-    return path.name == LOCAL_APP_CONFIG_FILENAME
-
-
-def load_app_config_data(resolved: Path) -> dict[str, object]:
-    if not is_local_app_config_overlay(resolved):
-        return load_json_object(resolved)
-
-    base_path = resolved.parent / BASE_APP_CONFIG_FILENAME
-    if not base_path.is_file():
-        raise ConfigError(f"app config overlay requires base config: {base_path}")
-
-    base_data = load_json_object(base_path)
-    overlay_data = load_json_object(resolved)
-    return deep_merge_dict(base_data, overlay_data)
+    if not isinstance(loaded, list):
+        raise ConfigError(f"accounts config must be a JSON array: {path}")
+    return cast(list[object], loaded)

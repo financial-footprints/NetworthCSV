@@ -146,7 +146,6 @@ def extract_account(
     last_fetch_date = read_last_fetch_date(ctx.settings.download_path, account)
     effective_start, search_end = resolve_account_search_dates(
         account,
-        ctx.settings.start_date,
         last_fetch_date=last_fetch_date,
     )
 

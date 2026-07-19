@@ -9,8 +9,8 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
-from cleanup_support import account as make_account
-from networthcsv.context import RunContext
+from helpers import account as make_account
+from helpers import run_context
 from networthcsv.pipeline.metadata import (
     BalanceGap,
     StatementMetadata,
@@ -29,15 +29,9 @@ from networthcsv.pipeline.metadata import (
     write_last_fetch_date,
 )
 from networthcsv.pipeline.metadata.persist import write_account_metadata
-from networthcsv.pipeline.reporter import NullRunReporter
 from networthcsv.settings import (
-    AppSettings,
     ResolvedAccount,
-    RunSettings,
-    ThunderbirdSource,
-    ThunderbirdSourceSettings,
 )
-from networthcsv.utils.alerts.service import AlertService
 from networthcsv.utils.banks import get_handler
 from networthcsv.utils.path import (
     account_fy_dir,
@@ -45,22 +39,6 @@ from networthcsv.utils.path import (
     fy_folder_name,
     statement_csv_path,
 )
-
-
-def _run_context(download_path: Path) -> RunContext:
-    return RunContext(
-        settings=AppSettings(
-            source=ThunderbirdSource(
-                thunderbird=ThunderbirdSourceSettings(profile=Path("."))
-            ),
-            download_path=download_path,
-            accounts=[],
-            alerts=None,
-            run=RunSettings(),
-        ),
-        reporter=NullRunReporter(),
-        alerts=AlertService(handler=None),
-    )
 
 
 def _write_statement(
@@ -982,7 +960,7 @@ class RunAccountMetadataTests(unittest.TestCase):
             _ = (fy_dir / "2024-01.pdf").write_bytes(b"%PDF")
             _ = (fy_dir / "2024-01.txt").write_text("x", encoding="utf-8")
 
-            ctx = _run_context(download_path)
+            ctx = run_context(download_path)
             result = run_account(ctx, account)
 
             metadata_path = account_metadata_path(download_path, account)
@@ -1002,7 +980,7 @@ class RunAccountMetadataTests(unittest.TestCase):
             _ = (fy_dir / "2024-01.txt").write_text("x", encoding="utf-8")
             _ = write_last_fetch_date(download_path, account, date(2026, 1, 20))
 
-            ctx = _run_context(download_path)
+            ctx = run_context(download_path)
             _ = run_account(ctx, account)
 
             metadata_path = account_metadata_path(download_path, account)

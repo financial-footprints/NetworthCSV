@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cleanup_support import account as make_account
+from helpers import account as make_account, build_zip
 from networthcsv.pipeline.metadata import build_account_metadata
 from networthcsv.pipeline.upload import (
     StatementFileExistsError,
@@ -20,7 +20,6 @@ from networthcsv.utils.path import (
     statement_csv_path,
     statement_pdf_path,
 )
-from zip_support import build_zip
 
 
 class UploadHelperTests(unittest.TestCase):

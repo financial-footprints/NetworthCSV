@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from cleanup_support import credit_card_handler
+from helpers import credit_card_handler
 
 
 class YesTextCleanupTests(unittest.TestCase):

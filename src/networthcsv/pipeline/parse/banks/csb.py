@@ -24,6 +24,5 @@ class CsbStatementParser:
         return parse_stop_at_end_lines(
             text,
             parse_dd_mon_rs_dr_cr_line,
-            account=account,
             source_file=source_file,
         )

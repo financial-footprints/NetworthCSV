@@ -28,13 +28,13 @@ check:
 	$(UV) run ruff check --fix src tests
 	$(UV) run ruff check src tests
 	$(UV) run basedpyright
-	$(PYTHON) tests/run.py
+	$(PYTHON) -m tests
 
 ci:
 	$(UV) run ruff format --check src tests
 	$(UV) run ruff check src tests
 	$(UV) run basedpyright
-	$(PYTHON) tests/run.py
+	$(PYTHON) -m tests
 
 clean:
 	/usr/bin/rm -rf build dist .ruff_cache

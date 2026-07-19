@@ -107,7 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--config",
         dest="config_path",
         metavar="PATH",
-        help="Path to app.config.json (default: repo root or NETWORTHCSV_CONFIG)",
+        help="Path to accounts.json (default: ACCOUNT_CONFIG_PATH)",
     )
     return parser
 
